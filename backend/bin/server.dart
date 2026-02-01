@@ -48,6 +48,15 @@ Middleware corsHeaders() {
 void main() async {
   final router = Router();
 
+  // Health Check Endpoint
+  router.get('/health', (Request request) async {
+    return Response.ok(jsonEncode({
+      'status': 'healthy',
+      'timestamp': DateTime.now().toIso8601String(),
+      'service': 'FS-Hub Backend'
+    }));
+  });
+
   // Login Endpoint
   router.post('/login', (Request request) async {
     final payload = jsonDecode(await request.readAsString());

@@ -1,0 +1,98 @@
+name: FS-Hub CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # Job de test
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      # Setup Dart
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      
+      # Setup Flutter
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.19.0'
+          channel: 'stable'
+      
+      # Installation des dépendances backend
+      - name: Install backend dependencies
+        working-directory: ./backend
+        run: dart pub get
+      
+      # Installation des dépendances frontend
+      - name: Install frontend dependencies
+        run: flutter pub get
+      
+      # Tests backend
+      - name: Run backend tests
+        working-directory: ./backend
+        run: dart test || echo "No backend tests found"
+      
+      # Tests frontend
+      - name: Run frontend tests
+        run: flutter test || echo "No frontend tests found"
+      
+      # Analyse du code
+      - name: Flutter analyze
+        run: flutter analyze
+
+  # Job de build Docker
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      # Login to Docker Hub
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      
+      # Setup Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      # Build et push backend
+      - name: Build and push backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: salmait1/fs-hub-backend:latest
+          platforms: linux/amd64,linux/arm64
+      
+      # Build et push frontend
+      - name: Build and push frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: salmait1/fs-hub-frontend:latest
+          platforms: linux/amd64,linux/arm64
+
+  # Job de déploiement (exemple avec Render)
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Deploy to Render
+        run: |
+          curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK }}

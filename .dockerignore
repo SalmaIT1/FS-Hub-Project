@@ -1,0 +1,25 @@
+# Fichiers et dossiers à ignorer lors du build Docker
+.git
+.gitignore
+README.md
+.dockerignore
+Dockerfile
+docker-compose.yml
+nginx.conf
+
+# Fichiers de build et cache
+build/
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+*.lock
+
+# Fichiers IDE
+.idea/
+.vscode/
+*.iml
+
+# Fichiers système
+.DS_Store
+Thumbs.db

@@ -77,13 +77,49 @@ FS Hub est une application intelligente de gestion complète pour société info
 - **Analyse comportementale**: Étude des habitudes de paiement clients
 - **Tableaux de bord intelligents**: Aide à la décision
 
+## 🐳 Dockerisation & Déploiement
+
+### Prérequis
+- Docker et Docker Compose installés
+- Compte Docker Hub (optionnel pour le déploiement)
+
+### Développement Local
+```bash
+# Démarrer tous les services
+docker-compose up --build
+
+# Accéder aux services :
+# - Application : http://localhost
+# - Backend API : http://localhost:8080
+# - Base de données : localhost:5432
+# - Adminer (gestion BDD) : http://localhost:8081
+```
+
+### Déploiement avec Docker
+```bash
+# Build des images
+docker build -t fs-hub-backend ./backend
+docker build -t fs-hub-frontend .
+
+# Run avec Docker (sans docker-compose)
+docker run -d -p 8080:8080 fs-hub-backend
+docker run -d -p 80:80 fs-hub-frontend
+```
+
+## 🚀 CI/CD Pipeline
+
+Le projet utilise GitHub Actions pour l'intégration et le déploiement continus :
+- Tests automatiques à chaque push
+- Build Docker automatique sur la branche main
+- Déploiement automatique vers les environnements de production
+
 ## Ressources Disponibles
 
 ### Environnement de Développement
 - ✅ Environnement Flutter configuré
 - ✅ Langages et frameworks backend (API REST)
-- ✅ Base de données MySQL
-- ✅ Outils DevOps : Git, Docker
+- ✅ Base de données PostgreSQL
+- ✅ Outils DevOps : Git, Docker, GitHub Actions
 
 ### Infrastructure
 - ✅ Serveur de test
