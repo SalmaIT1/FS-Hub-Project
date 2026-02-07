@@ -13,7 +13,7 @@ build/
 .packages
 .pub-cache/
 .pub/
-*.lock
+
 
 # Fichiers IDE
 .idea/
@@ -23,3 +23,6 @@ build/
 # Fichiers système
 .DS_Store
 Thumbs.db
+
+# Ignorer le backend pour le build frontend
+backend/

@@ -1,6 +1,7 @@
 services:
   # Backend Dart Server
   backend:
+    image: salmaboubaker/fs-hub-backend:latest
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -9,49 +10,51 @@ services:
     environment:
       - PORT=8080
       - DB_HOST=database
-      - DB_PORT=5432
-      - DB_NAME=fshub_db
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
+      - DB_PORT=3306
+      - DB_NAME=fs_hub_db
+      - DB_USER=root
+      - DB_PASSWORD=admin
     depends_on:
       database:
         condition: service_healthy
     networks:
       - fshub-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 3
 
   # Application Flutter Web
   frontend:
+    image: salmaboubaker/fs-hub-frontend:latest
     build:
       context: .
       dockerfile: Dockerfile
     ports:
       - "80:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     networks:
       - fshub-network
 
-  # Base de données PostgreSQL (pour développement)
+  # Base de données MySQL
   database:
-    image: postgres:15-alpine
+    image: mysql:8.0
+    container_name: fshub_database
     environment:
-      POSTGRES_DB: fshub_db
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      MYSQL_ROOT_PASSWORD: admin
+      MYSQL_DATABASE: fs_hub_db
     ports:
-      - "5432:5432"
+      - "3306:3306"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - mysql_data:/var/lib/mysql
       - ./database_setup.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - fshub-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -70,7 +73,7 @@ services:
       - fshub-network
 
 volumes:
-  postgres_data:
+  mysql_data:
 
 networks:
   fshub-network:

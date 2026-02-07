@@ -59,11 +59,31 @@ FS Hub est une application intelligente de gestion complète pour société info
 - **Framework**: Flutter (multiplateforme)
 - **Interface**: Moderne, ergonomique et responsive
 - **Plateformes supportées**: iOS, Android, Web, Desktop
+- **Services**: Authentification centralisée, API service, Stockage sécurisé
 
 ### Backend
+- **Framework**: Dart Shelf (serveur REST API)
+- **Authentification**: JWT avec gestion de sessions
+- **Base de données**: MySQL avec schéma consolidé
+- **Sécurité**: Tokens JWT, stockage sécurisé des mots de passe
+- **Architecture**: Services centralisés avec contrats API alignés
 - **API**: RESTful
-- **Base de données**: MySQL
+- **Base de données**: MySQL 8.0
 - **Authentification**: Sécurisée avec JWT
+
+## Architecture du Système
+
+### Contrats API Alignés
+- **Endpoints**: /auth/, /demands/, /notifications/, /employees/, /email/
+- **Format de réponse**: JSON standardisé avec succès/erreur
+- **Codes HTTP**: 200 (succès), 401 (non autorisé), 404 (non trouvé), 500 (erreur serveur)
+- **Headers**: Autorisation avec Bearer Token
+
+### Flux Critiques Garantis
+1. **Authentification**: Login → JWT → Profil utilisateur
+2. **Système de Demandes**: Création → Traitement → Notification
+3. **Notifications**: Temps réel → Persistance → Lecture/Non lecture
+4. **CRUD**: Modèles cohérents → Validation → Gestion d'erreurs
 
 ### DevOps
 - **Version control**: Git
@@ -91,7 +111,7 @@ docker-compose up --build
 # Accéder aux services :
 # - Application : http://localhost
 # - Backend API : http://localhost:8080
-# - Base de données : localhost:5432
+# - Base de données : localhost:3306
 # - Adminer (gestion BDD) : http://localhost:8081
 ```
 
@@ -118,7 +138,7 @@ Le projet utilise GitHub Actions pour l'intégration et le déploiement continus
 ### Environnement de Développement
 - ✅ Environnement Flutter configuré
 - ✅ Langages et frameworks backend (API REST)
-- ✅ Base de données PostgreSQL
+- ✅ Base de données MySQL
 - ✅ Outils DevOps : Git, Docker, GitHub Actions
 
 ### Infrastructure

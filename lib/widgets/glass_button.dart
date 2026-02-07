@@ -22,7 +22,11 @@ class GlassButton extends StatelessWidget {
       duration: const Duration(milliseconds: 200),
       opacity: onPressed == null || isLoading ? 0.6 : 1.0,
       child: Container(
-        width: double.infinity,
+        constraints: const BoxConstraints(
+          minWidth: 120,
+          maxWidth: double.infinity,
+          minHeight: 54,
+        ),
         height: 54,
         decoration: BoxDecoration(
           gradient: isPrimary

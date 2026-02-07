@@ -9,6 +9,11 @@ class AppTheme {
 
   static ThemeData get glassDarkTheme => _buildTheme(Brightness.dark);
   static ThemeData get glassLightTheme => _buildTheme(Brightness.light);
+  
+  static TextStyle get bodyText => const TextStyle(
+    fontSize: 14,
+    color: Colors.white70,
+  );
 
   static ThemeData _buildTheme(Brightness brightness) {
     final isDark = brightness == Brightness.dark;
@@ -74,6 +79,13 @@ class AppTheme {
           color: isDark ? Colors.white70 : Colors.black87,
           fontSize: 14,
         ),
+      ),
+      primaryTextTheme: const TextTheme(
+        bodyMedium: TextStyle(fontSize: 14),
+      ).copyWith(
+        bodyLarge: const TextStyle(fontSize: 16),
+        bodyMedium: const TextStyle(fontSize: 14),
+        bodySmall: const TextStyle(fontSize: 12),
       ),
     );
   }

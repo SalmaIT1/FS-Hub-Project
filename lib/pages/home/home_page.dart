@@ -4,6 +4,8 @@ import '../../widgets/glass_card.dart';
 import '../../widgets/luxury/luxury_app_bar.dart';
 import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
+import '../../services/employee_service.dart';
+import '../../routes/app_routes.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -13,7 +15,12 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   String _greetingName = 'User';
+  int _pendingDemandsCount = 0;
+  int _notificationCount = 0;
+  String? _userRole;
+  String? _userId;
 
   @override
   void initState() {
@@ -23,52 +30,81 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _loadUserData() async {
     final name = await AuthService.getGreetingName();
+    final user = await AuthService.getCurrentUser();
+    
     if (mounted) {
       setState(() {
         _greetingName = name;
+        _userRole = user?['role'];
+        _userId = user?['id'];
       });
     }
+    
+    // Load dashboard data after user data is loaded
+    _loadDashboardData();
+  }
+
+  Future<void> _loadDashboardData() async {
+    try {
+      // Load pending demands count
+      final demandsResult = await EmployeeService.getAllDemands(status: 'pending');
+      if (demandsResult['success']) {
+        final List<dynamic> demands = demandsResult['data'];
+        
+        if (_userRole != 'Admin') {
+          // For non-admins, only count their own pending demands
+          final user = await AuthService.getCurrentUser();
+          if (user != null) {
+            final userId = user['id'];
+            demands.removeWhere((demand) => demand['requesterId'] != userId);
+          }
+        }
+        
+        if (mounted) {
+          setState(() {
+            _pendingDemandsCount = demands.length;
+          });
+        }
+      }
+      
+      // Load notification count
+      final currentUser = await AuthService.getCurrentUser();
+      if (currentUser != null) {
+        final userId = currentUser['id'];
+        final notificationsResult = await EmployeeService.getUserNotifications(userId);
+        if (notificationsResult['success']) {
+          final List<dynamic> notifications = notificationsResult['data'];
+          final unreadCount = notifications.where((n) => !n['isRead']).length;
+          
+          if (mounted) {
+            setState(() {
+              _notificationCount = unreadCount;
+            });
+          }
+        }
+      }
+    } catch (e) {
+      print('Error loading dashboard data: $e');
+    }
+  }
+
+  String _getGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return LuxuryScaffold(
-      title: 'FS HUB',
-      subtitle: 'Good evening, $_greetingName',
-      actions: [
-        LuxuryAppBarAction(
-          icon: Icons.wb_sunny_outlined,
-          onPressed: () {
-            AppTheme.themeNotifier.value = ThemeMode.light;
-          },
-        ),
-        const SizedBox(width: 8),
-        LuxuryAppBarAction(
-          icon: Icons.person_outline,
-          onPressed: () {},
-        ),
-        const SizedBox(width: 8),
-        LuxuryAppBarAction(
-          icon: Icons.power_settings_new_outlined,
-          onPressed: () async {
-            await AuthService.logout();
-            if (mounted) Navigator.pushReplacementNamed(context, '/login');
-          },
-        ),
-      ],
-      leading: Container(
-        width: 32,
-        height: 32,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.04),
-        ),
-        child: Image.asset(
-          'assets/images/logo.png',
-          fit: BoxFit.contain,
-        ),
+    return Scaffold(
+      appBar: LuxuryAppBar(
+        title: 'FS Hub',
+        subtitle: '${_getGreeting()}, ${_greetingName.isNotEmpty ? _greetingName : 'User'}',
+        showBackButton: false,
+        isPremium: true,
       ),
       body: Container(
         decoration: BoxDecoration(
@@ -82,74 +118,131 @@ class _HomePageState extends State<HomePage> {
         ),
         child: SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.only(top: 80, left: 20, right: 20, bottom: 40),
+            padding: const EdgeInsets.only(left: 20, right: 20),
             child: LayoutBuilder(
               builder: (context, constraints) {
                 int crossAxisCount = 2;
                 if (constraints.maxWidth > 800) crossAxisCount = 4;
                 if (constraints.maxWidth > 1200) crossAxisCount = 6;
                 
-                return GridView.count(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisCount: crossAxisCount,
-                  mainAxisSpacing: 16,
-                  crossAxisSpacing: 16,
-                  childAspectRatio: 1.1,
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    GlassCard(
-                      title: 'Employees',
-                      caption: 'Staff & Roles',
-                      icon: Icons.badge_outlined,
-                      onTap: () => Navigator.pushNamed(context, '/employees'),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 20.0),
+                      child: Text(
+                        'Operations Overview',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.5,
+                          color: isDark ? Colors.white.withOpacity(0.9) : Colors.black.withOpacity(0.9),
+                        ),
+                      ),
                     ),
-                    GlassCard(
-                      title: 'Projects',
-                      caption: 'Active Labs',
-                      icon: Icons.biotech_outlined,
-                      onTap: () => Navigator.pushNamed(context, '/projects'),
+                    // Primary modules (larger cards)
+                    GridView.count(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisCount: crossAxisCount,
+                      mainAxisSpacing: 16,
+                      crossAxisSpacing: 16,
+                      childAspectRatio: 1.1,
+                      children: [
+                        GlassCard(
+                          title: 'Employees',
+                          caption: 'Staff & Roles',
+                          icon: Icons.badge_outlined,
+                          onTap: () => Navigator.pushNamed(context, '/employees'),
+                          isPrimary: true,
+                        ),
+                        GlassCard(
+                          title: 'Projects',
+                          caption: 'Active Labs',
+                          icon: Icons.biotech_outlined,
+                          onTap: () => Navigator.pushNamed(context, '/demands'),
+                          isPrimary: true,
+                        ),
+                        GlassCard(
+                          title: 'Demands',
+                          caption: 'Requests',
+                          icon: Icons.assignment_outlined,
+                          onTap: () => Navigator.pushNamed(context, '/demands'),
+                          isPrimary: true,
+                        ),
+                        GlassCard(
+                          title: 'Finance',
+                          caption: 'Capital & Yield',
+                          icon: Icons.account_balance_outlined,
+                          onTap: () => Navigator.pushNamed(context, '/notifications'),
+                          isPrimary: true,
+                        ),
+                      ],
                     ),
-                    GlassCard(
-                      title: 'Tasks',
-                      caption: 'Pipeline',
-                      icon: Icons.checklist_rtl_outlined,
-                      onTap: () => Navigator.pushNamed(context, '/tasks'),
+                    // Secondary modules
+                    Padding(
+                      padding: const EdgeInsets.only(top: 20.0, bottom: 10.0),
+                      child: Text(
+                        'Support Modules',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: 0.3,
+                          color: isDark ? Colors.white.withOpacity(0.7) : Colors.black.withOpacity(0.7),
+                        ),
+                      ),
                     ),
-                    GlassCard(
-                      title: 'Finance',
-                      caption: 'Capital & Yield',
-                      icon: Icons.account_balance_outlined,
-                      onTap: () => Navigator.pushNamed(context, '/finance'),
-                    ),
-                    GlassCard(
-                      title: 'Clients',
-                      caption: 'Partnerships',
-                      icon: Icons.handshake_outlined,
-                      onTap: () => Navigator.pushNamed(context, '/clients'),
-                    ),
-                    GlassCard(
-                      title: 'Invoices',
-                      caption: 'Settlements',
-                      icon: Icons.request_quote_outlined,
-                      onTap: () => Navigator.pushNamed(context, '/invoices'),
-                    ),
-                    GlassCard(
-                      title: 'Reports',
-                      caption: 'Analytics',
-                      icon: Icons.analytics_outlined,
-                      onTap: () => Navigator.pushNamed(context, '/reports'),
-                    ),
-                    GlassCard(
-                      title: 'Messages',
-                      caption: 'Collaboration',
-                      icon: Icons.alternate_email_outlined,
-                      onTap: () => Navigator.pushNamed(context, '/chat'),
-                    ),
-                    GlassCard(
-                      title: 'Settings',
-                      caption: 'Preferences',
-                      icon: Icons.tune_outlined,
-                      onTap: () => Navigator.pushNamed(context, '/settings'),
+                    GridView.count(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisCount: crossAxisCount,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                      childAspectRatio: 1.0,
+                      children: [
+                        GlassCard(
+                          title: 'Tasks',
+                          caption: 'Pipeline',
+                          icon: Icons.checklist_rtl_outlined,
+                          onTap: () => Navigator.pushNamed(context, '/demands'),
+                        ),
+                        GlassCard(
+                          title: 'Clients',
+                          caption: 'Partnerships',
+                          icon: Icons.handshake_outlined,
+                          onTap: () => Navigator.pushNamed(context, '/employees'),
+                        ),
+                        GlassCard(
+                          title: 'Invoices',
+                          caption: 'Settlements',
+                          icon: Icons.request_quote_outlined,
+                          onTap: () => Navigator.pushNamed(context, '/notifications'),
+                        ),
+                        GlassCard(
+                          title: 'Reports',
+                          caption: 'Analytics',
+                          icon: Icons.analytics_outlined,
+                          onTap: () => Navigator.pushNamed(context, '/notifications'),
+                        ),
+                        GlassCard(
+                          title: 'Messages',
+                          caption: 'Collaboration',
+                          icon: Icons.alternate_email_outlined,
+                          onTap: () => Navigator.pushNamed(context, '/chat'),
+                        ),
+                        GlassCard(
+                          title: 'Profile',
+                          caption: 'My Account',
+                          icon: Icons.person_outlined,
+                          onTap: () => Navigator.pushNamed(context, '/settings'),
+                        ),
+                        GlassCard(
+                          title: 'Settings',
+                          caption: 'Preferences',
+                          icon: Icons.tune_outlined,
+                          onTap: () => Navigator.pushNamed(context, '/settings'),
+                        ),
+                      ],
                     ),
                   ],
                 );

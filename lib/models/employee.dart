@@ -90,7 +90,7 @@ class Employee {
       username: json['username'],
       role: json['role'],
       permissions: permissionsList,
-      avatarUrl: json['avatarUrl'],
+      avatarUrl: json['avatarUrl'] ?? json['photo'], // Use 'photo' from backend as 'avatarUrl'
       photo: json['photo'],
     );
   }

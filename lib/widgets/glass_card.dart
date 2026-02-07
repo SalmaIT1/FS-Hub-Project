@@ -6,6 +6,7 @@ class GlassCard extends StatefulWidget {
   final String caption;
   final IconData icon;
   final VoidCallback onTap;
+  final bool isPrimary;
 
   const GlassCard({
     super.key,
@@ -13,6 +14,7 @@ class GlassCard extends StatefulWidget {
     required this.caption,
     required this.icon,
     required this.onTap,
+    this.isPrimary = false,
   });
 
   @override
@@ -38,28 +40,28 @@ class _GlassCardState extends State<GlassCard> {
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
             child: Container(
-              constraints: const BoxConstraints(minHeight: 110),
+              constraints: BoxConstraints(minHeight: widget.isPrimary ? 130 : 110),
               decoration: BoxDecoration(
                 color: isDark 
-                    ? Colors.white.withOpacity(0.08)
-                    : Colors.black.withOpacity(0.04),
+                    ? (widget.isPrimary ? Colors.white.withOpacity(0.12) : Colors.white.withOpacity(0.08))
+                    : (widget.isPrimary ? Colors.black.withOpacity(0.08) : Colors.black.withOpacity(0.04)),
                 borderRadius: BorderRadius.circular(18),
                 border: Border.all(
                   color: isDark 
-                      ? Colors.white.withOpacity(0.12)
-                      : Colors.black.withOpacity(0.08),
-                  width: 1.0,
+                      ? (widget.isPrimary ? Colors.white.withOpacity(0.16) : Colors.white.withOpacity(0.12))
+                      : (widget.isPrimary ? Colors.black.withOpacity(0.12) : Colors.black.withOpacity(0.08)),
+                  width: widget.isPrimary ? 1.2 : 1.0,
                 ),
                 boxShadow: [
-                  if (_isPressed)
+                  if (_isPressed || widget.isPrimary)
                     BoxShadow(
-                      color: const Color(0xFFD4AF37).withOpacity(0.2),
-                      blurRadius: 15,
-                      spreadRadius: 1,
+                      color: const Color(0xFFD4AF37).withOpacity(widget.isPrimary ? 0.3 : 0.2),
+                      blurRadius: widget.isPrimary ? 18 : 15,
+                      spreadRadius: widget.isPrimary ? 1.5 : 1,
                     ),
                 ],
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: widget.isPrimary ? 16 : 14),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -87,9 +89,9 @@ class _GlassCardState extends State<GlassCard> {
                         widget.title.toUpperCase(),
                         style: TextStyle(
                           color: isDark ? Colors.white : Colors.black,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.8,
+                          fontSize: widget.isPrimary ? 13 : 12,
+                          fontWeight: FontWeight.w800, // Increased font weight
+                          letterSpacing: widget.isPrimary ? 1.0 : 0.8,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -97,9 +99,9 @@ class _GlassCardState extends State<GlassCard> {
                         widget.caption,
                         style: TextStyle(
                           color: isDark 
-                              ? Colors.white.withOpacity(0.4)
-                              : Colors.black.withOpacity(0.5),
-                          fontSize: 10,
+                              ? Colors.white.withOpacity(0.5) // Reduced opacity for clearer hierarchy
+                              : Colors.black.withOpacity(0.6),
+                          fontSize: widget.isPrimary ? 11 : 10,
                           fontWeight: FontWeight.w400,
                         ),
                         maxLines: 1,

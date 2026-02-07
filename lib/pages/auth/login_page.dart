@@ -60,11 +60,6 @@ class _GlassLoginPageState extends State<GlassLoginPage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Hero(
-                  tag: 'logo',
-                  child: Image.asset('assets/images/logo.png', height: 80),
-                ),
-                const SizedBox(height: 40),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(24),
                   child: BackdropFilter(
@@ -100,11 +95,25 @@ class _GlassLoginPageState extends State<GlassLoginPage> {
                             ),
                             const SizedBox(height: 32),
                             if (_errorMessage != null)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 16),
-                                child: Text(
-                                  _errorMessage!,
-                                  style: const TextStyle(color: Colors.redAccent, fontSize: 13),
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                margin: const EdgeInsets.only(bottom: 16),
+                                decoration: BoxDecoration(
+                                  color: Colors.red.shade50.withOpacity(0.8),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.red.shade200),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.error_outline, color: Colors.red.shade700, size: 16),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        _errorMessage!,
+                                        style: TextStyle(color: Colors.red.shade700, fontSize: 13),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             GlassTextField(
@@ -134,9 +143,12 @@ class _GlassLoginPageState extends State<GlassLoginPage> {
                               alignment: Alignment.centerRight,
                               child: TextButton(
                                 onPressed: () => Navigator.pushNamed(context, AppRoutes.resetPassword),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: const Color(0xFFD4AF37),
+                                ),
                                 child: Text(
                                   'Forgot password?',
-                                  style: TextStyle(color: const Color(0xFFD4AF37).withOpacity(0.8), fontSize: 13),
+                                  style: TextStyle(color: const Color(0xFFD4AF37), fontSize: 13, fontWeight: FontWeight.w500),
                                 ),
                               ),
                             ),
@@ -159,11 +171,19 @@ class _GlassLoginPageState extends State<GlassLoginPage> {
                             ),
                             const SizedBox(height: 24),
                             Center(
-                              child: TextButton(
+                              child: OutlinedButton(
                                 onPressed: () {},
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: const Color(0xFFD4AF37),
+                                  side: BorderSide(color: const Color(0xFFD4AF37).withOpacity(0.5)),
+                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
                                 child: const Text(
                                   'Sign in with SSO',
-                                  style: TextStyle(color: Colors.white54, fontSize: 13),
+                                  style: TextStyle(fontSize: 13),
                                 ),
                               ),
                             ),
@@ -172,6 +192,11 @@ class _GlassLoginPageState extends State<GlassLoginPage> {
                       ),
                     ),
                   ),
+                ),
+                const SizedBox(height: 40),
+                Hero(
+                  tag: 'logo',
+                  child: Image.asset('assets/images/logo.png', height: 120),
                 ),
               ],
             ),

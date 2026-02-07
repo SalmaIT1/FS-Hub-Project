@@ -1,6 +1,10 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import '../../services/auth_service.dart';
+import '../../services/employee_service.dart';
+import '../../theme/app_theme.dart';
+import '../notification_badge.dart';
 
 class LuxuryAppBar extends StatefulWidget implements PreferredSizeWidget {
   final String title;
@@ -40,10 +44,12 @@ class _LuxuryAppBarState extends State<LuxuryAppBar> with TickerProviderStateMix
   late Animation<double> _blurAnimation;
   bool _isVisible = true;
   double _lastOffset = 0;
+  int _notificationCount = 0;
 
   @override
   void initState() {
     super.initState();
+    _loadNotificationCount();
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 200),
       vsync: this,
@@ -58,6 +64,28 @@ class _LuxuryAppBarState extends State<LuxuryAppBar> with TickerProviderStateMix
 
     if (widget.scrollController != null) {
       widget.scrollController!.addListener(_handleScroll);
+    }
+  }
+
+  Future<void> _loadNotificationCount() async {
+    try {
+      final currentUser = await AuthService.getCurrentUser();
+      if (currentUser != null) {
+        final userId = currentUser['id'];
+        final notificationsResult = await EmployeeService.getUserNotifications(userId);
+        if (notificationsResult['success']) {
+          final List<dynamic> notifications = notificationsResult['data'];
+          final unreadCount = notifications.where((n) => !n['isRead']).length;
+          
+          if (mounted) {
+            setState(() {
+              _notificationCount = unreadCount;
+            });
+          }
+        }
+      }
+    } catch (e) {
+      print('Error loading notification count: $e');
     }
   }
 
@@ -156,7 +184,7 @@ class _LuxuryAppBarState extends State<LuxuryAppBar> with TickerProviderStateMix
               sigmaY: _blurAnimation.value * 1.5,
             ),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
+              padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 12.0),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -177,11 +205,103 @@ class _LuxuryAppBarState extends State<LuxuryAppBar> with TickerProviderStateMix
                   Expanded(
                     child: Row(
                       children: [
-                        _buildLeading(context, isDark, isPremium: true),
-                        const SizedBox(width: 16),
-                        _buildPremiumTitleSection(isDark),
-                        const SizedBox(width: 16),
-                        _buildPremiumActions(isDark),
+                        // Brand block (logo and app name)
+                        Expanded(
+                          flex: 3,
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 48,
+                                height: 48,
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [
+                                      const Color(0xFFC9A24D).withValues(alpha: 0.15),
+                                      const Color(0xFFC9A24D).withValues(alpha: 0.05),
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: const Color(0xFFC9A24D).withValues(alpha: 0.3),
+                                    width: 1.0,
+                                  ),
+                                ),
+                                child: widget.leading ?? Container(
+                                  width: 32,
+                                  height: 32,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(8),
+                                    color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.04),
+                                  ),
+                                  child: Image.asset(
+                                    'assets/images/logo.png',
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        widget.title,
+                                        style: TextStyle(
+                                          color: isDark ? const Color(0xFFF4F4F4).withValues(alpha: 1.0) : const Color(0xFF0A0A0A).withValues(alpha: 1.0),
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.w800,
+                                          height: 1.2,
+                                          letterSpacing: 0.8,
+                                        ),
+                                      ),
+                                    ),
+                                    if (widget.subtitle != null)
+                                      Flexible(
+                                        child: Text(
+                                          widget.subtitle!,
+                                          style: TextStyle(
+                                            color: isDark ? const Color(0xFFC9A24D).withValues(alpha: 0.8) : const Color(0xFF666666).withValues(alpha: 0.8),
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w400,
+                                            height: 1.3,
+                                            letterSpacing: 0.3,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              // Subtle brand underline accent
+                              Container(
+                                width: 2,
+                                height: 24,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      const Color(0xFFC9A24D).withValues(alpha: 0.0),
+                                      const Color(0xFFC9A24D).withValues(alpha: 0.5),
+                                      const Color(0xFFC9A24D).withValues(alpha: 0.0),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        // Right side controls - no Expanded, just right-aligned
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          mainAxisSize: MainAxisSize.min,
+                          children: _buildPremiumControls(context, isDark),
+                        ),
                       ],
                     ),
                   ),
@@ -349,6 +469,80 @@ class _LuxuryAppBarState extends State<LuxuryAppBar> with TickerProviderStateMix
     );
   }
 
+  List<Widget> _buildPremiumControls(BuildContext context, bool isDark) {
+    // Create user menu dropdown with theme toggle, settings, logout
+    final userMenu = PopupMenuButton<String>(
+      icon: Icon(Icons.person_outline, color: isDark ? const Color(0xFFC9A24D) : const Color(0xFF0A0A0A)),
+      itemBuilder: (BuildContext context) => [
+        const PopupMenuItem(
+          value: 'theme',
+          child: ListTile(
+            leading: Icon(Icons.wb_sunny_outlined),
+            title: Text('Toggle Theme'),
+          ),
+        ),
+        const PopupMenuItem(
+          value: 'settings',
+          child: ListTile(
+            leading: Icon(Icons.settings_outlined),
+            title: Text('Settings'),
+          ),
+        ),
+        const PopupMenuItem(
+          value: 'logout',
+          child: ListTile(
+            leading: Icon(Icons.power_settings_new_outlined),
+            title: Text('Logout'),
+          ),
+        ),
+      ],
+      onSelected: (String value) async {
+        if (value == 'theme') {
+          final currentTheme = AppTheme.themeNotifier.value;
+          AppTheme.themeNotifier.value = currentTheme == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
+        } else if (value == 'settings') {
+          Navigator.pushNamed(context, '/settings');
+        } else if (value == 'logout') {
+          await AuthService.logout();
+          if (context.mounted) Navigator.pushReplacementNamed(context, '/login');
+        }
+      },
+    );
+
+    List<Widget> controls = [];
+    
+    // Always add notification badge
+    controls.add(NotificationBadge(
+      notificationCount: _notificationCount,
+      onTap: () => Navigator.pushNamed(context, '/notifications'),
+    ));
+    controls.add(const SizedBox(width: 4)); // Reduced spacing
+    
+    // Add notification badge if present in actions
+    if (widget.actions != null) {
+      for (var action in widget.actions!) {
+        // Look for notification badge based on type
+        if (action.runtimeType.toString().contains('NotificationBadge')) {
+          controls.add(Container(
+            width: 48,
+            height: 48,
+            child: action,
+          ));
+          controls.add(const SizedBox(width: 4)); // Reduced spacing
+          break; // Add only the first notification badge
+        }
+      }
+    }
+
+    controls.add(Container(
+      width: 48,
+      height: 48,
+      child: userMenu,
+    ));
+
+    return controls;
+  }
+
   Widget _buildActions(bool isDark) {
     if (widget.actions == null || widget.actions!.isEmpty) {
       return const SizedBox(width: 24);
@@ -445,8 +639,8 @@ class _LuxuryAppBarActionState extends State<LuxuryAppBarAction> with SingleTick
       child: ScaleTransition(
         scale: _scaleAnimation,
         child: Container(
-          width: widget.isPremium ? 40 : 32,
-          height: widget.isPremium ? 40 : 32,
+          width: 48,
+          height: 48,
           margin: const EdgeInsets.symmetric(horizontal: 4),
           decoration: BoxDecoration(
             gradient: widget.isPremium

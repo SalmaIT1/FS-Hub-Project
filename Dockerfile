@@ -1,48 +1,22 @@
-# Utiliser une image Ubuntu avec Flutter pré-installé
-FROM ubuntu:22.04
-
-# Éviter les questions interactives
-ENV DEBIAN_FRONTEND=noninteractive
-
-# Installer les dépendances système
-RUN apt-get update && apt-get install -y \
-    curl \
-    git \
-    unzip \
-    xz-utils \
-    zip \
-    libglu1-mesa \
-    clang \
-    cmake \
-    ninja-build \
-    pkg-config \
-    libgtk-3-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Installer Flutter
-ENV FLUTTER_HOME=/opt/flutter
-ENV PATH="$FLUTTER_HOME/bin:$FLUTTER_HOME/bin/cache/dart-sdk/bin:$PATH"
-
-RUN git clone https://github.com/flutter/flutter.git $FLUTTER_HOME --branch stable --depth 1
-
-# Pré-télécharger les artefacts Dart
-RUN flutter precache
-
-# Accepter les licences
-RUN yes "y" | flutter doctor --android-licenses || true
+# Utiliser une image avec Flutter pré-installé pour éviter les erreurs de dépendances et accélérer le build
+FROM ghcr.io/cirruslabs/flutter:stable AS build
 
 # Définir le répertoire de travail
 WORKDIR /app
 
 # Copier les fichiers de configuration
-COPY pubspec.yaml .
-COPY pubspec.lock .
+COPY pubspec.yaml pubspec.lock ./
 
 # Télécharger les dépendances
+# Note: On ignore les erreurs de precache qui peuvent survenir parfois
 RUN flutter pub get
 
 # Copier le code source
 COPY . .
+
+# S'assurer que le support web est activé et les fichiers générés
+RUN flutter config --enable-web
+RUN flutter create --platforms web .
 
 # Builder l'application en mode release pour web
 RUN flutter build web --release
@@ -53,8 +27,49 @@ FROM nginx:alpine
 # Copier les fichiers build depuis l'étape précédente
 COPY --from=0 /app/build/web /usr/share/nginx/html
 
-# Copier la configuration Nginx personnalisée
-COPY nginx.conf /etc/nginx/nginx.conf
+# Créer la configuration Nginx directement
+RUN echo "events {" > /etc/nginx/nginx.conf && \
+    echo "    worker_connections 1024;" >> /etc/nginx/nginx.conf && \
+    echo "}" >> /etc/nginx/nginx.conf && \
+    echo "" >> /etc/nginx/nginx.conf && \
+    echo "http {" >> /etc/nginx/nginx.conf && \
+    echo "    include /etc/nginx/mime.types;" >> /etc/nginx/nginx.conf && \
+    echo "    default_type application/octet-stream;" >> /etc/nginx/nginx.conf && \
+    echo "" >> /etc/nginx/nginx.conf && \
+    echo "    server {" >> /etc/nginx/nginx.conf && \
+    echo "        listen 80;" >> /etc/nginx/nginx.conf && \
+    echo "        server_name localhost;" >> /etc/nginx/nginx.conf && \
+    echo "        " >> /etc/nginx/nginx.conf && \
+    echo "        root /usr/share/nginx/html;" >> /etc/nginx/nginx.conf && \
+    echo "        index index.html;" >> /etc/nginx/nginx.conf && \
+    echo "        " >> /etc/nginx/nginx.conf && \
+    echo "        location / {" >> /etc/nginx/nginx.conf && \
+    echo "            try_files \$uri \$uri/ /index.html;" >> /etc/nginx/nginx.conf && \
+    echo "        }" >> /etc/nginx/nginx.conf && \
+    echo "        " >> /etc/nginx/nginx.conf && \
+    echo "        # Configuration pour les assets" >> /etc/nginx/nginx.conf && \
+    echo "        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg)\$ {" >> /etc/nginx/nginx.conf && \
+    echo "            expires 1y;" >> /etc/nginx/nginx.conf && \
+    echo "            add_header Cache-Control \"public, immutable\";" >> /etc/nginx/nginx.conf && \
+    echo "        }" >> /etc/nginx/nginx.conf && \
+    echo "        " >> /etc/nginx/nginx.conf && \
+    echo "        # Configuration pour l'API proxy" >> /etc/nginx/nginx.conf && \
+    echo "        location /api/ {" >> /etc/nginx/nginx.conf && \
+    echo "            proxy_pass http://backend:8080/;" >> /etc/nginx/nginx.conf && \
+    echo "            proxy_set_header Host \$host;" >> /etc/nginx/nginx.conf && \
+    echo "            proxy_set_header X-Real-IP \$remote_addr;" >> /etc/nginx/nginx.conf && \
+    echo "            proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;" >> /etc/nginx/nginx.conf && \
+    echo "            proxy_set_header X-Forwarded-Proto \$scheme;" >> /etc/nginx/nginx.conf && \
+    echo "        }" >> /etc/nginx/nginx.conf && \
+    echo "        " >> /etc/nginx/nginx.conf && \
+    echo "        # Gestion des erreurs" >> /etc/nginx/nginx.conf && \
+    echo "        error_page 404 /index.html;" >> /etc/nginx/nginx.conf && \
+    echo "        error_page 500 502 503 504 /50x.html;" >> /etc/nginx/nginx.conf && \
+    echo "        location = /50x.html {" >> /etc/nginx/nginx.conf && \
+    echo "            root /usr/share/nginx/html;" >> /etc/nginx/nginx.conf && \
+    echo "        }" >> /etc/nginx/nginx.conf && \
+    echo "    }" >> /etc/nginx/nginx.conf && \
+    echo "}" >> /etc/nginx/nginx.conf
 
 # Exposer le port 80
 EXPOSE 80

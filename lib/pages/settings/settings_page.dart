@@ -14,8 +14,10 @@ class SettingsPage extends StatelessWidget {
       isPremium: true,
       actions: [
         LuxuryAppBarAction(
-          icon: Icons.help_outline,
-          onPressed: () {},
+          icon: Icons.notifications_outlined,
+          onPressed: () {
+            Navigator.pushNamed(context, '/notifications');
+          },
         ),
       ],
       body: Container(
