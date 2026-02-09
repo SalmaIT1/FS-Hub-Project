@@ -1,184 +1,164 @@
+import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:io';
+import 'package:uuid/uuid.dart';
 import 'package:http/http.dart' as http;
+import 'message_queue.dart';
+import 'rest_fallback_client.dart';
+import 'websocket_client.dart';
+import 'message_store.dart';
 import '../models/message.dart';
-import '../models/conversation.dart';
 
 class MessageService {
-  /// Base URL for the backend.
-  ///
-  /// - On web (Docker/nginx), the backend is exposed behind `/api/` and
-  ///   proxied to the `backend` container on port 8080 (see `nginx.conf`).
-  /// - On mobile/desktop during local development, the backend is usually
-  ///   reachable on `http://localhost:8080`.
-  static final String baseUrl = 'http://localhost:8080';
+  final RESTFallbackClient rest;
+  final WebSocketClient ws;
+  final MessageQueue queue;
+  final MessageStore store;
+  final _uuid = Uuid();
 
-  // Get all conversations for a user
-  static Future<List<Conversation>> getConversations(String userId) async {
+  MessageService({required this.rest, required this.ws, required this.queue, required this.store});
+
+  /// Send a text message. This will not render until server confirms via WS or REST response.
+  Future<void> sendText(String conversationId, String senderId, String text) async {
+    final tempId = _uuid.v4();
+    final payload = {
+      'id': tempId,
+      'conversationId': conversationId,
+      'senderId': senderId,
+      'type': 'text',
+      'content': text,
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+    };
     try {
-      final uri = Uri.parse('$baseUrl/conversations/?userId=$userId');
-      final response = await http.get(
-        uri,
-        headers: const {'Content-Type': 'application/json'},
-      );
-
-      if (response.statusCode == 200) {
-        final jsonData = jsonDecode(response.body);
-        if (jsonData is Map<String, dynamic> && (jsonData['success'] == true)) {
-          final List<dynamic> data = jsonData['data'] ?? [];
-          return data.map((json) => Conversation.fromJson(json)).toList();
-        }
+      // POST to /v1/conversations/{conversationId}/messages with senderId and content
+      final res = await rest.post('/conversations/$conversationId/messages', {
+        'senderId': senderId,
+        'content': text,
+        'type': 'text',
+        'clientMessageId': tempId,
+      });
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        try {
+          final body = res.body;
+          if (body != null && body.isNotEmpty) {
+            final parsed = jsonDecode(body);
+            final msg = parsed is Map && parsed['message'] != null ? parsed['message'] : parsed;
+            if (msg is Map) {
+              final canonical = Message.fromJson(Map<String, dynamic>.from(msg));
+              store.replaceMessage(conversationId, tempId, canonical);
+            }
+          }
+        } catch (_) {}
+        return;
+      } else {
+        // enqueue for retry
+        queue.enqueue(Message.fromJson(payload));
       }
-      return [];
     } catch (e) {
-      print('Error fetching conversations: $e');
-      return [];
+      // offline/failure: enqueue
+      queue.enqueue(Message.fromJson(payload));
     }
   }
 
-  // Get messages in a conversation
-  static Future<List<Message>> getConversationMessages(String conversationId) async {
-    try {
-      final uri = Uri.parse('$baseUrl/conversations/$conversationId/messages/');
-      final response = await http.get(
-        uri,
-        headers: const {'Content-Type': 'application/json'},
-      );
+  /// Send message with attachments. Attachments are list of maps: {path, name, mime, size}
+  Future<Stream<double>> sendWithAttachments(String conversationId, String senderId, String text, List<Map<String, dynamic>> attachments) async {
+    final progressController = StreamController<double>();
+    final tempId = _uuid.v4();
 
-      if (response.statusCode == 200) {
-        final jsonData = jsonDecode(response.body);
-        if (jsonData is Map<String, dynamic> && (jsonData['success'] == true)) {
-          final List<dynamic> data = jsonData['data'] ?? [];
-          return data.map((json) => Message.fromJson(json)).toList();
+    // First: request signed URLs for each attachment
+    final uploadInfos = <Map<String, dynamic>>[];
+    try {
+      for (final a in attachments) {
+        final res = await rest.post('/v1/uploads/signed-url', {'filename': a['name'], 'mime': a['mime'], 'size': a['size']});
+        if (res.statusCode == 200) {
+          uploadInfos.add(Map<String, dynamic>.from(jsonDecode(res.body)));
+        } else {
+          throw Exception('signed-url failed');
         }
       }
-      return [];
-    } catch (e) {
-      print('Error fetching messages: $e');
-      return [];
-    }
-  }
 
-  // Send a new message
-  static Future<Map<String, dynamic>> sendMessage({
-    required String conversationId,
-    required String senderId,
-    required String content,
-  }) async {
-    try {
-      final uri = Uri.parse('$baseUrl/conversations/$conversationId/messages/');  // Updated to match backend route
-      final response = await http.post(
-        uri,
-        headers: const {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'conversationId': conversationId,
+      // perform uploads sequentially and emit progress
+      int total = attachments.length;
+      int done = 0;
+      for (int i = 0; i < attachments.length; i++) {
+        final a = attachments[i];
+        final info = uploadInfos[i];
+        final uploadUrl = info['uploadUrl'] as String;
+        final file = File(a['path']);
+        final bytes = await file.readAsBytes();
+        // perform PUT
+        final putRes = await http.put(Uri.parse(uploadUrl), headers: {'content-type': a['mime'] ?? 'application/octet-stream'}, body: bytes);
+        if (putRes.statusCode != 200 && putRes.statusCode != 201) throw Exception('upload failed');
+        done++;
+        progressController.add(done / total * 0.9);
+
+        // notify server upload complete for this file
+        await rest.post('/v1/uploads/complete', {'uploadId': info['uploadId'], 'conversationId': conversationId, 'messageTempId': tempId, 'meta': a['meta'] ?? {}});
+      }
+
+      // final: send message record to persist references
+      final msgPayload = {
+        'id': tempId,
+        'conversationId': conversationId,
+        'senderId': senderId,
+        'type': 'file',
+        'content': text,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+        'meta': {'attachments': uploadInfos}
+      };
+
+      final res = await rest.post(
+        '/conversations/$conversationId/messages',
+        {
           'senderId': senderId,
-          'content': content,
-        }),
+          'content': text,
+          'type': 'file',
+          'meta': {'attachments': uploadInfos},
+          'clientMessageId': tempId,
+        },
       );
-
-      final jsonData = jsonDecode(response.body);
-
-      if (response.statusCode == 200 &&
-          jsonData is Map<String, dynamic> &&
-          (jsonData['success'] == true)) {
-        return {
-          'success': true,
-          'message': jsonData['message'] ?? 'Message sent successfully',
-          'data': jsonData['data'],
-        };
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        try {
+          final body = res.body;
+          if (body != null && body.isNotEmpty) {
+            final parsed = jsonDecode(body);
+            final msg = parsed is Map && parsed['message'] != null ? parsed['message'] : parsed;
+            if (msg is Map) {
+              final canonical = Message.fromJson(Map<String, dynamic>.from(msg));
+              store.replaceMessage(conversationId, tempId, canonical);
+            }
+          }
+        } catch (_) {}
+        progressController.add(1.0);
+        await progressController.close();
+        return progressController.stream;
+      } else {
+        // enqueue message for later retry
+        queue.enqueue(Message.fromJson(msgPayload));
+        progressController.add(0.0);
+        await progressController.close();
+        return progressController.stream;
       }
-
-      return {
-        'success': false,
-        'message': (jsonData is Map<String, dynamic> ? jsonData['message'] : null) ??
-            'Failed to send message',
-      };
     } catch (e) {
-      print('Error sending message: $e');
-      return {
-        'success': false,
-        'message': 'Network error: ${e.toString()}',
+      // on any failure enqueue and close stream
+      final fallbackMsg = {
+        'id': tempId,
+        'conversationId': conversationId,
+        'senderId': senderId,
+        'type': 'file',
+        'content': text,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+        'meta': {'attachments': attachments}
       };
+      queue.enqueue(Message.fromJson(fallbackMsg));
+      progressController.add(0.0);
+      await progressController.close();
+      return progressController.stream;
     }
   }
 
-  // Mark all messages in conversation as read
-  static Future<Map<String, dynamic>> markConversationAsRead(
-    String conversationId,
-    String userId,
-  ) async {
-    try {
-      final uri = Uri.parse('$baseUrl/conversations/$conversationId/read/');
-      final response = await http.put(
-        uri,
-        headers: const {'Content-Type': 'application/json'},
-        body: jsonEncode({'userId': userId}),
-      );
-
-      final jsonData = jsonDecode(response.body);
-
-      if (response.statusCode == 200 &&
-          jsonData is Map<String, dynamic> &&
-          (jsonData['success'] == true)) {
-        return {
-          'success': true,
-          'message': jsonData['message'] ?? 'Messages marked as read',
-        };
-      }
-
-      return {
-        'success': false,
-        'message': (jsonData is Map<String, dynamic> ? jsonData['message'] : null) ??
-            'Failed to mark messages as read',
-      };
-    } catch (e) {
-      print('Error marking messages as read: $e');
-      return {
-        'success': false,
-        'message': 'Network error: ${e.toString()}',
-      };
-    }
-  }
-
-  // Create or get conversation between two users
-  static Future<Map<String, dynamic>> getOrCreateConversation(
-    String user1Id,
-    String user2Id,
-  ) async {
-    try {
-      final uri = Uri.parse('$baseUrl/conversations/');
-      final response = await http.post(
-        uri,
-        headers: const {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'user1Id': user1Id,
-          'user2Id': user2Id,
-        }),
-      );
-
-      final jsonData = jsonDecode(response.body);
-
-      if (response.statusCode == 200 &&
-          jsonData is Map<String, dynamic> &&
-          (jsonData['success'] == true)) {
-        return {
-          'success': true,
-          'data': jsonData['data'],
-        };
-      }
-
-      return {
-        'success': false,
-        'message': (jsonData is Map<String, dynamic> ? jsonData['message'] : null) ??
-            'Failed to create conversation',
-      };
-    } catch (e) {
-      print('Error creating conversation: $e');
-      return {
-        'success': false,
-        'message': 'Network error: ${e.toString()}',
-      };
-    }
+  /// Emit typing state over WS
+  void sendTyping(String conversationId, String userId, bool typing) {
+    ws.send({'type': 'typing', 'payload': {'conversationId': conversationId, 'userId': userId, 'state': typing ? 'typing' : 'stopped'}});
   }
 }

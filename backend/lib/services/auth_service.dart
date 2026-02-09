@@ -1,10 +1,19 @@
 import 'dart:convert';
 import 'package:dart_jsonwebtoken/dart_jsonwebtoken.dart';
+import 'package:dotenv/dotenv.dart' as dotenv;
 import '../database/db_connection.dart';
 import 'package:mysql_client/mysql_client.dart';
 
 class AuthService {
-  static const String _jwtSecret = 'your_jwt_secret_key_here'; // Should be in environment variables
+  // Secret is read from environment at runtime to avoid hardcoding secrets in code.
+  static String _jwtSecret() {
+    try {
+      final d = dotenv.DotEnv(includePlatformEnvironment: true)..load(['.env']);
+      return d['JWT_SECRET'] ?? '';
+    } catch (_) {
+      return '';
+    }
+  }
   static const Duration _tokenExpiry = Duration(hours: 24);
   static const Duration _refreshTokenExpiry = Duration(days: 7);
 
@@ -34,9 +43,19 @@ class AuthService {
       final userRole = row.colByName('role') as String?;
       final permissions = row.colByName('permissions') as String?;
 
-      // Simple password comparison (in production, use bcrypt or similar)
-      if (password != storedPassword) {
-        return {'success': false, 'message': 'Invalid credentials'};
+      // Password comparison: legacy systems may store plaintext; prefer hashed.
+      // If stored password appears to be a bcrypt hash (starts with "$2"),
+      // production should verify accordingly. For backwards compatibility,
+      // fall back to direct comparison when no hash is present.
+      if (storedPassword.startsWith(r'$2')) {
+        // bcrypt verification not implemented here to avoid adding libraries.
+        // Treat as invalid and require migration if hash format detected but
+        // no verifier is available.
+        return {'success': false, 'message': 'Password verification not available for hashed passwords'};
+      } else {
+        if (password != storedPassword) {
+          return {'success': false, 'message': 'Invalid credentials'};
+        }
       }
 
       // Update last login
@@ -49,8 +68,16 @@ class AuthService {
       final accessToken = _generateAccessToken(userId, userRole ?? 'Employé');
       final refreshToken = _generateRefreshToken(userId);
 
-      // Store refresh token in database (in a real app, you'd have a refresh_tokens table)
-      // For now, we'll just return it without storing
+      // Persist refresh token for revocation and validation
+      try {
+        await conn.execute('INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES (:userId, :token, FROM_UNIXTIME(:exp))', {
+          'userId': userId,
+          'token': refreshToken,
+          'exp': (DateTime.now().add(_refreshTokenExpiry).millisecondsSinceEpoch ~/ 1000).toString(),
+        });
+      } catch (e) {
+        print('Failed to persist refresh token: $e');
+      }
 
       return {
         'success': true,
@@ -76,9 +103,21 @@ class AuthService {
   }
 
   static Future<Map<String, dynamic>> logout(String? token) async {
-    // In a real implementation, you would invalidate the token
-    // For now, we just return success
-    return {'success': true, 'message': 'Logged out successfully'};
+    try {
+      if (token == null) return {'success': true, 'message': 'No token provided'};
+      final payload = verifyToken(token);
+      if (payload == null) return {'success': false, 'message': 'Invalid token'};
+      final userId = payload['userId']?.toString();
+      if (userId == null) return {'success': false, 'message': 'Invalid token payload'};
+
+      final conn = DBConnection.getConnection();
+      await conn.execute('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = :userId', {'userId': userId});
+
+      return {'success': true, 'message': 'Logged out successfully'};
+    } catch (e) {
+      print('Logout error: $e');
+      return {'success': false, 'message': 'Logout failed'};
+    }
   }
 
   static Future<Map<String, dynamic>> refreshToken(String refreshToken) async {
@@ -86,37 +125,59 @@ class AuthService {
       // In a real implementation, you would validate the refresh token against stored tokens
       // For now, we'll just generate a new access token
       
-      // Decode the refresh token to get user ID
-      final jwt = JWT.decode(refreshToken);
-      final userId = jwt.payload['userId'] as String?;
-      
-      if (userId == null) {
+      // Verify refresh token signature and expiry
+      JWT jwt;
+      try {
+        jwt = JWT.verify(refreshToken, SecretKey(_jwtSecret()));
+      } catch (e) {
         return {'success': false, 'message': 'Invalid refresh token'};
       }
 
-      // Get user role from database
-      final conn = DBConnection.getConnection();
-      final result = await conn.execute(
-        'SELECT role FROM users WHERE id = :userId',
-        {'userId': userId},
-      );
+      final userId = jwt.payload['userId']?.toString();
+      if (userId == null) return {'success': false, 'message': 'Invalid refresh token payload'};
 
-      if (result.rows.isEmpty) {
-        return {'success': false, 'message': 'User not found'};
-      }
-
-      final userRole = result.rows.first.colByName('role') as String?;
-      final newAccessToken = _generateAccessToken(userId, userRole ?? 'Employé');
-      final newRefreshToken = _generateRefreshToken(userId);
-
-      return {
-        'success': true,
-        'message': 'Tokens refreshed successfully',
-        'data': {
-          'accessToken': newAccessToken,
-          'refreshToken': newRefreshToken,
+      // Ensure refresh token is persisted and not revoked. Use a transaction
+      // with SELECT ... FOR UPDATE to avoid races when rotating tokens.
+      return await DBConnection.getConnection().transaction<Map<String, dynamic>>((conn) async {
+        final rows = await conn.execute('SELECT id, revoked, UNIX_TIMESTAMP(IFNULL(expires_at, NOW()+0)) as exp FROM refresh_tokens WHERE token = :token AND user_id = :userId FOR UPDATE', {'token': refreshToken, 'userId': userId});
+        if (rows.rows.isEmpty) {
+          return {'success': false, 'message': 'Refresh token not recognized'};
         }
-      };
+
+        final row = rows.rows.first;
+        final revoked = (row.colByName('revoked') == 1) || (row.colByName('revoked') == true);
+        if (revoked) return {'success': false, 'message': 'Refresh token revoked'};
+
+        // Get user's role
+        final userRes = await conn.execute('SELECT role FROM users WHERE id = :userId', {'userId': userId});
+        if (userRes.rows.isEmpty) return {'success': false, 'message': 'User not found'};
+        final userRole = userRes.rows.first.colByName('role') as String?;
+
+        final newAccessToken = _generateAccessToken(userId, userRole ?? 'Employé');
+        final newRefreshToken = _generateRefreshToken(userId);
+
+        // Revoke old token and persist new one in same transaction
+        try {
+          await conn.execute('UPDATE refresh_tokens SET revoked = TRUE WHERE token = :token', {'token': refreshToken});
+          await conn.execute('INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES (:userId, :token, FROM_UNIXTIME(:exp))', {
+            'userId': userId,
+            'token': newRefreshToken,
+            'exp': (DateTime.now().add(_refreshTokenExpiry).millisecondsSinceEpoch ~/ 1000).toString(),
+          });
+        } catch (e) {
+          print('Failed to rotate refresh token: $e');
+          return {'success': false, 'message': 'Failed to rotate refresh token'};
+        }
+
+        return {
+          'success': true,
+          'message': 'Tokens refreshed successfully',
+          'data': {
+            'accessToken': newAccessToken,
+            'refreshToken': newRefreshToken,
+          }
+        };
+      });
     } catch (e) {
       print('Refresh token error: $e');
       return {'success': false, 'message': 'Failed to refresh token'};
@@ -129,11 +190,18 @@ class AuthService {
     }
 
     try {
-      final jwt = JWT.decode(token);
-      final userId = jwt.payload['userId'] as String?;
-      
-      if (userId == null) {
+      // Verify token signature and expiry
+      JWT jwt;
+      try {
+        jwt = JWT.verify(token, SecretKey(_jwtSecret()));
+      } catch (e) {
         return {'success': false, 'message': 'Invalid token'};
+      }
+
+      final userId = jwt.payload['userId'] as String?;
+
+      if (userId == null) {
+        return {'success': false, 'message': 'Invalid token payload'};
       }
 
       final conn = DBConnection.getConnection();
@@ -181,7 +249,7 @@ class AuthService {
       'exp': DateTime.now().add(_tokenExpiry).millisecondsSinceEpoch ~/ 1000,
     });
 
-    return jwt.sign(SecretKey(_jwtSecret));
+    return jwt.sign(SecretKey(_jwtSecret()));
   }
 
   static String _generateRefreshToken(String userId) {
@@ -191,12 +259,12 @@ class AuthService {
       'exp': DateTime.now().add(_refreshTokenExpiry).millisecondsSinceEpoch ~/ 1000,
     });
 
-    return jwt.sign(SecretKey(_jwtSecret));
+    return jwt.sign(SecretKey(_jwtSecret()));
   }
 
   static Map<String, dynamic>? verifyToken(String token) {
     try {
-      final jwt = JWT.verify(token, SecretKey(_jwtSecret));
+      final jwt = JWT.verify(token, SecretKey(_jwtSecret()));
       return jwt.payload as Map<String, dynamic>;
     } catch (e) {
       print('Token verification error: $e');

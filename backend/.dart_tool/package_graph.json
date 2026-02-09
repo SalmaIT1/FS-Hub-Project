@@ -14,7 +14,8 @@
         "mailer",
         "mysql_client",
         "shelf",
-        "shelf_router"
+        "shelf_router",
+        "shelf_web_socket"
       ],
       "devDependencies": [
         "lints",
@@ -117,6 +118,15 @@
       ]
     },
     {
+      "name": "shelf_web_socket",
+      "version": "1.0.4",
+      "dependencies": [
+        "shelf",
+        "stream_channel",
+        "web_socket_channel"
+      ]
+    },
+    {
       "name": "shelf_router",
       "version": "1.1.4",
       "dependencies": [
@@ -155,13 +165,11 @@
     },
     {
       "name": "web_socket_channel",
-      "version": "3.0.3",
+      "version": "2.4.0",
       "dependencies": [
         "async",
         "crypto",
-        "stream_channel",
-        "web",
-        "web_socket"
+        "stream_channel"
       ]
     },
     {
@@ -234,15 +242,6 @@
         "collection",
         "path",
         "term_glyph"
-      ]
-    },
-    {
-      "name": "shelf_web_socket",
-      "version": "3.0.0",
-      "dependencies": [
-        "shelf",
-        "stream_channel",
-        "web_socket_channel"
       ]
     },
     {
@@ -468,13 +467,6 @@
       "version": "1.4.1",
       "dependencies": [
         "source_span"
-      ]
-    },
-    {
-      "name": "web_socket",
-      "version": "1.0.1",
-      "dependencies": [
-        "web"
       ]
     },
     {

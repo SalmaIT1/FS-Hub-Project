@@ -10,8 +10,8 @@ class EmployeeService {
   /// - On web (Docker/nginx), the backend is exposed behind `/api/` and
   ///   proxied to the `backend` container on port 8080 (see `nginx.conf`).
   /// - On mobile/desktop during local development, the backend is usually
-  ///   reachable on `http://localhost:8080`.
-  static final String baseUrl = 'http://localhost:8080';
+  ///   reachable on `http://localhost:8080/v1`.
+  static final String baseUrl = 'http://localhost:8080/v1';
 
   static Future<List<Employee>> getAllEmployees() async {
     try {

@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class EmailService {
-  static const String _baseUrl = 'http://localhost:8080';
+  static const String _baseUrl = 'http://localhost:8080/v1';
   static const String adminEmail = 'admin@fshub.com';
 
   /// Generate a random password

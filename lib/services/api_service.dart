@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'auth_service.dart';
 
 class ApiService {
-  static const String _baseUrl = 'http://localhost:8080';
+  static const String _baseUrl = 'http://localhost:8080/v1';
 
   /// Make an authenticated API request
   static Future<http.Response> makeRequest({

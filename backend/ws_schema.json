@@ -1,0 +1,15 @@
+{
+  "version": "1.0",
+  "events": {
+    "message:created": {
+      "desc": "Server confirms persisted message",
+      "payload": {"message": "object"}
+    },
+    "message:updated": {"payload": {"message": "object"}},
+    "message:deleted": {"payload": {"messageId": "string", "conversationId": "string"}},
+    "typing": {"payload": {"conversationId": "string", "userId": "string", "state": "typing|stopped"}},
+    "presence": {"payload": {"userId": "string", "state": "online|offline|away", "lastSeen": "int"}},
+    "receipt": {"payload": {"conversationId": "string", "messageId": "string", "userId": "string", "readAt": "int"}},
+    "reconnect:welcome": {"payload": {"since": "int"}}
+  }
+}

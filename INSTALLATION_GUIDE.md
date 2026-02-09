@@ -73,12 +73,15 @@ dependencies:
 ```
 
 ### 3. Update App Routes
-Add to your main router:
+Add to your main router (use the provided `ChatRouter` helpers):
 ```dart
-import '../routes/chat_routes.dart';
+import 'navigation/chat_router.dart';
 
-// In your router setup
-onGenerateRoute: ChatRoutes.generateRoute,
+// Example usages
+// Push the conversation list
+Navigator.of(context).push(ChatRouter.buildHome());
+// Open a specific thread
+Navigator.of(context).push(ChatRouter.thread(conversationId));
 ```
 
 ### 4. Add Navigation
@@ -133,8 +136,8 @@ ALTER TABLE users ADD COLUMN avatar_url VARCHAR(500) NULL;
 ### Core Widgets
 - `GlassMessageBubble` - Premium message display
 - `GlassComposeBar` - Message input with voice recording
-- `ChatListPage` - Conversation list
-- `ChatConversationPage` - Chat thread view
+- `ConversationListPage` - Conversation list
+- `ChatThreadPage` - Chat thread view
 - `CreateGroupPage` - Group creation
 
 ### Design System

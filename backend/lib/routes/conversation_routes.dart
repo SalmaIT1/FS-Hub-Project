@@ -1,27 +1,35 @@
 import 'dart:convert';
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
+import '../modules/chat/chat_service.dart';
+import '../modules/chat/websocket_server.dart';
+import '../services/auth_service.dart';
 import '../database/db_connection.dart';
 
 class ConversationRoutes {
   late final Router router;
 
   ConversationRoutes() {
-    print('ConversationRoutes constructor called');
     router = Router()
       ..get('/', _getConversations)
+      ..get('/users/list', _getAvailableUsers)
       ..post('/', _createConversation)
       ..get('/<id>/messages', _getConversationMessages)
-      ..get('/<id>/messages/', _getConversationMessages)  // Handle trailing slash
+      ..get('/<id>/messages/', _getConversationMessages)
       ..post('/<id>/messages', _sendMessage)
-      ..post('/<id>/messages/', _sendMessage)  // Handle trailing slash
+      ..post('/<id>/messages/', _sendMessage)
       ..put('/<id>/read', _markConversationAsRead)
-      ..put('/<id>/read/', _markConversationAsRead);  // Handle trailing slash
+      ..put('/<id>/read/', _markConversationAsRead)
+      ..post('/messages/read', _markMessagesAsRead)
+      ..post('/typing', _setTypingIndicator)
+      ..get('/<id>/typing', _getTypingUsers);
   }
 
   Future<Response> _getConversations(Request request) async {
     try {
       final userId = request.url.queryParameters['userId'];
+      final before = request.url.queryParameters['before'];
+      final limit = request.url.queryParameters['limit'];
       
       if (userId == null) {
         return Response.badRequest(
@@ -30,7 +38,6 @@ class ConversationRoutes {
         );
       }
 
-      // Convert string userId to integer for database query
       int userIdInt;
       try {
         userIdInt = int.parse(userId);
@@ -41,37 +48,32 @@ class ConversationRoutes {
         );
       }
 
-      final conn = DBConnection.getConnection();
-      
-      // Get conversations for the user
-      final result = await conn.execute('''
-        SELECT c.id, c.name, c.type, c.created_at, c.updated_at,
-               cm.last_read_at,
-               (SELECT COUNT(*) FROM messages m 
-                WHERE m.conversation_id = c.id 
-                AND m.created_at > COALESCE(cm.last_read_at, '1970-01-01')) as unread_count
-        FROM conversations c
-        JOIN conversation_members cm ON c.id = cm.conversation_id
-        WHERE cm.user_id = :userId
-        ORDER BY c.updated_at DESC
-      ''', {'userId': userIdInt});
+      int? limitInt;
+      if (limit != null) {
+        try {
+          limitInt = int.parse(limit);
+        } catch (e) {
+          // Use default limit if invalid
+        }
+      }
 
-      final conversations = result.rows.map((row) {
-        return {
-          'id': row.colByName('id'),
-          'name': row.colByName('name'),
-          'type': row.colByName('type'),
-          'createdAt': row.colByName('created_at'),
-          'updatedAt': row.colByName('updated_at'),
-          'lastReadAt': row.colByName('last_read_at'),
-          'unreadCount': int.tryParse(row.colByName('unread_count')?.toString() ?? '0') ?? 0,
-        };
-      }).toList();
-
-      return Response.ok(
-        jsonEncode({'success': true, 'data': conversations}),
-        headers: {'Content-Type': 'application/json'},
+      final result = await ChatService.getConversations(
+        userId: userIdInt,
+        before: before,
+        limit: limitInt,
       );
+
+      if (result['success']) {
+        return Response.ok(
+          jsonEncode(result),
+          headers: {'Content-Type': 'application/json'},
+        );
+      } else {
+        return Response.internalServerError(
+          body: jsonEncode(result),
+          headers: {'Content-Type': 'application/json'},
+        );
+      }
     } catch (e) {
       print('Error fetching conversations: $e');
       return Response.internalServerError(
@@ -81,6 +83,58 @@ class ConversationRoutes {
     }
   }
 
+  Future<Response> _getAvailableUsers(Request request) async {
+    try {
+      final conn = DBConnection.getConnection();
+      
+      // Get all users except the current user (if userId is provided in query)
+      final currentUserId = request.url.queryParameters['excludeUserId'];
+      
+      String query = '''
+        SELECT u.id, u.username, 
+               COALESCE(e.prenom, '') as first_name,
+               COALESCE(e.nom, '') as last_name,
+               COALESCE(e.email, u.username) as email
+        FROM users u
+        LEFT JOIN employees e ON u.id = e.user_id
+      ''';
+      
+      final params = <String, dynamic>{};
+      
+      if (currentUserId != null) {
+        query += ' WHERE u.id != :currentUserId';
+        params['currentUserId'] = currentUserId;
+      }
+      
+      query += ' ORDER BY u.username ASC';
+      
+      final result = await conn.execute(query, params);
+      
+      final users = result.rows.map((row) => {
+        'id': row.colByName('id'),
+        'username': row.colByName('username'),
+        'firstName': row.colByName('first_name'),
+        'lastName': row.colByName('last_name'),
+        'email': row.colByName('email'),
+      }).toList();
+      
+      return Response.ok(
+        jsonEncode({
+          'success': true,
+          'data': users,
+        }),
+        headers: {'Content-Type': 'application/json'},
+      );
+    } catch (e) {
+      print('Error fetching available users: $e');
+      return Response.internalServerError(
+        body: jsonEncode({'success': false, 'message': e.toString()}),
+        headers: {'Content-Type': 'application/json'},
+      );
+    }
+  }
+
+
   Future<Response> _createConversation(Request request) async {
     try {
       final body = await request.readAsString();
@@ -88,6 +142,8 @@ class ConversationRoutes {
       
       final user1IdStr = data['user1Id'];
       final user2IdStr = data['user2Id'];
+      final name = data['name']; // For group conversations
+      final type = data['type'] ?? 'direct';
       
       if (user1IdStr == null || user2IdStr == null) {
         return Response.badRequest(
@@ -96,71 +152,35 @@ class ConversationRoutes {
         );
       }
 
-      // Convert string IDs to integers for database operations
       int user1Id, user2Id;
       try {
-        user1Id = int.parse(user1IdStr);
-        user2Id = int.parse(user2IdStr);
+        user1Id = user1IdStr is int ? user1IdStr : int.parse(user1IdStr.toString());
+        user2Id = user2IdStr is int ? user2IdStr : int.parse(user2IdStr.toString());
       } catch (e) {
         return Response.badRequest(
-          body: jsonEncode({'success': false, 'message': 'Invalid user ID format'}),
+          body: jsonEncode({'success': false, 'message': 'Invalid user ID format: $e'}),
           headers: {'Content-Type': 'application/json'},
         );
       }
 
-      final conn = DBConnection.getConnection();
-      
-      // Check if conversation already exists (both directions: A->B or B->A)
-      final existing = await conn.execute('''
-        SELECT DISTINCT c.id FROM conversations c
-        JOIN conversation_members cm1 ON c.id = cm1.conversation_id
-        JOIN conversation_members cm2 ON c.id = cm2.conversation_id
-        WHERE c.type = 'direct'
-        AND ((cm1.user_id = :user1Id AND cm2.user_id = :user2Id)
-        OR (cm1.user_id = :user2Id AND cm2.user_id = :user1Id))
-      ''', {'user1Id': user1Id, 'user2Id': user2Id});
-
-      if (existing.rows.isNotEmpty) {
-        final conversationId = existing.rows.first.colByName('id');
-        return Response.ok(
-          jsonEncode({
-            'success': true, 
-            'message': 'Conversation already exists',
-            'data': {'id': conversationId}
-          }),
-          headers: {'Content-Type': 'application/json'},
-        );
-      }
-
-      // Create new conversation
-      await conn.execute('''
-        INSERT INTO conversations (type, created_by) 
-        VALUES ('direct', :created_by)
-      ''', {'created_by': user1Id});
-      
-      // Get the last inserted ID
-      final lastIdResult = await conn.execute('SELECT LAST_INSERT_ID() as id');
-      final conversationId = lastIdResult.rows.first.colByName('id');
-
-      // Add members
-      await conn.execute('''
-        INSERT INTO conversation_members (conversation_id, user_id) 
-        VALUES (:conversation_id1, :user_id1), (:conversation_id2, :user_id2)
-      ''', {
-        'conversation_id1': conversationId, 
-        'user_id1': user1Id, 
-        'conversation_id2': conversationId, 
-        'user_id2': user2Id
-      });
-
-      return Response.ok(
-        jsonEncode({
-          'success': true, 
-          'message': 'Conversation created successfully',
-          'data': {'id': conversationId}
-        }),
-        headers: {'Content-Type': 'application/json'},
+      final result = await ChatService.createConversation(
+        user1Id: user1Id,
+        user2Id: user2Id,
+        type: type,
+        name: name,
       );
+
+      if (result['success']) {
+        return Response.ok(
+          jsonEncode(result),
+          headers: {'Content-Type': 'application/json'},
+        );
+      } else {
+        return Response.internalServerError(
+          body: jsonEncode(result),
+          headers: {'Content-Type': 'application/json'},
+        );
+      }
     } catch (e) {
       print('Error creating conversation: $e');
       return Response.internalServerError(
@@ -172,47 +192,37 @@ class ConversationRoutes {
 
   Future<Response> _getConversationMessages(Request request, String id) async {
     try {
-      // Convert string ID to integer for database operations
-      int conversationId;
-      try {
-        conversationId = int.parse(id);
-      } catch (e) {
-        return Response.badRequest(
-          body: jsonEncode({'success': false, 'message': 'Invalid conversation ID format'}),
+      final before = request.url.queryParameters['before'];
+      final limit = request.url.queryParameters['limit'];
+      
+      int? limitInt;
+      if (limit != null) {
+        try {
+          limitInt = int.parse(limit);
+        } catch (e) {
+          // Use default limit if invalid
+        }
+      }
+
+      final result = await ChatService.getMessages(
+        conversationId: id,
+        before: before,
+        limit: limitInt,
+      );
+
+      if (result['success']) {
+        return Response.ok(
+          jsonEncode(result),
+          headers: {'Content-Type': 'application/json'},
+        );
+      } else {
+        return Response.internalServerError(
+          body: jsonEncode(result),
           headers: {'Content-Type': 'application/json'},
         );
       }
-
-      final conn = DBConnection.getConnection();
-      
-      final result = await conn.execute('''
-        SELECT m.id, m.conversation_id, m.sender_id, m.content, m.type, 
-               m.created_at, m.updated_at, u.username as sender_name
-        FROM messages m
-        JOIN users u ON m.sender_id = u.id
-        WHERE m.conversation_id = :conversation_id
-        ORDER BY m.created_at ASC
-      ''', {'conversation_id': conversationId});
-
-      final messages = result.rows.map((row) {
-        return {
-          'id': row.colByName('id'),
-          'conversationId': row.colByName('conversation_id'),
-          'senderId': row.colByName('sender_id'),
-          'senderName': row.colByName('sender_name'),
-          'content': row.colByName('content'),
-          'type': row.colByName('type'),
-          'createdAt': row.colByName('created_at'),
-          'updatedAt': row.colByName('updated_at'),
-        };
-      }).toList();
-
-      return Response.ok(
-        jsonEncode({'success': true, 'data': messages}),
-        headers: {'Content-Type': 'application/json'},
-      );
     } catch (e) {
-      print('Error fetching messages: $e');
+      print('Error fetching conversation messages: $e');
       return Response.internalServerError(
         body: jsonEncode({'success': false, 'message': e.toString()}),
         headers: {'Content-Type': 'application/json'},
@@ -225,56 +235,84 @@ class ConversationRoutes {
       final body = await request.readAsString();
       final data = jsonDecode(body);
       
-      final senderIdStr = data['senderId'];
       final content = data['content'];
+      final type = data['type'] ?? 'text';
+      final replyToId = data['replyToId'];
+      final clientMessageId = data['clientMessageId'];
+
+      // Enforce server-side identity: require Authorization header and extract userId
+      final authHeader = request.headers['authorization'] ?? request.headers['Authorization'];
+      if (authHeader == null || !authHeader.startsWith('Bearer ')) {
+        return Response.forbidden(jsonEncode({'success': false, 'message': 'Authorization required'}), headers: {'Content-Type': 'application/json'});
+      }
+
+      final token = authHeader.split(' ').last;
+      final payload = AuthService.verifyToken(token);
+      if (payload == null) {
+        return Response.forbidden(jsonEncode({'success': false, 'message': 'Invalid token'}), headers: {'Content-Type': 'application/json'});
+      }
+
+      final senderId = payload['userId'];
       
-      if (senderIdStr == null || content == null) {
+      if (content == null || senderId == null) {
         return Response.badRequest(
-          body: jsonEncode({'success': false, 'message': 'senderId and content are required'}),
+          body: jsonEncode({'success': false, 'message': 'content and senderId are required'}),
           headers: {'Content-Type': 'application/json'},
         );
       }
 
-      // Convert string IDs to integers for database operations
-      int senderId, conversationId;
+      int senderIdInt;
       try {
-        senderId = int.parse(senderIdStr);
-        conversationId = int.parse(id);
+        senderIdInt = int.parse(senderId.toString());
       } catch (e) {
         return Response.badRequest(
-          body: jsonEncode({'success': false, 'message': 'Invalid ID format'}),
+          body: jsonEncode({'success': false, 'message': 'Invalid senderId format'}),
           headers: {'Content-Type': 'application/json'},
         );
       }
 
-      final conn = DBConnection.getConnection();
-      
-      await conn.execute('''
-        INSERT INTO messages (conversation_id, sender_id, content, type) 
-        VALUES (:conversation_id, :sender_id, :content, 'text')
-      ''', {
-        'conversation_id': conversationId, 
-        'sender_id': senderId, 
-        'content': content
-      });
-
-      // Get the last inserted ID
-      final lastIdResult = await conn.execute('SELECT LAST_INSERT_ID() as id');
-      final messageId = lastIdResult.rows.first.colByName('id');
-
-      // Update conversation updated_at
-      await conn.execute('''
-        UPDATE conversations SET updated_at = NOW() WHERE id = :id
-      ''', {'id': conversationId});
-
-      return Response.ok(
-        jsonEncode({
-          'success': true, 
-          'message': 'Message sent successfully',
-          'data': {'id': messageId}
-        }),
-        headers: {'Content-Type': 'application/json'},
+      final result = await ChatService.sendMessage(
+        conversationId: id,
+        senderId: senderIdInt,
+        content: content,
+        type: type,
+        replyToId: replyToId,
+        clientMessageId: clientMessageId,
       );
+
+      if (result['success']) {
+        // Broadcast to all participants in conversation via WebSocket (including sender)
+        // The sender's optimistic message will be deduplicated by clientMessageId
+        final messageId = result['message']?['id'] ?? 'unknown';
+        print('[REST-SEND] Message sent: id=$messageId conversationId=$id senderId=$senderIdInt');
+        print('[REST-SEND] Broadcasting via WebSocket to conversation members...');
+        
+        try {
+          print('[REST-SEND] About to call broadcastToConversationMembers...');
+          await WebSocketServer.broadcastToConversationMembers(
+            id,
+            {
+              'type': 'message:created',
+              'payload': {'message': result['message']},
+              'timestamp': DateTime.now().millisecondsSinceEpoch,
+            },
+          );
+          print('[REST-SEND] Broadcast complete for messageId=$messageId');
+        } catch (e) {
+          print('[REST-SEND-ERROR] Broadcast failed: $e');
+          print('[REST-SEND-ERROR] Stack trace: ${StackTrace.current}');
+        }
+        
+        return Response.ok(
+          jsonEncode(result),
+          headers: {'Content-Type': 'application/json'},
+        );
+      } else {
+        return Response.internalServerError(
+          body: jsonEncode(result),
+          headers: {'Content-Type': 'application/json'},
+        );
+      }
     } catch (e) {
       print('Error sending message: $e');
       return Response.internalServerError(
@@ -289,41 +327,170 @@ class ConversationRoutes {
       final body = await request.readAsString();
       final data = jsonDecode(body);
       
-      final userIdStr = data['userId'];
+      final userId = data['userId'];
+      final messageId = data['messageId'];
       
-      if (userIdStr == null) {
+      if (userId == null) {
         return Response.badRequest(
           body: jsonEncode({'success': false, 'message': 'userId is required'}),
           headers: {'Content-Type': 'application/json'},
         );
       }
 
-      // Convert string IDs to integers for database operations
-      int userId, conversationId;
+      int userIdInt;
       try {
-        userId = int.parse(userIdStr);
-        conversationId = int.parse(id);
+        userIdInt = int.parse(userId);
       } catch (e) {
         return Response.badRequest(
-          body: jsonEncode({'success': false, 'message': 'Invalid ID format'}),
+          body: jsonEncode({'success': false, 'message': 'Invalid userId format'}),
           headers: {'Content-Type': 'application/json'},
         );
       }
 
-      final conn = DBConnection.getConnection();
-      
-      await conn.execute('''
-        UPDATE conversation_members 
-        SET last_read_at = NOW() 
-        WHERE conversation_id = :conversation_id AND user_id = :user_id
-      ''', {'conversation_id': conversationId, 'user_id': userId});
-
-      return Response.ok(
-        jsonEncode({'success': true, 'message': 'Conversation marked as read'}),
-        headers: {'Content-Type': 'application/json'},
+      final result = await ChatService.markConversationAsRead(
+        conversationId: id,
+        userId: userIdInt,
       );
+
+      if (result['success']) {
+        return Response.ok(
+          jsonEncode(result),
+          headers: {'Content-Type': 'application/json'},
+        );
+      } else {
+        return Response.internalServerError(
+          body: jsonEncode(result),
+          headers: {'Content-Type': 'application/json'},
+        );
+      }
     } catch (e) {
       print('Error marking conversation as read: $e');
+      return Response.internalServerError(
+        body: jsonEncode({'success': false, 'message': e.toString()}),
+        headers: {'Content-Type': 'application/json'},
+      );
+    }
+  }
+
+  Future<Response> _markMessagesAsRead(Request request) async {
+    try {
+      final body = await request.readAsString();
+      final data = jsonDecode(body);
+      
+      final messageIds = (data['messageIds'] as List?)?.map((e) => e.toString()).toList() ?? [];
+      final userId = data['userId'];
+      
+      if (messageIds.isEmpty || userId == null) {
+        return Response.badRequest(
+          body: jsonEncode({'success': false, 'message': 'messageIds and userId are required'}),
+          headers: {'Content-Type': 'application/json'},
+        );
+      }
+
+      int userIdInt;
+      try {
+        userIdInt = int.parse(userId);
+      } catch (e) {
+        return Response.badRequest(
+          body: jsonEncode({'success': false, 'message': 'Invalid userId format'}),
+          headers: {'Content-Type': 'application/json'},
+        );
+      }
+
+      final result = await ChatService.markMessagesAsRead(
+        messageIds: messageIds,
+        userId: userIdInt,
+      );
+
+      if (result['success']) {
+        return Response.ok(
+          jsonEncode(result),
+          headers: {'Content-Type': 'application/json'},
+        );
+      } else {
+        return Response.internalServerError(
+          body: jsonEncode(result),
+          headers: {'Content-Type': 'application/json'},
+        );
+      }
+    } catch (e) {
+      print('Error marking messages as read: $e');
+      return Response.internalServerError(
+        body: jsonEncode({'success': false, 'message': e.toString()}),
+        headers: {'Content-Type': 'application/json'},
+      );
+    }
+  }
+
+  Future<Response> _setTypingIndicator(Request request) async {
+    try {
+      final body = await request.readAsString();
+      final data = jsonDecode(body);
+      
+      final conversationId = data['conversationId'];
+      final userId = data['userId'];
+      final isTyping = data['isTyping'];
+      
+      if (conversationId == null || userId == null || isTyping == null) {
+        return Response.badRequest(
+          body: jsonEncode({'success': false, 'message': 'conversationId, userId, and isTyping are required'}),
+          headers: {'Content-Type': 'application/json'},
+        );
+      }
+
+      int userIdInt;
+      try {
+        userIdInt = int.parse(userId);
+      } catch (e) {
+        return Response.badRequest(
+          body: jsonEncode({'success': false, 'message': 'Invalid userId format'}),
+          headers: {'Content-Type': 'application/json'},
+        );
+      }
+
+      final result = await ChatService.setTypingIndicator(
+        conversationId: conversationId,
+        userId: userIdInt,
+        isTyping: isTyping,
+      );
+
+      if (result['success']) {
+        return Response.ok(
+          jsonEncode(result),
+          headers: {'Content-Type': 'application/json'},
+        );
+      } else {
+        return Response.internalServerError(
+          body: jsonEncode(result),
+          headers: {'Content-Type': 'application/json'},
+        );
+      }
+    } catch (e) {
+      print('Error setting typing indicator: $e');
+      return Response.internalServerError(
+        body: jsonEncode({'success': false, 'message': e.toString()}),
+        headers: {'Content-Type': 'application/json'},
+      );
+    }
+  }
+
+  Future<Response> _getTypingUsers(Request request, String id) async {
+    try {
+      final result = await ChatService.getTypingUsers(id);
+
+      if (result['success']) {
+        return Response.ok(
+          jsonEncode(result),
+          headers: {'Content-Type': 'application/json'},
+        );
+      } else {
+        return Response.internalServerError(
+          body: jsonEncode(result),
+          headers: {'Content-Type': 'application/json'},
+        );
+      }
+    } catch (e) {
+      print('Error getting typing users: $e');
       return Response.internalServerError(
         body: jsonEncode({'success': false, 'message': e.toString()}),
         headers: {'Content-Type': 'application/json'},

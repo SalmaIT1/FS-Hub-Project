@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:fs_hub/pages/auth/login_page.dart';
 import 'package:fs_hub/pages/home/home_page.dart';
 import 'package:fs_hub/pages/employees/employees_list_page.dart';
@@ -6,13 +7,20 @@ import 'package:fs_hub/pages/employees/employee_detail_page.dart';
 import 'package:fs_hub/pages/employees/add_edit_employee_page.dart';
 import 'package:fs_hub/pages/employees/my_profile_page.dart';
 import 'package:fs_hub/pages/notifications/notification_center_page.dart';
-import 'package:fs_hub/pages/chat/chat_page.dart';
 import 'package:fs_hub/pages/demands/demands_list_page.dart';
 import 'package:fs_hub/pages/demands/demand_detail_page.dart';
 import 'package:fs_hub/pages/settings/settings_page.dart';
 import 'package:fs_hub/routes/app_routes.dart';
 import 'package:fs_hub/services/auth_service.dart';
 import 'package:fs_hub/theme/app_theme.dart';
+// New chat architecture
+import 'package:fs_hub/chat/data/chat_rest_client.dart';
+import 'package:fs_hub/chat/data/chat_socket_client.dart';
+import 'package:fs_hub/chat/data/upload_service.dart';
+import 'package:fs_hub/chat/data/chat_repository.dart';
+import 'package:fs_hub/chat/state/chat_controller.dart';
+import 'package:fs_hub/chat/ui/conversation_list_page.dart' as new_chat;
+import 'package:fs_hub/chat/ui/chat_thread_page.dart' as new_chat;
 
 void main() {
   runApp(const MyApp());
@@ -35,7 +43,9 @@ class MyApp extends StatelessWidget {
         '/home': (context) => const HomePage(),
         '/employees': (context) => const EmployeesListPage(),
         '/notifications': (context) => const NotificationCenterPage(),
-        '/chat': (context) => const ChatPage(),
+        '/chat': (context) => _buildChatProvider(
+          child: const new_chat.ConversationListPage(),
+        ),
         '/demands': (context) => const DemandsListPage(),
       },
       onGenerateRoute: (settings) {
@@ -76,10 +86,73 @@ class MyApp extends StatelessWidget {
               builder: (context) => DemandDetailPage(demand: args['demand']),
             );
           }
+        } else if (settings.name == '/chat_thread') {
+          final args = settings.arguments as Map<String, dynamic>?;
+          String conversationId = '';
+          if (args != null) {
+            if (args['conversationId'] != null) conversationId = args['conversationId'].toString();
+            else if (args['conversation'] is Map && args['conversation']['id'] != null) conversationId = args['conversation']['id'].toString();
+          }
+          return MaterialPageRoute(
+            builder: (context) => _buildChatProvider(
+              child: conversationId.isNotEmpty 
+                ? new_chat.ChatThreadPage(conversationId: conversationId)
+                : const new_chat.ConversationListPage(),
+            ),
+          );
         }
         
         return null;
       },
+    );
+  }
+
+  static Widget _buildChatProvider({required Widget child}) {
+    // Initialize chat services with token provider and proper URLs
+    const apiBaseUrl = 'http://localhost:8080';
+    const wsBaseUrl = 'ws://localhost:8080/ws';
+
+    // Token provider gets JWT from AuthService
+    Future<String> getToken() async {
+      final token = await AuthService.getAccessToken();
+      if (token == null || token.isEmpty) {
+        throw Exception('No authentication token available');
+      }
+      return token;
+    }
+
+    final restClient = ChatRestClient(
+      baseUrl: apiBaseUrl,
+      tokenProvider: getToken,
+    );
+    
+    final socketClient = ChatSocketClient(
+      wsUrl: wsBaseUrl,
+      tokenProvider: getToken,
+    );
+    
+    final uploadService = UploadService(
+      baseUrl: apiBaseUrl,
+      tokenProvider: getToken,
+    );
+    
+    final repository = ChatRepository(
+      rest: restClient,
+      socket: socketClient,
+      uploads: uploadService,
+    );
+    
+    final controller = ChatController(repository: repository);
+
+    return MultiProvider(
+      providers: [
+        Provider<ChatRestClient>(create: (_) => restClient),
+        Provider<ChatSocketClient>(create: (_) => socketClient),
+        Provider<UploadService>(create: (_) => uploadService),
+        Provider<ChatRepository>(create: (_) => repository),
+        ChangeNotifierProvider<ChatController>(create: (_) => controller),
+      ],
+      child: child,
     );
   }
 

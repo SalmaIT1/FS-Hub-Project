@@ -3,7 +3,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
 class AuthService {
-  static const String _baseUrl = 'http://localhost:8080';
+  static const String _baseUrl = 'http://localhost:8080/v1';
   static const _storage = FlutterSecureStorage();
 
   // Keys for secure storage

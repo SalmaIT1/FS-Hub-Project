@@ -71,6 +71,19 @@ CREATE TABLE IF NOT EXISTS password_resets (
     expires_at TIMESTAMP NOT NULL
 );
 
+-- Refresh tokens table for session revocation and validation
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    token VARCHAR(1024) NOT NULL,
+    revoked BOOLEAN DEFAULT FALSE,
+    expires_at TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_user_id (user_id),
+    INDEX idx_token (token(255))
+);
+
 -- Chat System Database Schema
 
 -- Conversations table
@@ -151,6 +164,22 @@ CREATE TABLE IF NOT EXISTS message_attachments (
     FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
     INDEX idx_message_id (message_id),
     INDEX idx_mime_type (mime_type)
+);
+
+-- Message idempotency table to map client-supplied IDs to server message IDs.
+-- This enables idempotent message creation for offline/retry scenarios
+-- without modifying the primary messages table schema.
+CREATE TABLE IF NOT EXISTS message_idempotency (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    client_message_id VARCHAR(255) NOT NULL,
+    conversation_id INT NOT NULL,
+    server_message_id INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_client_conv (client_message_id, conversation_id),
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+    FOREIGN KEY (server_message_id) REFERENCES messages(id) ON DELETE CASCADE,
+    INDEX idx_client_message (client_message_id),
+    INDEX idx_server_message (server_message_id)
 );
 
 -- Message reads table (read receipts)
@@ -323,24 +352,5 @@ DELIMITER ;
 
 -- Create Initial Admin Account
 -- Note: In production, password should be hashed using the application logic.
-CALL CreateEmployeeWithUser(
-    'admin',                         -- username
-    '@ForeverSoftware2026',          -- password
-    'Admin',                         -- role
-    NULL,                            -- permissions
-    'ADM-001',                       -- matricule
-    'Admin',                         -- nom
-    'System',                        -- prenom
-    '1990-01-01',                    -- dateNaissance
-    'Homme',                         -- sexe
-    NULL,                            -- photo
-    'admin@fshub.com',               -- email
-    '+21200000000',                  -- telephone
-    '123 Rue Principale',            -- adresse
-    'Casablanca',                    -- ville
-    'System Administrator',          -- poste
-    'IT',                            -- departement
-    '2020-01-01',                    -- dateEmbauche
-    'CDI',                           -- typeContrat
-    'Actif'                          -- statut
-);
+-- Initial admin creation removed from schema for security reasons.
+-- Create admin accounts via a secure provisioning process; do NOT store plaintext passwords in schema files.

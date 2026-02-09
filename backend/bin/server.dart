@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart';
 import 'package:shelf_router/shelf_router.dart';
+import 'package:shelf_web_socket/shelf_web_socket.dart';
 import 'package:dotenv/dotenv.dart' as dotenv;
 
 import '../lib/routes/auth_routes.dart';
@@ -10,6 +11,7 @@ import '../lib/routes/notification_routes.dart';
 import '../lib/routes/employee_routes.dart';
 import '../lib/routes/email_routes.dart';
 import '../lib/routes/conversation_routes.dart';
+import '../lib/modules/chat/websocket_server.dart';
 
 // Import database initialization
 import '../lib/database/db_migration.dart';
@@ -18,20 +20,26 @@ void main(List<String> args) async {
   // Initialize database with migrations (this handles environment loading)
   await DBMigration.initializeDatabase();
 
-  // Create router
+  // Initialize WebSocket server
+  final wsServer = WebSocketServer();
+  wsServer.startCleanupTimer();
+
+  // Create router with versioned API paths
   final router = Router()
-    ..mount('/auth/', AuthRoutes().router)
-    ..mount('/demands/', DemandRoutes().router)
-    ..mount('/notifications/', NotificationRoutes().router)
-    ..mount('/employees/', EmployeeRoutes().router)
-    ..mount('/email/', EmailRoutes().router)
-    ..mount('/conversations/', ConversationRoutes().router);
+    ..mount('/v1/auth', AuthRoutes().router)
+    ..mount('/v1/demands', DemandRoutes().router)
+    ..mount('/v1/notifications', NotificationRoutes().router)
+    ..mount('/v1/employees', EmployeeRoutes().router)
+    ..mount('/v1/email', EmailRoutes().router)
+    ..mount('/v1/conversations', ConversationRoutes().router)
+    ..mount('/ws', wsServer.router);
 
   // Add CORS middleware
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Origin, Content-Type, Accept, Authorization',
+    'Access-Control-Allow-Private-Network': 'true', // For WebSocket on localhost
   };
 
   final handler = Pipeline()

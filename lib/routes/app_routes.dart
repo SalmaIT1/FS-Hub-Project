@@ -10,7 +10,5 @@ class AppRoutes {
   static const String demands = '/demands';
   static const String resetPassword = '/reset-password';
   static const String notifications = '/notifications';
-  static const String chat = '/chat';
-  static const String chatDetail = '/chat-detail';
   static const String demandDetail = '/demand-detail';
 }

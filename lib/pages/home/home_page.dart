@@ -6,6 +6,7 @@ import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
 import '../../services/employee_service.dart';
 import '../../routes/app_routes.dart';
+import '../../navigation/chat_router.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -228,7 +229,7 @@ class _HomePageState extends State<HomePage> {
                           title: 'Messages',
                           caption: 'Collaboration',
                           icon: Icons.alternate_email_outlined,
-                          onTap: () => Navigator.pushNamed(context, '/chat'),
+                          onTap: () => Navigator.of(context).push(ChatRouter.buildHome()),
                         ),
                         GlassCard(
                           title: 'Profile',
