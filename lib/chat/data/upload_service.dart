@@ -1,6 +1,10 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
+import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
+import 'dart:html' as html;
 
 /// Upload progress event
 class UploadProgress {
@@ -64,6 +68,11 @@ class UploadService {
   }) async {
     try {
       final token = await tokenProvider();
+      
+      if (token.isEmpty) {
+        throw Exception('No authentication token available');
+      }
+      
       final response = await http.post(
         Uri.parse('$baseUrl/v1/uploads/signed-url'),
         headers: {
@@ -78,9 +87,12 @@ class UploadService {
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        return _decodeJson(response.body) as Map<String, dynamic>;
+        final result = _decodeJson(response.body) as Map<String, dynamic>;
+        return result;
       } else {
-        throw Exception('Failed to get signed URL: ${response.statusCode}');
+        final errorBody = response.body.isNotEmpty ? response.body : 'No response body';
+        print('Signed URL request failed: ${response.statusCode} - $errorBody');
+        throw Exception('Failed to get signed URL (${response.statusCode}): $errorBody');
       }
     } catch (e) {
       throw Exception('Error requesting signed URL: $e');
@@ -98,17 +110,20 @@ class UploadService {
   Future<UploadResult> uploadFile({
     required String uploadId,
     required String signedUrl,
-    required File file,
+    required File? file,
+    Uint8List? bytes,
     void Function(double)? onProgress,
   }) async {
     try {
-      final bytes = await file.readAsBytes();
-      final fileSize = bytes.length;
+      print('[DEBUG] uploadFile called: uploadId=$uploadId, hasBytes=${bytes != null}, bytesLen=${bytes?.length}, hasFile=${file != null}');
+      final uploadBytes = bytes ?? await file!.readAsBytes();
+      final fileSize = uploadBytes.length;
+      print('[DEBUG] uploadFile: final uploadBytes length = ${uploadBytes.length}');
 
       // Create request with bytes
       final request = http.Request('PUT', Uri.parse(signedUrl))
         ..headers['content-type'] = 'application/octet-stream'
-        ..bodyBytes = bytes;
+        ..bodyBytes = uploadBytes;
 
       final streamedResponse = await request.send();
 
@@ -148,7 +163,43 @@ class UploadService {
     void Function(double)? onProgress,
   }) async {
     try {
-      final bytes = await audioFile.readAsBytes();
+      print('[UPLOAD] uploadVoiceNote called: uploadId=$uploadId, audioFile.path=${audioFile.path}');
+      print('[UPLOAD] DEBUG: kIsWeb = $kIsWeb');
+      print('[UPLOAD] DEBUG: isBlob = ${audioFile.path.startsWith('blob:')}');
+      
+      Uint8List bytes;
+      
+      if (kIsWeb && audioFile.path.startsWith('blob:')) {
+        // Web: Fetch blob data using dart:html
+        print('[UPLOAD] Web blob detected, fetching data...');
+        try {
+          final response = await html.HttpRequest.request(
+            audioFile.path,
+            method: 'GET',
+            responseType: 'arraybuffer',
+          );
+          
+          if (response.status == 200) {
+            final arrayBuffer = response.response as dynamic;
+            if (arrayBuffer != null) {
+              bytes = Uint8List.view(arrayBuffer);
+              print('[UPLOAD] Fetched ${bytes.length} bytes from blob');
+            } else {
+              throw Exception('ArrayBuffer is null');
+            }
+          } else {
+            throw Exception('Failed to fetch blob data: ${response.status}');
+          }
+        } catch (e) {
+          print('[UPLOAD] Blob fetch error: $e');
+          throw Exception('Failed to fetch blob data: $e');
+        }
+      } else {
+        // Desktop/Mobile: Read file bytes
+        bytes = await audioFile.readAsBytes();
+        print('[UPLOAD] Read ${bytes.length} bytes from file');
+      }
+      
       final fileSize = bytes.length;
 
       final request = http.Request('PUT', Uri.parse(signedUrl))
@@ -204,13 +255,14 @@ class UploadService {
           'Content-Type': 'application/json',
         },
         body: _encodeJson({
-          'uploadId': uploadId,
-          if (metadata != null) ...metadata,
+          'upload_id': uploadId,
+          if (metadata != null) 'metadata': metadata,
         }),
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        return _decodeJson(response.body) as Map<String, dynamic>;
+        final decoded = _decodeJson(response.body) as Map<String, dynamic>;
+        return decoded;
       } else {
         throw Exception('Failed to complete upload: ${response.statusCode}');
       }
@@ -225,31 +277,10 @@ class UploadService {
 
   // Helper methods for JSON encoding/decoding without hardcoding
   static String _encodeJson(Map<String, dynamic> data) {
-    // In production, use json.encode; for now, simplifiy
-    StringBuffer sb = StringBuffer('{');
-    data.entries.toList().asMap().forEach((i, e) {
-      sb.write('"${e.key}":');
-      if (e.value is String) {
-        sb.write('"${e.value}"');
-      } else if (e.value is int || e.value is double) {
-        sb.write(e.value);
-      } else if (e.value is bool) {
-        sb.write(e.value ? 'true' : 'false');
-      } else {
-        sb.write('"$e.value"');
-      }
-      if (i < data.length - 1) sb.write(',');
-    });
-    sb.write('}');
-    return sb.toString();
+    return json.encode(data);
   }
 
-  static dynamic _decodeJson(String json) {
-    // In production, use json.decode; for now, rely on http already parsing
-    if (json.startsWith('{')) {
-      // Very basic parsing for demo
-      throw Exception('Use real JSON parsing in production');
-    }
-    return {};
+  static dynamic _decodeJson(String jsonStr) {
+    return json.decode(jsonStr);
   }
 }

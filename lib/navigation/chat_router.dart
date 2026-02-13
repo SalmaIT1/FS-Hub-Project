@@ -7,7 +7,7 @@ import 'package:fs_hub/chat/data/chat_repository.dart';
 import 'package:fs_hub/chat/state/chat_controller.dart';
 import 'package:fs_hub/chat/ui/conversation_list_page.dart' as new_chat;
 import 'package:fs_hub/chat/ui/chat_thread_page.dart' as new_chat;
-import '../services/auth_service.dart';
+import '../features/auth/data/services/auth_service.dart';
 
 class ChatRouter {
   static PageRouteBuilder _makeRoute(Widget child) {

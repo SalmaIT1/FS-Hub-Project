@@ -47,10 +47,11 @@ dependencies:
   glassmorphism: ^3.0.0
   
   # File handling
-  file_picker: ^6.1.1
+  file_picker: ^8.0.0+1
   image_picker: ^1.0.4
   shared_preferences: ^2.2.0
   uuid: ^4.1.0
+  path_provider: ^2.1.1
   
   # Permissions
   permission_handler: ^11.3.1
@@ -58,6 +59,12 @@ dependencies:
   
   # State management
   provider: ^6.1.1
+  just_audio: ^0.9.36
+  url_launcher: ^6.1.10
+  open_filex: ^4.3.0
+  
+  # Audio recording
+  record: ^5.0.4
 
 dev_dependencies:
   flutter_test:
@@ -82,6 +89,7 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/audio/
     - .env
 
 flutter_icons:

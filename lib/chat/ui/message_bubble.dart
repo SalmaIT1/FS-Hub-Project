@@ -1,16 +1,9 @@
 import 'package:flutter/material.dart';
 import '../domain/chat_entities.dart';
 import '../domain/message_state_machine.dart';
+import 'media_components.dart';
 
 /// Message bubble widget
-/// 
-/// Renders:
-/// - Text content
-/// - Delivery state icon (sending, sent, delivered, read, failed)
-/// - Timestamp
-/// - Sender avatar (if group chat)
-/// - Retry button (if failed)
-/// - Reply context (if replying)
 class MessageBubble extends StatelessWidget {
   final ChatMessage message;
   final bool isFromCurrentUser;
@@ -30,10 +23,7 @@ class MessageBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: 12.0,
-        vertical: 4.0,
-      ),
+      padding: EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
       child: Row(
         mainAxisAlignment: isFromCurrentUser ? MainAxisAlignment.end : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
@@ -43,22 +33,13 @@ class MessageBubble extends StatelessWidget {
               padding: EdgeInsets.only(right: 8.0),
               child: CircleAvatar(
                 radius: 16,
-                backgroundImage: message.senderAvatar != null
-                    ? NetworkImage(message.senderAvatar!)
-                    : null,
-                child: message.senderAvatar == null
-                    ? Icon(Icons.person, size: 16)
-                    : null,
+                backgroundImage: message.senderAvatar != null ? NetworkImage(message.senderAvatar!) : null,
+                child: message.senderAvatar == null ? Icon(Icons.person, size: 16) : null,
               ),
             ),
-          Flexible(
-            child: _buildMessageContent(context),
-          ),
+          Flexible(child: _buildMessageContent(context)),
           if (isFromCurrentUser)
-            Padding(
-              padding: EdgeInsets.only(left: 8.0),
-              child: _buildDeliveryIcon(),
-            ),
+            Padding(padding: EdgeInsets.only(left: 8.0), child: _buildDeliveryIcon()),
         ],
       ),
     );
@@ -79,36 +60,24 @@ class MessageBubble extends StatelessWidget {
             if (!isFromCurrentUser && isGroupChat && message.senderName != null)
               Padding(
                 padding: EdgeInsets.only(bottom: 4),
-                child: Text(
-                  message.senderName!,
-                  style: Theme.of(context).textTheme.labelSmall,
-                ),
+                child: Text(message.senderName!, style: Theme.of(context).textTheme.labelSmall),
               ),
             if (message.type == 'text')
-              Text(
-                message.content,
-                style: Theme.of(context).textTheme.bodyMedium,
-              )
-            else if (message.type == 'image' || message.type == 'file')
-              _buildAttachmentPreview()
-            else if (message.type == 'audio')
-              _buildVoiceNotePreview(),
+              Text(message.content, style: Theme.of(context).textTheme.bodyMedium)
+            else if (message.type == 'mixed' || message.type == 'image' || message.type == 'file')
+              _buildAttachmentPreview(context)
+            else if (message.type == 'audio' || message.type == 'voice')
+              _buildVoiceNotePreview(context),
             Padding(
               padding: EdgeInsets.only(top: 4),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    _formatTime(message.createdAt),
-                    style: Theme.of(context).textTheme.labelSmall,
-                  ),
+                  Text(_formatTime(message.createdAt), style: Theme.of(context).textTheme.labelSmall),
                   if (message.isEdited)
                     Padding(
                       padding: EdgeInsets.only(left: 4),
-                      child: Text(
-                        '(edited)',
-                        style: Theme.of(context).textTheme.labelSmall,
-                      ),
+                      child: Text('(edited)', style: Theme.of(context).textTheme.labelSmall),
                     ),
                 ],
               ),
@@ -119,52 +88,67 @@ class MessageBubble extends StatelessWidget {
     );
   }
 
-  Widget _buildAttachmentPreview() {
+  Widget _buildAttachmentPreview(BuildContext context) {
     if (message.attachments.isEmpty) return SizedBox.shrink();
-    final att = message.attachments.first;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (message.type == 'image')
-          Container(
-            width: 200,
-            height: 200,
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(8)),
-            child: Image.network(
-              att.uploadUrl,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Icon(Icons.broken_image),
-            ),
-          )
-        else
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.attachment),
-            title: Text(att.filename, maxLines: 1, overflow: TextOverflow.ellipsis),
-            subtitle: Text('${(att.size / 1024).toStringAsFixed(1)} KB'),
+        if (message.content.isNotEmpty)
+          Padding(
+            padding: EdgeInsets.only(bottom: 8),
+            child: Text(message.content, style: Theme.of(context).textTheme.bodyMedium),
           ),
+        ...message.attachments.map((att) => _buildAttachmentTile(context, att)).toList(),
       ],
     );
   }
 
-  Widget _buildVoiceNotePreview() {
-    if (message.voiceNote == null) return SizedBox.shrink();
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(Icons.play_circle_fill),
-        SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Voice message'),
-              Text(_formatDuration(message.voiceNote!.durationMs)),
-            ],
-          ),
-        ),
-      ],
+  Widget _buildAttachmentTile(BuildContext context, AttachmentEntity attachment) {
+    final mimeType = attachment.mimeType;
+    if (mimeType.startsWith('image/')) {
+      return Padding(
+        padding: EdgeInsets.only(bottom: 8),
+        child: InlineImageBubble(attachment: attachment),
+      );
+    }
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: 8),
+      child: FileAttachmentBubble(attachment: attachment),
     );
+  }
+
+  
+
+  Widget _buildFileIcon(String filename, int size) {
+    return Container(
+      width: 200,
+      height: 200,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.insert_drive_file, size: 48, color: Colors.grey[600]),
+          SizedBox(height: 8),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Text(filename, style: TextStyle(fontSize: 12, color: Colors.grey[700]), maxLines: 2, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center),
+          ),
+          SizedBox(height: 4),
+          Text(_formatFileSize(size), style: TextStyle(fontSize: 10, color: Colors.grey[600])),
+        ],
+      ),
+    );
+  }
+
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '${bytes}B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)}KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)}MB';
+  }
+
+  Widget _buildVoiceNotePreview(BuildContext context) {
+    if (message.voiceNote == null) return SizedBox.shrink();
+    return VoiceNoteBubble(voice: message.voiceNote!);
   }
 
   Widget _buildDeliveryIcon() {
@@ -174,11 +158,7 @@ class MessageBubble extends StatelessWidget {
         return Icon(Icons.schedule, size: 16, color: Colors.orange);
       case MessageState.uploading:
       case MessageState.sending:
-        return SizedBox(
-          width: 16,
-          height: 16,
-          child: CircularProgressIndicator(strokeWidth: 2),
-        );
+        return SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2));
       case MessageState.sent:
         return Icon(Icons.done, size: 16, color: Colors.grey);
       case MessageState.delivered:
@@ -186,25 +166,18 @@ class MessageBubble extends StatelessWidget {
       case MessageState.read:
         return Icon(Icons.done_all, size: 16, color: Colors.blueAccent);
       case MessageState.failed:
-        return GestureDetector(
-          onTap: onRetry,
-          child: Icon(Icons.error, size: 16, color: Colors.red),
-        );
+        return GestureDetector(onTap: onRetry, child: Icon(Icons.error, size: 16, color: Colors.red));
     }
   }
 
   String _formatTime(DateTime dt) {
     final now = DateTime.now();
-    if (dt.year == now.year &&
-        dt.month == now.month &&
-        dt.day == now.day) {
+    if (dt.year == now.year && dt.month == now.month && dt.day == now.day) {
       return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
     }
     return '${dt.month}/${dt.day}';
   }
-
-  String _formatDuration(int ms) {
-    final secs = ms ~/ 1000;
-    return '$secs"';
-  }
+ 
 }
+
+

@@ -89,21 +89,40 @@ class ChatRestClient {
       var url = '$baseUrl/v1/conversations/$conversationId/messages?limit=$limit';
       if (before != null) url += '&before=$before';
 
+      print('[REST] getMessages sending request to: $url');
       final response = await httpClient.get(
         Uri.parse(url),
         headers: {'Authorization': 'Bearer $token'},
-      );
+      ).timeout(const Duration(seconds: 30));
+
+      print('[REST] getMessages response received, status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
+        print('[REST] getMessages response status: ${response.statusCode}, body length: ${response.body.length}');
         final data = jsonDecode(response.body);
-        final messages = (data['messages'] as List?)
-            ?.map((m) => ChatMessage.fromServerJson(m))
+        print('[REST] getMessages data keys: ${data.keys}');
+        final messagesList = data['messages'] as List?;
+        print('[REST] getMessages messages count: ${messagesList?.length ?? 0}');
+        
+        // Debug: Check first message structure
+        if (messagesList != null && messagesList.isNotEmpty) {
+          print('[REST] First message type: ${messagesList[0].runtimeType}');
+          if (messagesList[0] is Map) {
+            final firstMsg = messagesList[0] as Map;
+            print('[REST] First message keys: ${firstMsg.keys}');
+            print('[REST] First message attachments type: ${firstMsg['attachments']?.runtimeType}');
+          }
+        }
+        
+        final messages = messagesList
+            ?.map((m) => ChatMessage.fromServerJson(m as Map<String, dynamic>))
             .toList() ?? [];
         return messages;
       } else {
         throw Exception('Failed to fetch messages: ${response.statusCode}');
       }
     } catch (e) {
+      print('[REST-ERROR] getMessages failed: $e');
       throw Exception('Error fetching messages: $e');
     }
   }
@@ -166,6 +185,56 @@ class ChatRestClient {
     } catch (e) {
       print('[REST-ERROR] Error sending message: $e');
       throw Exception('Error sending message: $e');
+    }
+  }
+
+  /// Send message with attachments
+  /// POST /v1/conversations/{id}/messages
+  /// Body includes upload_ids array
+  Future<Map<String, dynamic>> sendMessageWithAttachments({
+    required String conversationId,
+    required String senderId,
+    required String content,
+    required String type,
+    String? replyToId,
+    String? clientMessageId,
+    required List<String> uploadIds,
+    Map<String, dynamic>? voiceMetadata,
+  }) async {
+    try {
+      print('[REST] Sending message with attachments: conversationId=$conversationId clientMsgId=$clientMessageId uploadIds=$uploadIds');
+      final token = await tokenProvider();
+      final body = {
+        'senderId': senderId,
+        'content': content,
+        'type': type,
+        if (replyToId != null) 'replyToId': replyToId,
+        if (clientMessageId != null) 'clientMessageId': clientMessageId,
+        'upload_ids': uploadIds,
+        if (voiceMetadata != null) ...voiceMetadata,
+      };
+
+      print('[REST] POST /v1/conversations/$conversationId/messages body=${jsonEncode(body)}');
+      final response = await httpClient.post(
+        Uri.parse('$baseUrl/v1/conversations/$conversationId/messages'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(body),
+      );
+
+      print('[REST] Response status: ${response.statusCode}');
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        print('[REST] Message with attachments created: serverId=${data['message']['id']} clientMsgId=$clientMessageId');
+        return data;
+      } else {
+        throw Exception('Failed to send message with attachments: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('[REST-ERROR] Error sending message with attachments: $e');
+      throw Exception('Error sending message with attachments: $e');
     }
   }
 
@@ -300,6 +369,43 @@ class ChatRestClient {
       }
     } catch (e) {
       throw Exception('Error marking conversation as read: $e');
+    }
+  }
+
+  /// POST /v1/uploads/signed-url
+  /// Request a signed URL for direct file upload
+  /// 
+  /// Returns: { uploadId, uploadUrl, expiresAt, meta }
+  Future<Map<String, dynamic>> requestSignedUrl({
+    required String contentType,
+    String? filename,
+    int? fileSize,
+  }) async {
+    try {
+      final token = await tokenProvider();
+      final body = {
+        'contentType': contentType,
+        if (filename != null) 'filename': filename,
+        if (fileSize != null) 'fileSize': fileSize,
+      };
+
+      final response = await httpClient.post(
+        Uri.parse('$baseUrl/v1/uploads/signed-url'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(body),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        return data is Map<String, dynamic> ? data : {'data': data};
+      } else {
+        throw Exception('Failed to request signed URL: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error requesting signed URL: $e');
     }
   }
 }

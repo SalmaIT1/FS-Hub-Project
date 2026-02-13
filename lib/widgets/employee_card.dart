@@ -2,7 +2,7 @@ import 'dart:ui';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import '../models/employee.dart';
+import '../shared/models/employee_model.dart';
 
 class EmployeeCard extends StatefulWidget {
   final Employee employee;
@@ -57,21 +57,21 @@ class _EmployeeCardState extends State<EmployeeCard> {
             child: Container(
               decoration: BoxDecoration(
                 color: isDark 
-                    ? Colors.white.withOpacity(0.08)
-                    : Colors.black.withOpacity(0.04),
+                    ? Colors.white.withValues(alpha: 0.08)
+                    : Colors.black.withValues(alpha: 0.04),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: _isPressed
-                      ? const Color(0xFFD4AF37).withOpacity(0.4)
-                      : isDark 
-                          ? Colors.white.withOpacity(0.12)
-                          : Colors.black.withOpacity(0.08),
+                      ? const Color(0xFFD4AF37).withValues(alpha: 0.4)
+                      : (isDark 
+                          ? Colors.white.withValues(alpha: 0.12)
+                          : Colors.black.withValues(alpha: 0.08)),
                   width: 1.0,
                 ),
                 boxShadow: [
                   if (_isPressed)
                     BoxShadow(
-                      color: const Color(0xFFD4AF37).withOpacity(0.15),
+                      color: const Color(0xFFD4AF37).withValues(alpha: 0.15),
                       blurRadius: 12,
                       spreadRadius: 1,
                     ),
@@ -212,7 +212,7 @@ class _EmployeeCardState extends State<EmployeeCard> {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: Border.all(
-          color: const Color(0xFFD4AF37).withOpacity(0.2),
+          color: const Color(0xFFD4AF37).withValues(alpha: 0.2),
           width: 1.5,
         ),
       ),
@@ -226,9 +226,9 @@ class _EmployeeCardState extends State<EmployeeCard> {
 
   Widget _buildImageWidget(String avatarUrl, bool isDark) {
     final prefixLength = avatarUrl.length < 20 ? avatarUrl.length : 20;
-    print('DEBUG: avatarUrl starts with: ${avatarUrl.substring(0, prefixLength)}');
-    print('DEBUG: Contains base64,: ${avatarUrl.contains("base64,")}');
-    print('DEBUG: Starts with data:: ${avatarUrl.startsWith("data:")}');
+
+
+
     
     // Check if the URL is already a complete data URL
     if (avatarUrl.startsWith('data:')) {
@@ -237,7 +237,7 @@ class _EmployeeCardState extends State<EmployeeCard> {
         avatarUrl,
         fit: BoxFit.cover,
         errorBuilder: (context, error, stackTrace) {
-          print('DEBUG: Image.network data URL error: $error');
+          
           return _buildAvatarPlaceholder(isDark);
         },
       );
@@ -254,12 +254,12 @@ class _EmployeeCardState extends State<EmployeeCard> {
           dataUrl,
           fit: BoxFit.cover,
           errorBuilder: (context, error, stackTrace) {
-            print('DEBUG: Image.network base64 error: $error');
+            
             return _buildAvatarPlaceholder(isDark);
           },
         );
       } catch (e) {
-        print('DEBUG: Error validating base64: $e');
+        
         return _buildAvatarPlaceholder(isDark);
       }
     } else {
@@ -277,8 +277,8 @@ class _EmployeeCardState extends State<EmployeeCard> {
   Widget _buildAvatarPlaceholder(bool isDark) {
     return Container(
       color: isDark 
-          ? Colors.white.withOpacity(0.08)
-          : Colors.black.withOpacity(0.04),
+          ? Colors.white.withValues(alpha: 0.08)
+          : Colors.black.withValues(alpha: 0.04),
       child: Center(
         child: Text(
           widget.employee.prenom[0].toUpperCase() + 
@@ -297,10 +297,10 @@ class _EmployeeCardState extends State<EmployeeCard> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: _getStatusColor().withOpacity(0.15),
+        color: _getStatusColor().withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: _getStatusColor().withOpacity(0.3),
+          color: _getStatusColor().withValues(alpha: 0.3),
           width: 0.5,
         ),
       ),

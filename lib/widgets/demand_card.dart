@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/demand.dart';
+import '../../shared/models/demand_model.dart';
 
 class DemandCard extends StatelessWidget {
   final Demand demand;
@@ -141,7 +141,7 @@ class DemandCard extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: _getStatusColor(demand.status).withOpacity(0.1),
+                      color: _getStatusColor(demand.status).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: _getStatusColor(demand.status),

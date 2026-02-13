@@ -314,7 +314,7 @@ class WebSocketServer {
         final userId = _userConnections[connectionId]?.toString() ?? '?';
         
         // Skip excluded user
-        if (excludeUserId != null && userId == excludeUserId) {
+        if (excludeUserId != null && userId == excludeUserId.toString()) {
           print('[WS-BROADCAST] Skipping sender (userId=$userId, excludeUserId=$excludeUserId)');
           continue;
         }

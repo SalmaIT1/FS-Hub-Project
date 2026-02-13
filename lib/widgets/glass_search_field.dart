@@ -25,13 +25,13 @@ class GlassSearchField extends StatelessWidget {
           height: 44,
           decoration: BoxDecoration(
             color: isDark 
-                ? Colors.white.withOpacity(0.08)
-                : Colors.black.withOpacity(0.04),
+                ? Colors.white.withValues(alpha: 0.08)
+                : Colors.black.withValues(alpha: 0.04),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: isDark 
-                  ? Colors.white.withOpacity(0.12)
-                  : Colors.black.withOpacity(0.08),
+                  ? Colors.white.withValues(alpha: 0.12)
+                  : Colors.black.withValues(alpha: 0.08),
             ),
           ),
           child: TextField(

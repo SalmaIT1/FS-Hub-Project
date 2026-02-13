@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../models/notification.dart' as AppNotification;
-import '../services/employee_service.dart';
+import '../shared/models/notification_model.dart' as AppNotification;
+import '../features/notifications/services/notification_service.dart';
 
 class NotificationDrawer extends StatefulWidget {
   final String userId;
@@ -34,7 +34,7 @@ class _NotificationDrawerState extends State<NotificationDrawer> {
     });
 
     try {
-      final result = await EmployeeService.getUserNotifications(widget.userId);
+      final result = await NotificationService.getUserNotifications(widget.userId);
 
       if (mounted && result['success']) {
         final List<dynamic> notificationData = result['data'];
@@ -56,7 +56,7 @@ class _NotificationDrawerState extends State<NotificationDrawer> {
 
   Future<void> _markAsRead(String notificationId) async {
     try {
-      final result = await EmployeeService.markNotificationAsRead(notificationId, widget.userId);
+      final result = await NotificationService.markAsRead(notificationId, widget.userId);
 
       if (mounted && result['success']) {
         // Update local state
@@ -87,7 +87,7 @@ class _NotificationDrawerState extends State<NotificationDrawer> {
 
   Future<void> _markAllAsRead() async {
     try {
-      final result = await EmployeeService.markAllNotificationsAsRead(widget.userId);
+      final result = await NotificationService.markAllAsRead(widget.userId);
 
       if (mounted && result['success']) {
         // Update local state

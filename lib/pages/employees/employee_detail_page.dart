@@ -1,10 +1,9 @@
 import 'dart:ui';
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import '../../models/employee.dart';
-import '../../routes/app_routes.dart';
-import '../../widgets/luxury/luxury_app_bar.dart';
+import '../../shared/models/employee_model.dart';
+import '../../../core/routes/app_routes.dart';
+import '../../../shared/widgets/luxury/luxury_app_bar.dart';
 
 class EmployeeDetailPage extends StatelessWidget {
   final Employee employee;
@@ -179,8 +178,8 @@ class EmployeeDetailPage extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: isDark 
-                  ? Colors.white.withOpacity(0.12)
-                  : Colors.black.withOpacity(0.08),
+                  ? Colors.white.withValues(alpha: 0.12)
+                  : Colors.black.withValues(alpha: 0.08),
             ),
           ),
           child: Column(
@@ -257,10 +256,10 @@ class EmployeeDetailPage extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: statusColor.withOpacity(0.15),
+        color: statusColor.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: statusColor.withOpacity(0.3),
+          color: statusColor.withValues(alpha: 0.3),
           width: 0.5,
         ),
       ),
@@ -298,10 +297,10 @@ class EmployeeDetailPage extends StatelessWidget {
               return Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFD4AF37).withOpacity(0.15),
+                  color: const Color(0xFFD4AF37).withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: const Color(0xFFD4AF37).withOpacity(0.3),
+                    color: const Color(0xFFD4AF37).withValues(alpha: 0.3),
                   ),
                 ),
                 child: Text(

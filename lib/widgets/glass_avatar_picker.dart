@@ -43,7 +43,7 @@ class _GlassAvatarPickerState extends State<GlassAvatarPicker> {
         widget.onImageSelected(_selectedImage);
       }
     } catch (e) {
-      debugPrint('Error picking image: $e');
+      
     }
   }
 

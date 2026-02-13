@@ -236,9 +236,72 @@ class ConversationRoutes {
       final data = jsonDecode(body);
       
       final content = data['content'];
-      final type = data['type'] ?? 'text';
+      final incomingType = data['type'] ?? 'text';
+      // Sanitize type to match DB enum: ('text','file','voice','system')
+      String type;
+      try {
+        final t = incomingType.toString().toLowerCase();
+        if (['text', 'file', 'voice', 'system'].contains(t)) {
+          type = t;
+        } else if (t == 'image' || t == 'mixed') {
+          type = 'file';
+        } else if (t == 'audio') {
+          type = 'voice';
+        } else {
+          // Default based on presence of uploads
+          final maybeUploads = data['upload_ids'] as List?;
+          type = (maybeUploads != null && maybeUploads.isNotEmpty) ? 'file' : 'text';
+        }
+      } catch (e) {
+        type = 'text';
+      }
+
+      // Log incoming message payload for debugging
+      print('[REST] Incoming sendMessage payload: ${jsonEncode(data)} => sanitized type="$type"');
       final replyToId = data['replyToId'];
       final clientMessageId = data['clientMessageId'];
+      final uploadIds = data['upload_ids'] as List<dynamic>?;
+      
+      // Extract voice metadata if present (for voice type messages or audio file uploads)
+      Map<String, dynamic>? voiceMetadata;
+      if (type == 'voice' || type == 'file') {
+        final durationSeconds = data['duration_seconds'];
+        final waveformData = data['waveform_data'];
+        
+        // Also check upload IDs for audio mime types
+        if (durationSeconds != null || (uploadIds != null && uploadIds.isNotEmpty)) {
+          // Query the database to check if uploads are audio
+          bool hasAudioUpload = false;
+          if (uploadIds != null && uploadIds.isNotEmpty) {
+            try {
+              final conn = DBConnection.getConnection();
+              for (final uploadId in uploadIds) {
+                final result = await conn.execute(
+                  'SELECT mime_type FROM file_uploads WHERE id = :id',
+                  {'id': uploadId.toString()}
+                );
+                if (result.rows.isNotEmpty) {
+                  final mimeType = result.rows.first.colByName('mime_type') as String?;
+                  if (mimeType != null && (mimeType.startsWith('audio/') || mimeType == 'audio/aac' || mimeType == 'audio/m4a')) {
+                    hasAudioUpload = true;
+                    break;
+                  }
+                }
+              }
+            } catch (e) {
+              print('[REST] Warning: Could not check mime types: $e');
+            }
+          }
+          
+          if (durationSeconds != null || hasAudioUpload) {
+            voiceMetadata = {
+              'duration_seconds': durationSeconds is String ? double.tryParse(durationSeconds) : durationSeconds,
+              if (waveformData != null) 'waveform_data': waveformData,
+            };
+            print('[REST] Extracted voice metadata: $voiceMetadata');
+          }
+        }
+      }
 
       // Enforce server-side identity: require Authorization header and extract userId
       final authHeader = request.headers['authorization'] ?? request.headers['Authorization'];
@@ -278,6 +341,8 @@ class ConversationRoutes {
         type: type,
         replyToId: replyToId,
         clientMessageId: clientMessageId,
+        uploadIds: uploadIds?.map((id) => id.toString()).toList(),
+        voiceMetadata: voiceMetadata,
       );
 
       if (result['success']) {
@@ -289,6 +354,7 @@ class ConversationRoutes {
         
         try {
           print('[REST-SEND] About to call broadcastToConversationMembers...');
+          print('[REST-SEND] excludeUserId parameter: not provided (should be null)');
           await WebSocketServer.broadcastToConversationMembers(
             id,
             {

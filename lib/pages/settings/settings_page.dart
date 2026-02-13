@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../widgets/luxury/luxury_app_bar.dart';
+import '../../shared/widgets/luxury/luxury_app_bar.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});

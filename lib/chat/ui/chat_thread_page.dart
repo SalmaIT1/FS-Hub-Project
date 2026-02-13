@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../domain/chat_entities.dart';
 import '../domain/message_state_machine.dart';
 import '../state/chat_controller.dart';
+import '../data/attachment_manager.dart';
 import 'message_bubble.dart';
 import 'composer_bar.dart';
 
@@ -37,11 +38,17 @@ class _ChatThreadPageState extends State<ChatThreadPage> {
   String? _currentUserId;
   int _prevMessageCount = 0;
   VoidCallback? _controllerListener;
+  late AttachmentManager _attachmentManager;
 
   @override
   void initState() {
     super.initState();
     _scrollController = ScrollController();
+    
+    // Initialize attachment manager
+    _attachmentManager = AttachmentManager(
+      context.read<ChatController>().repository.uploads,
+    );
     
     // Load current user ID FIRST, then load conversation
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -107,6 +114,9 @@ class _ChatThreadPageState extends State<ChatThreadPage> {
       final controller = context.read<ChatController>();
       if (_controllerListener != null) controller.removeListener(_controllerListener!);
     } catch (_) {}
+
+    // Dispose attachment manager
+    _attachmentManager.dispose();
 
     _scrollController.dispose();
     super.dispose();
@@ -208,10 +218,11 @@ class _ChatThreadPageState extends State<ChatThreadPage> {
               ),
               child: ComposerBar(
                 conversationId: widget.conversationId,
-                onSend: (content) {
-                  controller.sendMessage(content);
+                onSendMessage: (content, uploadIds, {voiceMetadata}) {
+                  controller.sendMessageWithAttachments(content, uploadIds, voiceMetadata: voiceMetadata);
                   _scrollToBottom();
                 },
+                attachmentManager: _attachmentManager,
               ),
             ),
           ),

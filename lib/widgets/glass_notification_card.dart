@@ -34,18 +34,18 @@ class GlassNotificationCard extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         color: isDark 
-            ? Colors.white.withOpacity(0.05) 
-            : Colors.black.withOpacity(0.03),
+            ? Colors.white.withValues(alpha: 0.05) 
+            : Colors.black.withValues(alpha: 0.03),
         border: Border.all(
           color: isDark 
-              ? (isRead ? Colors.white.withOpacity(0.1) : const Color(0xFFFFD700).withOpacity(0.3))
-              : (isRead ? Colors.black.withOpacity(0.05) : const Color(0xFFFFD700).withOpacity(0.4)),
+              ? (isRead ? Colors.white.withValues(alpha: 0.1) : const Color(0xFFFFD700).withValues(alpha: 0.3))
+              : (isRead ? Colors.black.withValues(alpha: 0.05) : const Color(0xFFFFD700).withValues(alpha: 0.4)),
           width: isRead ? 1 : 1.5,
         ),
         boxShadow: [
           if (!isRead)
             BoxShadow(
-              color: const Color(0xFFFFD700).withOpacity(0.1),
+              color: const Color(0xFFFFD700).withValues(alpha: 0.1),
               blurRadius: 20,
               spreadRadius: 2,
               offset: const Offset(0, 0),
@@ -143,8 +143,8 @@ class GlassNotificationCard extends StatelessWidget {
                           formattedDate,
                           style: TextStyle(
                             color: isDark 
-                                ? Colors.white.withOpacity(0.4)
-                                : Colors.black.withOpacity(0.35),
+                                ? Colors.white.withValues(alpha: 0.4)
+                                : Colors.black.withValues(alpha: 0.35),
                             fontSize: 10,
                           ),
                         ),
@@ -170,8 +170,8 @@ class GlassNotificationCard extends StatelessWidget {
                           Icons.done,
                           size: 16,
                           color: isDark 
-                              ? Colors.white.withOpacity(0.3)
-                              : Colors.black.withOpacity(0.3),
+                              ? Colors.white.withValues(alpha: 0.3)
+                              : Colors.black.withValues(alpha: 0.3),
                         ),
                         constraints: const BoxConstraints.tightFor(width: 32, height: 32),
                         padding: EdgeInsets.zero,
@@ -192,14 +192,14 @@ class GlassNotificationCard extends StatelessWidget {
   Color _getIconBackgroundColor(String type, bool isDark) {
     switch (type) {
       case 'demand':
-        return const Color(0xFFFFD700).withOpacity(0.15);
+        return const Color(0xFFFFD700).withValues(alpha: 0.15);
       case 'system':
         return isDark 
-            ? Colors.blue.withOpacity(0.15)
+            ? Colors.blue.withValues(alpha: 0.15)
             : Colors.blue.shade100;
       default:
         return isDark 
-            ? Colors.grey.withOpacity(0.15)
+            ? Colors.grey.withValues(alpha: 0.15)
             : Colors.grey.shade100;
     }
   }
