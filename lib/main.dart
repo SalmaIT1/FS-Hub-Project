@@ -23,7 +23,7 @@ import 'package:fs_hub/chat/state/chat_controller.dart';
 import 'package:fs_hub/chat/ui/conversation_list_page.dart' as new_chat;
 import 'package:fs_hub/chat/ui/chat_thread_page.dart' as new_chat;
 import 'package:fs_hub/chat/domain/chat_entities.dart';
-import 'package:fs_hub/shared/widgets/layout/main_layout.dart';
+import 'package:fs_hub/core/localization/translations.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -76,7 +76,7 @@ class MyApp extends StatelessWidget {
         valueListenable: AppTheme.themeNotifier,
         builder: (context, currentMode, _) {
           return MaterialApp(
-            title: 'FS Hub',
+            title: Translations.getText('app_title', 'en'),
             debugShowCheckedModeBanner: false,
             theme: AppTheme.glassLightTheme,
             darkTheme: AppTheme.glassDarkTheme,
@@ -119,8 +119,8 @@ class MyApp extends StatelessWidget {
               } else if (settings.name == AppRoutes.createDemand) {
                 return MaterialPageRoute(
                   builder: (context) => Scaffold(
-                    appBar: AppBar(title: const Text('Create Demand')),
-                    body: const Center(child: Text('Create Demand page not implemented yet')),
+                    appBar: AppBar(title: Text(Translations.getText('create_demand', 'en'))),
+                    body: Center(child: Text(Translations.getText('reset_password_page_subtitle', 'en'))),
                   ),
                 );
               } else if (settings.name == AppRoutes.demandDetail) {
@@ -233,9 +233,9 @@ class ResetPasswordPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Reset Password')),
-      body: const Center(
-        child: Text('Reset Password Page - Implementation needed'),
+      appBar: AppBar(title: Text(Translations.getText('reset_password_page', 'en'))),
+      body: Center(
+        child: Text(Translations.getText('reset_password_page_subtitle', 'en')),
       ),
     );
   }

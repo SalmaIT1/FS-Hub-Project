@@ -2,6 +2,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../shared/models/employee_model.dart';
 import '../core/theme/app_theme.dart';
+import '../core/localization/translations.dart';
+import '../core/state/settings_controller.dart';
 
 class EmployeeCard extends StatefulWidget {
   final Employee employee;
@@ -60,6 +62,8 @@ class _EmployeeCardState extends State<EmployeeCard> with SingleTickerProviderSt
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final settings = context.watch<SettingsController>();
+    final languageCode = settings.languageCode;
     
     return MouseRegion(
       onEnter: (_) => _hoverController.forward(),
@@ -367,14 +371,14 @@ Widget _buildImageWidget(String avatarUrl, bool isDark) {
         if (widget.onEdit != null)
           _buildMenuItem(
             'edit',
-            'Edit Profile',
+            Translations.getText('edit_profile', languageCode),
             Icons.edit_rounded,
             isDark ? Colors.white : Colors.black,
           ),
         if (widget.onDelete != null)
           _buildMenuItem(
             'delete',
-            'Remove',
+            Translations.getText('remove', languageCode),
             Icons.delete_outline_rounded,
             Colors.redAccent,
           ),

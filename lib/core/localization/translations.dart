@@ -24,6 +24,7 @@ class Translations {
       'appearance': 'Appearance',
       'push_notifications': 'Push Notifications',
       'sound_effects': 'Sound Effects',
+      'sounds': 'Sounds',
       'account': 'Account',
       'security': 'Security',
       'privacy': 'Privacy',
@@ -125,6 +126,89 @@ class Translations {
       'back_to_login': 'BACK TO LOGIN',
       'how_it_works': 'How it works:',
       'reset_steps': '1. Submit your email address\n2. Administrator reviews your request\n3. You receive a new password via email\n4. Log in and change your password',
+      // App Bar and Navigation
+      'create_demand': 'Create Demand',
+      'reset_password_page': 'Reset Password',
+      'reset_password_page_subtitle': 'Reset Password Page - Implementation needed',
+      // Demand Card Strings
+      'security_request': 'Security Request',
+      'hardware_support': 'Hardware Support',
+      'admin_request': 'Admin Request',
+      'special_inquiry': 'Special Inquiry',
+      'general_request': 'General Request',
+      'awaiting_review': 'Awaiting Review',
+      'in_process': 'In Process',
+      'completed': 'Completed',
+      'declined': 'Declined',
+      'ticket_number': 'Ticket #',
+      'unknown': 'Unknown',
+      'today_at': 'Today at',
+      // Employee Card Strings
+      'edit_profile': 'Edit Profile',
+      'remove': 'Remove',
+      // Chat Input Bar Strings
+      'uploading': 'Uploading...',
+      'slide_to_cancel': '←  Slide to cancel',
+      'recording': 'Recording...',
+      'voice_message': 'Voice Message',
+      'discard': 'Discard',
+      'send': 'Send',
+      'failed_to_start_recording': 'Failed to start recording',
+      'failed_to_save_recording': 'Failed to save recording',
+      'recording_file_does_not_exist': 'Recording file does not exist',
+      'recording_is_empty': 'Recording is empty - microphone may not be working',
+      'no_recording_to_send': 'No recording to send',
+      'file_reference_lost': 'File reference lost',
+      'recording_file_was_deleted': 'Recording file was deleted',
+      'failed_to_send_voice_note': 'Failed to send voice note',
+      'failed_to_load_audio': 'Failed to load audio',
+      'playback_error': 'Playback error',
+      // Settings Page Additional Strings
+      'account_security': 'Account Security',
+      'cache_cleared': 'Cache cleared',
+      'app_language': 'App Language',
+      'receive_alerts_new_messages': 'Receive alerts for new messages',
+      'play_sounds_actions': 'Play sounds for actions',
+      'fs_hub_version': 'FS Hub v1.2.0',
+      // Employee List Strings
+      'error_loading_employees': 'Error loading employees',
+      // Voice Recording Dialog Strings
+      'voice_recording_dialog': 'Voice Recording Dialog',
+      // Media Picker Strings
+      'media_picker_sheet': 'Media Picker Sheet',
+      // Notification Strings
+      'notification_center': 'Notification Center',
+      // Search and Filter Strings
+      'search_hint': 'Search...',
+      'no_results_found': 'No results found',
+      'try_different_search': 'Try different search terms',
+      // Form Validation Strings
+      'field_required': 'This field is required',
+      'invalid_email': 'Invalid email address',
+      'password_too_short': 'Password must be at least 6 characters',
+      // Success Messages
+      'operation_successful': 'Operation successful',
+      'changes_saved': 'Changes saved successfully',
+      // Error Messages
+      'something_went_wrong': 'Something went wrong',
+      'network_error': 'Network error',
+      'try_again_later': 'Please try again later',
+      // Loading States
+      'loading': 'Loading...',
+      'please_wait': 'Please wait...',
+      // Confirmation Dialogs
+      'are_you_sure': 'Are you sure?',
+      'cancel': 'Cancel',
+      'confirm': 'Confirm',
+      'delete_confirmation': 'This action cannot be undone',
+      // Date and Time
+      'just_now': 'Just now',
+      'minutes_ago': 'minutes ago',
+      'hours_ago': 'hours ago',
+      'days_ago': 'days ago',
+      'weeks_ago': 'weeks ago',
+      'months_ago': 'months ago',
+      'years_ago': 'years ago',
     },
     'fr': {
       'app_title': 'FS Hub',
@@ -150,6 +234,7 @@ class Translations {
       'appearance': 'Apparence',
       'push_notifications': 'Notifications push',
       'sound_effects': 'Effets sonores',
+      'sounds': 'Sons',
       'account': 'Compte',
       'security': 'Sécurité',
       'privacy': 'Confidentialité',
@@ -251,6 +336,89 @@ class Translations {
       'back_to_login': 'RETOUR À LA CONNEXION',
       'how_it_works': 'Comment ça marche :',
       'reset_steps': '1. Soumettez votre adresse email\n2. Un administrateur examine votre demande\n3. Vous recevez un nouveau mot de passe par email\n4. Connectez-vous et changez votre mot de passe',
+      // App Bar and Navigation
+      'create_demand': 'Créer une Demande',
+      'reset_password_page': 'Réinitialiser le mot de passe',
+      'reset_password_page_subtitle': 'Page de réinitialisation de mot de passe - Implémentation nécessaire',
+      // Demand Card Strings
+      'security_request': 'Demande de sécurité',
+      'hardware_support': 'Support matériel',
+      'admin_request': 'Demande admin',
+      'special_inquiry': 'Demande spéciale',
+      'general_request': 'Demande générale',
+      'awaiting_review': 'En attente de révision',
+      'in_process': 'En cours',
+      'completed': 'Terminé',
+      'declined': 'Refusé',
+      'ticket_number': 'Ticket #',
+      'unknown': 'Inconnu',
+      'today_at': 'Aujourd\'hui à',
+      // Employee Card Strings
+      'edit_profile': 'Modifier le profil',
+      'remove': 'Supprimer',
+      // Chat Input Bar Strings
+      'uploading': 'Téléchargement...',
+      'slide_to_cancel': '←  Glisser pour annuler',
+      'recording': 'Enregistrement...',
+      'voice_message': 'Message vocal',
+      'discard': 'Annuler',
+      'send': 'Envoyer',
+      'failed_to_start_recording': 'Échec du démarrage de l\'enregistrement',
+      'failed_to_save_recording': 'Échec de la sauvegarde de l\'enregistrement',
+      'recording_file_does_not_exist': 'Le fichier d\'enregistrement n\'existe pas',
+      'recording_is_empty': 'L\'enregistrement est vide - le microphone ne fonctionne peut-être pas',
+      'no_recording_to_send': 'Aucun enregistrement à envoyer',
+      'file_reference_lost': 'Référence de fichier perdue',
+      'recording_file_was_deleted': 'Le fichier d\'enregistrement a été supprimé',
+      'failed_to_send_voice_note': 'Échec de l\'envoi du message vocal',
+      'failed_to_load_audio': 'Échec du chargement de l\'audio',
+      'playback_error': 'Erreur de lecture',
+      // Settings Page Additional Strings
+      'account_security': 'Sécurité du compte',
+      'cache_cleared': 'Cache vidé',
+      'app_language': 'Langue de l\'application',
+      'receive_alerts_new_messages': 'Recevoir des alertes pour les nouveaux messages',
+      'play_sounds_actions': 'Jouer des sons pour les actions',
+      'fs_hub_version': 'FS Hub v1.2.0',
+      // Employee List Strings
+      'error_loading_employees': 'Erreur lors du chargement des employés',
+      // Voice Recording Dialog Strings
+      'voice_recording_dialog': 'Boîte de dialogue d\'enregistrement vocal',
+      // Media Picker Strings
+      'media_picker_sheet': 'Sélecteur de médias',
+      // Notification Strings
+      'notification_center': 'Centre de notifications',
+      // Search and Filter Strings
+      'search_hint': 'Rechercher...',
+      'no_results_found': 'Aucun résultat trouvé',
+      'try_different_search': 'Essayez des termes de recherche différents',
+      // Form Validation Strings
+      'field_required': 'Ce champ est requis',
+      'invalid_email': 'Adresse email invalide',
+      'password_too_short': 'Le mot de passe doit contenir au moins 6 caractères',
+      // Success Messages
+      'operation_successful': 'Opération réussie',
+      'changes_saved': 'Modifications enregistrées avec succès',
+      // Error Messages
+      'something_went_wrong': 'Une erreur est survenue',
+      'network_error': 'Erreur réseau',
+      'try_again_later': 'Veuillez réessayer plus tard',
+      // Loading States
+      'loading': 'Chargement...',
+      'please_wait': 'Veuillez patienter...',
+      // Confirmation Dialogs
+      'are_you_sure': 'Êtes-vous sûr ?',
+      'cancel': 'Annuler',
+      'confirm': 'Confirmer',
+      'delete_confirmation': 'Cette action ne peut pas être annulée',
+      // Date and Time
+      'just_now': 'À l\'instant',
+      'minutes_ago': 'il y a quelques minutes',
+      'hours_ago': 'il y a quelques heures',
+      'days_ago': 'il y a quelques jours',
+      'weeks_ago': 'il y a quelques semaines',
+      'months_ago': 'il y a quelques mois',
+      'years_ago': 'il y a quelques années',
     },
   };
 

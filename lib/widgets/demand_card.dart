@@ -1,7 +1,8 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../shared/models/demand_model.dart';
-import '../core/theme/app_theme.dart';
+import 'package:fs_hub/core/localization/translations.dart';
+import '../../core/state/settings_controller.dart';
 
 class DemandCard extends StatefulWidget {
   final Demand demand;
@@ -40,24 +41,24 @@ class _DemandCardState extends State<DemandCard> with SingleTickerProviderStateM
     super.dispose();
   }
 
-  String _getTypeDisplayName(String type) {
+  String _getTypeDisplayName(String type, String languageCode) {
     switch (type) {
-      case 'password_reset': return 'Security Request';
-      case 'hardware': return 'Hardware Support';
-      case 'administrative': return 'Admin Request';
-      case 'custom': return 'Special Inquiry';
+      case 'password_reset': return Translations.getText('security_request', languageCode);
+      case 'hardware': return Translations.getText('hardware_support', languageCode);
+      case 'administrative': return Translations.getText('admin_request', languageCode);
+      case 'custom': return Translations.getText('special_inquiry', languageCode);
       default: 
-        if (type.isEmpty) return 'General Request';
+        if (type.isEmpty) return Translations.getText('general_request', languageCode);
         return type.split('_').map((s) => s.isEmpty ? '' : s[0].toUpperCase() + s.substring(1)).join(' ');
     }
   }
 
-  String _getStatusDisplayName(String status) {
+  String _getStatusDisplayName(String status, String languageCode) {
     switch (status) {
-      case 'pending': return 'Awaiting Review';
-      case 'in_progress': return 'In Process';
-      case 'resolved': return 'Completed';
-      case 'rejected': return 'Declined';
+      case 'pending': return Translations.getText('awaiting_review', languageCode);
+      case 'in_progress': return Translations.getText('in_process', languageCode);
+      case 'resolved': return Translations.getText('completed', languageCode);
+      case 'rejected': return Translations.getText('declined', languageCode);
       default: return status.toUpperCase();
     }
   }
@@ -82,12 +83,12 @@ class _DemandCardState extends State<DemandCard> with SingleTickerProviderStateM
     }
   }
 
-  String _formatDate(String dateString) {
+  String _formatDate(String dateString, String languageCode) {
     try {
       final date = DateTime.parse(dateString);
       final now = DateTime.now();
       if (date.year == now.year && date.month == now.month && date.day == now.day) {
-        return 'Today at ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+        return '${Translations.getText('today_at', languageCode)} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
       }
       return '${date.day}/${date.month}/${date.year}';
     } catch (e) {
@@ -99,6 +100,8 @@ class _DemandCardState extends State<DemandCard> with SingleTickerProviderStateM
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final statusColor = _getStatusColor(widget.demand.status);
+    final settings = context.watch<SettingsController>();
+    final languageCode = settings.languageCode;
     
     return MouseRegion(
       onEnter: (_) => _hoverController.forward(),
@@ -178,7 +181,7 @@ class _DemandCardState extends State<DemandCard> with SingleTickerProviderStateM
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    _getTypeDisplayName(widget.demand.type),
+                                    _getTypeDisplayName(widget.demand.type, languageCode),
                                     style: TextStyle(
                                       color: isDark ? Colors.white : Colors.black,
                                       fontSize: 16,
@@ -188,7 +191,7 @@ class _DemandCardState extends State<DemandCard> with SingleTickerProviderStateM
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    'Ticket #${(widget.demand.id != null && widget.demand.id!.length >= 8) ? widget.demand.id!.substring(0, 8) : widget.demand.id ?? 'Unknown'}',
+                                    'Ticket #${(widget.demand.id != null && widget.demand.id!.length >= 8) ? widget.demand.id!.substring(0, 8) : widget.demand.id ?? Translations.getText('unknown', languageCode)}',
                                     style: TextStyle(
                                       color: isDark ? Colors.white38 : Colors.black38,
                                       fontSize: 11,
@@ -221,7 +224,7 @@ class _DemandCardState extends State<DemandCard> with SingleTickerProviderStateM
                                 Icon(Icons.access_time_rounded, size: 14, color: AppTheme.accentGold.withOpacity(0.6)),
                                 const SizedBox(width: 6),
                                 Text(
-                                  _formatDate(widget.demand.createdAt),
+                                  _formatDate(widget.demand.createdAt, languageCode),
                                   style: TextStyle(
                                     color: isDark ? Colors.white38 : Colors.black45,
                                     fontSize: 12,
@@ -258,7 +261,7 @@ class _DemandCardState extends State<DemandCard> with SingleTickerProviderStateM
         border: Border.all(color: statusColor.withOpacity(0.3)),
       ),
       child: Text(
-        _getStatusDisplayName(widget.demand.status),
+        _getStatusDisplayName(widget.demand.status, languageCode),
         style: TextStyle(
           color: statusColor,
           fontSize: 10,

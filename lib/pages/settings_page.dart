@@ -56,7 +56,7 @@ class SettingsPage extends StatelessWidget {
             ),
             const SizedBox(height: 32),
             _buildSectionHeader(
-              settings.translate('notifications') + ' & ' + (settings.languageCode == 'fr' ? 'Sons' : 'Sounds'),
+              settings.translate('notifications') + ' & ' + settings.translate('sounds'),
               isDark,
             ),
             const SizedBox(height: 12),
@@ -66,7 +66,7 @@ class SettingsPage extends StatelessWidget {
                 _buildSwitchTile(
                   context,
                   title: settings.translate('push_notifications'),
-                  subtitle: settings.languageCode == 'fr' ? 'Recevoir des alertes pour les nouveaux messages' : 'Receive alerts for new messages',
+                  subtitle: settings.translate('receive_alerts_new_messages'),
                   value: settings.notificationsEnabled,
                   onChanged: (val) => settings.toggleNotifications(val),
                   icon: Icons.notifications_none_rounded,
@@ -76,7 +76,7 @@ class SettingsPage extends StatelessWidget {
                 _buildSwitchTile(
                   context,
                   title: settings.translate('sound_effects'),
-                  subtitle: settings.languageCode == 'fr' ? 'Jouer des sons pour les actions' : 'Play sounds for actions',
+                  subtitle: settings.translate('play_sounds_actions'),
                   value: settings.soundEffectsEnabled,
                   onChanged: (val) => settings.toggleSoundEffects(val),
                   icon: Icons.volume_up_outlined,
@@ -95,7 +95,7 @@ class SettingsPage extends StatelessWidget {
               children: [
                 _buildActionTile(
                   context,
-                  title: settings.languageCode == 'fr' ? 'Sécurité du compte' : 'Account Security',
+                  title: settings.translate('account_security'),
                   icon: Icons.security_outlined,
                   onTap: () {},
                   isDark: isDark,
@@ -141,7 +141,7 @@ class SettingsPage extends StatelessWidget {
                   icon: Icons.delete_outline_rounded,
                   onTap: () {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(settings.languageCode == 'fr' ? 'Cache vidé' : 'Cache cleared')),
+                      SnackBar(content: Text(settings.translate('cache_cleared'))),
                     );
                   },
                   isDark: isDark,
@@ -152,7 +152,7 @@ class SettingsPage extends StatelessWidget {
             const SizedBox(height: 48),
             Center(
               child: Text(
-                'FS Hub v1.2.0',
+                settings.translate('fs_hub_version'),
                 style: TextStyle(
                   color: isDark ? Colors.white24 : Colors.black26,
                   fontSize: 12,
@@ -222,7 +222,7 @@ class SettingsPage extends StatelessWidget {
         ),
       ),
       title: Text(
-        settings.languageCode == 'fr' ? 'Thème' : 'Theme',
+        settings.translate('theme'),
         style: TextStyle(
           color: isDark ? Colors.white : Colors.black,
           fontWeight: FontWeight.w600,
@@ -237,21 +237,21 @@ class SettingsPage extends StatelessWidget {
             DropdownMenuItem(
               value: ThemeMode.dark,
               child: Text(
-                settings.languageCode == 'fr' ? 'Sombre' : 'Dark',
+                settings.translate('dark'),
                 style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 14),
               ),
             ),
             DropdownMenuItem(
               value: ThemeMode.light,
               child: Text(
-                settings.languageCode == 'fr' ? 'Clair' : 'Light',
+                settings.translate('light'),
                 style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 14),
               ),
             ),
             DropdownMenuItem(
               value: ThemeMode.system,
               child: Text(
-                settings.languageCode == 'fr' ? 'Système' : 'System',
+                settings.translate('system'),
                 style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 14),
               ),
             ),
@@ -280,7 +280,7 @@ class SettingsPage extends StatelessWidget {
         ),
       ),
       title: Text(
-        settings.languageCode == 'fr' ? 'Langue de l\'application' : 'App Language',
+        settings.translate('app_language'),
         style: TextStyle(
           color: isDark ? Colors.white : Colors.black,
           fontWeight: FontWeight.w600,

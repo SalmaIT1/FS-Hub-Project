@@ -7,6 +7,8 @@ import 'package:fs_hub/services/real_audio_recorder.dart';
 import 'package:fs_hub/features/voice/services/waveform_generator.dart';
 import 'package:just_audio/just_audio.dart';
 import '../shared/models/message_model.dart';
+import '../core/localization/translations.dart';
+import '../core/state/settings_controller.dart';
 import 'media_picker_sheet.dart';
 import 'upload_progress_overlay.dart';
 
@@ -67,6 +69,9 @@ class _ChatInputBarState extends State<ChatInputBar> {
 
   @override
   Widget build(BuildContext context) {
+    final settings = context.watch<SettingsController>();
+    final languageCode = settings.languageCode;
+    
     return Stack(
       children: [
         Container(
@@ -86,7 +91,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
                       minLines: 1,
                       style: TextStyle(color: Colors.white, fontSize: 15, height: 1.2),
                       decoration: InputDecoration(
-                        hintText: 'Message',
+                        hintText: Translations.getText('message_hint', languageCode),
                         hintStyle: TextStyle(color: Colors.white38),
                         border: InputBorder.none,
                         isCollapsed: true,
@@ -115,7 +120,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
             ),
           ),
         ),
-        if (_showUpload) Positioned.fill(child: UploadProgressOverlay(progress: _uploadProgress, label: 'Uploading...')),
+        if (_showUpload) Positioned.fill(child: UploadProgressOverlay(progress: _uploadProgress, label: Translations.getText('uploading', languageCode))),
         if (_recording) Positioned.fill(child: _buildRecordingOverlay()),
       ],
     );
@@ -165,7 +170,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
                   ),
                   SizedBox(height: 12),
                   Text(
-                    _cancelRecording ? '←  Slide to cancel' : 'Recording...',
+                    _cancelRecording ? Translations.getText('slide_to_cancel', languageCode) : Translations.getText('recording', languageCode),
                     style: TextStyle(
                       color: _cancelRecording ? Colors.orange : Colors.white70,
                       fontSize: 14,
@@ -210,7 +215,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
       
     } catch (e) {
       
-      _showError('Failed to start recording: $e');
+      _showError(Translations.getText('failed_to_start_recording', languageCode) + ': $e');
       setState(() => _recording = false);
     }
   }
@@ -235,7 +240,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
       
       final result = await _recorder.stop();
       if (result == null) {
-        _showError('Failed to save recording');
+        _showError(Translations.getText('failed_to_save_recording', languageCode));
         return;
       }
 
@@ -248,7 +253,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
 
       // Verify file exists and has data
       if (!await _recordedFile!.exists()) {
-        _showError('Recording file does not exist');
+        _showError(Translations.getText('recording_file_does_not_exist', languageCode));
         _recordedFilePath = null;
         _recordedFile = null;
         return;
@@ -258,7 +263,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
 
 
       if (fileSize == 0) {
-        _showError('Recording is empty - microphone may not be working');
+        _showError(Translations.getText('recording_is_empty', languageCode));
         _recordedFilePath = null;
         _recordedFile = null;
         return;
@@ -296,17 +301,17 @@ class _ChatInputBarState extends State<ChatInputBar> {
     try {
       // CRITICAL VALIDATION
       if (_recordedFilePath == null || _recordedFilePath!.isEmpty) {
-        _showError('No recording to send');
+        _showError(Translations.getText('no_recording_to_send', languageCode));
         return;
       }
 
       if (_recordedFile == null) {
-        _showError('File reference lost');
+        _showError(Translations.getText('file_reference_lost', languageCode));
         return;
       }
 
       if (!await _recordedFile!.exists()) {
-        _showError('Recording file was deleted');
+        _showError(Translations.getText('recording_file_was_deleted', languageCode));
         _recordedFilePath = null;
         _recordedFile = null;
         return;
@@ -316,7 +321,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
       
 
       if (fileSize == 0) {
-        _showError('Recording is empty');
+        _showError(Translations.getText('recording_is_empty', languageCode));
         return;
       }
 
@@ -367,7 +372,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
       }
     } catch (e) {
       print('[ChatInputBar._sendVoiceNote] Error: $e');
-      _showError('Failed to send voice note: $e');
+      _showError(Translations.getText('failed_to_send_voice_note', languageCode) + ': $e');
     }
   }
 
@@ -459,7 +464,7 @@ class _VoicePreviewDialogState extends State<_VoicePreviewDialog> {
     } catch (e) {
       print('[VoicePreview] Setup error: $e');
       if (mounted) {
-        setState(() => _error = 'Failed to load audio: $e');
+        setState(() => _error = Translations.getText('failed_to_load_audio', languageCode) + ': $e');
       }
     }
   }
@@ -480,7 +485,7 @@ class _VoicePreviewDialogState extends State<_VoicePreviewDialog> {
     } catch (e) {
       print('[VoicePreview] Play error: $e');
       if (mounted) {
-        setState(() => _error = 'Playback error: $e');
+        setState(() => _error = Translations.getText('playback_error', languageCode) + ': $e');
       }
     }
   }
@@ -493,6 +498,9 @@ class _VoicePreviewDialogState extends State<_VoicePreviewDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final settings = context.watch<SettingsController>();
+    final languageCode = settings.languageCode;
+    
     return Dialog(
       insetPadding: const EdgeInsets.all(20),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -505,8 +513,8 @@ class _VoicePreviewDialogState extends State<_VoicePreviewDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'Voice Message',
+            Text(
+              Translations.getText('voice_message', languageCode),
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 18,
@@ -608,7 +616,7 @@ class _VoicePreviewDialogState extends State<_VoicePreviewDialog> {
                     widget.onDiscard();
                   },
                   icon: const Icon(Icons.close, size: 20),
-                  label: const Text('Discard'),
+                  label: Text(Translations.getText('discard', languageCode)),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.red[400],
                     side: BorderSide(color: Colors.red[400]!),
@@ -622,7 +630,7 @@ class _VoicePreviewDialogState extends State<_VoicePreviewDialog> {
                           widget.onSend();
                         },
                   icon: const Icon(Icons.send, size: 20),
-                  label: const Text('Send'),
+                  label: Text(Translations.getText('send', languageCode)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFFFD700),
                     foregroundColor: Colors.black87,
