@@ -67,8 +67,24 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
     _setupAudioPlayer();
   }
 
+  @override
+  void didUpdateWidget(covariant AudioPlayerWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.source != widget.source) {
+      print('[AudioPlayerWidget] Source changed, re-initializing: ${widget.source}');
+      _initialized = false;
+      _error = null;
+      _setupAudioPlayer();
+    }
+  }
+
   Future<void> _setupAudioPlayer() async {
     try {
+      // Clean up previous subscriptions if re-initializing
+      await _positionSubscription?.cancel();
+      await _stateSubscription?.cancel();
+      await _durationSubscription?.cancel();
+
       // Listen to position changes
       _positionSubscription = _audioPlayer.positionStream.listen((position) {
         if (mounted) {

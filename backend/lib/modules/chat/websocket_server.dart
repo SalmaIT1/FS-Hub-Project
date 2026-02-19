@@ -215,7 +215,7 @@ class WebSocketServer {
     try {
       final result = await ChatService.sendMessage(
         conversationId: messageData['conversationId'],
-        senderId: int.parse(userId),
+        senderId: userId,
         content: messageData['content'],
         type: messageData['type'],
         replyToId: messageData['replyToId'],
@@ -225,18 +225,8 @@ class WebSocketServer {
       if (result['success']) {
         final message = result['message'];
         
-        // Broadcast to all participants in conversation
-        await _broadcastToConversation(
-          messageData['conversationId'],
-          {
-            'type': 'message:created',
-            'payload': {'message': message},
-            'timestamp': DateTime.now().millisecondsSinceEpoch,
-          },
-          excludeUserId: userId,
-        );
-        
-        // Send confirmation to sender
+        // Confirmation is still needed for the sender if they didn't get it via broadcast
+        // (though in current logic, broadcast excludes sender, so we MUST send this)
         _sendToConnection(connectionId, {
           'type': 'message:created',
           'payload': {'message': message},
@@ -260,7 +250,7 @@ class WebSocketServer {
       
       final result = await ChatService.setTypingIndicator(
         conversationId: conversationId,
-        userId: int.parse(userId),
+        userId: userId,
         isTyping: isTyping,
       );
 

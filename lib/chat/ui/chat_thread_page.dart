@@ -1,23 +1,16 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../theme/design_tokens.dart';
 import '../domain/chat_entities.dart';
 import '../domain/message_state_machine.dart';
 import '../state/chat_controller.dart';
 import '../data/attachment_manager.dart';
 import 'message_bubble.dart';
 import 'composer_bar.dart';
+import 'avatar_helper.dart';
 
-/// Chat thread screen with virtualized message list
-/// 
-/// Features:
-/// - Virtualized list (efficient scrolling)
-/// - Sticky date separators
-/// - Keyboard-safe layout
-/// - Scroll position preservation
-/// - Delivery status indicators
-/// - Retry failed messages
-/// - Offline badge
-/// - Typing indicators
+/// Chat thread screen — premium dark glassmorphism design
 class ChatThreadPage extends StatefulWidget {
   final String conversationId;
   final ConversationEntity? conversation;
@@ -34,7 +27,6 @@ class ChatThreadPage extends StatefulWidget {
 
 class _ChatThreadPageState extends State<ChatThreadPage> {
   late ScrollController _scrollController;
-  String? _lastMessageDate;
   String? _currentUserId;
   int _prevMessageCount = 0;
   VoidCallback? _controllerListener;
@@ -44,88 +36,71 @@ class _ChatThreadPageState extends State<ChatThreadPage> {
   void initState() {
     super.initState();
     _scrollController = ScrollController();
-    
-    // Initialize attachment manager
+
     _attachmentManager = AttachmentManager(
       context.read<ChatController>().repository.uploads,
     );
-    
-    // Load current user ID FIRST, then load conversation
+
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final controller = context.read<ChatController>();
-      
-      // INITIALIZE WebSocket connection first (this must happen early)
-      await controller.init();
+
+      // Only init (connect socket + load employees) if not already done
+      if (!controller.isInitialized) {
+        await controller.init();
+      }
       if (!mounted) return;
-      
-      // JOIN this conversation on WebSocket (subscribe to room)
+
+      // Get userId and join conversation in parallel
+      final userIdFuture = controller.getCurrentUserId();
       controller.joinConversation(widget.conversationId);
+
+      final userId = await userIdFuture;
       if (!mounted) return;
-      
-      // Get current user ID from JWT BEFORE loading messages
-      final userId = await controller.getCurrentUserId();
-      if (!mounted) return;
-      
-      setState(() {
-        _currentUserId = userId;
-      });
-      
-      // NOW load messages with userId available
+
+      setState(() => _currentUserId = userId);
+
       await controller.setCurrentConversation(widget.conversationId);
       if (!mounted) return;
 
-      // Track previous message count and add controller listener for new messages
       _prevMessageCount = controller.currentMessages.length;
       _controllerListener = () {
         if (!mounted) return;
         final msgs = controller.currentMessages;
         final currCount = msgs.length;
-
-        // If new messages arrived
         if (currCount > _prevMessageCount) {
-          // Only auto-scroll if user is near bottom to avoid disrupting manual scroll
           if (_scrollController.hasClients) {
-            final max = _scrollController.position.maxScrollExtent;
             final pos = _scrollController.position.pixels;
-            final threshold = 200.0; // px from bottom considered "near"
-            if (pos >= (max - threshold)) {
-              _scrollToBottom();
-            }
+            if (pos <= 200) _scrollToNewest();
           } else {
-            _scrollToBottom();
+            _scrollToNewest();
           }
         }
-
         _prevMessageCount = currCount;
       };
 
       controller.addListener(_controllerListener!);
-
-      // Initial scroll and mark as read after loading messages
-      _scrollToBottom();
-      await controller.markConversationAsRead();
+      // Mark as read in background without blocking UI
+      controller.markConversationAsRead();
     });
   }
 
   @override
   void dispose() {
-    // Remove controller listener if set
     try {
       final controller = context.read<ChatController>();
-      if (_controllerListener != null) controller.removeListener(_controllerListener!);
+      if (_controllerListener != null) {
+        controller.removeListener(_controllerListener!);
+      }
     } catch (_) {}
-
-    // Dispose attachment manager
     _attachmentManager.dispose();
-
     _scrollController.dispose();
     super.dispose();
   }
 
-  void _scrollToBottom() {
+  void _scrollToNewest() {
     if (_scrollController.hasClients) {
       _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
+        0.0, // In reverse:true, 0.0 is the bottom (newest)
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOut,
       );
@@ -134,117 +109,454 @@ class _ChatThreadPageState extends State<ChatThreadPage> {
 
   @override
   Widget build(BuildContext context) {
-    print('[BUILD] chat_thread_page.dart rebuilding');
     final controller = context.watch<ChatController>();
     final messages = controller.currentMessages;
     final isOnline = controller.isOnline;
-    print('[BUILD] Chat thread has ${messages.length} messages');
+
+    // Resolve conversation: prefer passed-in object, fall back to controller cache
+    final conversation = widget.conversation ??
+        controller.conversations
+            .cast<ConversationEntity?>()
+            .firstWhere(
+              (c) => c?.id == widget.conversationId,
+              orElse: () => null,
+            );
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.conversation?.name ?? 'Chat'),
-        actions: [
-          if (!isOnline)
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: Chip(
-                label: Text('Offline'),
-                avatar: Icon(Icons.cloud_off),
-                backgroundColor: Colors.orange[100],
+      backgroundColor: DesignTokens.baseDark,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // ── Custom App Bar ─────────────────────────────────────
+            _ChatThreadAppBar(
+              conversation: conversation,
+              isContactOnline: conversation?.isOnline ?? false,
+            ),
+
+            // ── Message list ───────────────────────────────────────
+            Expanded(
+              child: _buildMessageList(context, controller, messages, conversation),
+            ),
+
+            // ── Composer ───────────────────────────────────────────
+            _ComposerWrapper(
+              conversationId: widget.conversationId,
+              attachmentManager: _attachmentManager,
+              onSendMessage: (content, uploadIds, {voiceMetadata, localPaths}) {
+                controller.sendMessageWithAttachments(
+                  content,
+                  uploadIds,
+                  voiceMetadata: voiceMetadata,
+                  localPaths: localPaths,
+                );
+                _scrollToNewest();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMessageList(BuildContext context, ChatController controller,
+      List<ChatMessage> messages, ConversationEntity? conversation) {
+    // Still loading: show a skeleton while awaiting first fetch
+    if (_currentUserId == null) {
+      return _MessageSkeleton();
+    }
+
+    if (messages.isEmpty) {
+      return _EmptyThreadState();
+    }
+
+    // messages are sorted oldest→newest; reversed so index 0 is newest (bottom of screen)
+    final reversedMessages = messages.reversed.toList();
+
+    return ListView.builder(
+      controller: _scrollController,
+      reverse: true, // 0 = bottom = newest message
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: reversedMessages.length,
+      itemBuilder: (context, index) {
+        final msg = reversedMessages[index];
+
+        // The "next" item up the screen (in reversed list) is the older message at index + 1
+        final olderMsg = index + 1 < reversedMessages.length ? reversedMessages[index + 1] : null;
+
+        // Show a date separator ABOVE this message when crossing a day boundary
+        // In a reversed list, "above" means rendered AFTER (higher index)
+        final showDateSeparator =
+            olderMsg != null && !_sameDay(msg.createdAt, olderMsg.createdAt);
+
+        return Column(
+          children: [
+            // Date separator goes on top of the older day's first visible message
+            if (showDateSeparator) _DateSeparator(date: msg.createdAt),
+            MessageBubble(
+              message: msg,
+              isFromCurrentUser: _currentUserId != null &&
+                  msg.senderId == _currentUserId,
+              isGroupChat: conversation?.type == 'group',
+              onRetry: msg.state == MessageState.failed
+                  ? () => controller.retryMessage(msg.id)
+                  : null,
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  bool _sameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Custom App Bar
+// ─────────────────────────────────────────────────────────────────────────────
+class _ChatThreadAppBar extends StatelessWidget {
+  final ConversationEntity? conversation;
+  final bool isContactOnline;
+
+  const _ChatThreadAppBar({
+    required this.conversation,
+    required this.isContactOnline,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = context.watch<ChatController>();
+    final isGroup = conversation?.type == 'group';
+    
+    // Resolve avatar
+    String? resolvedAvatar;
+    if (conversation != null && conversation!.type == 'direct' && conversation!.receiverId != null) {
+      // Prioritize cache for direct chats
+      resolvedAvatar = controller.getAvatarForUser(conversation!.receiverId!);
+    }
+    
+    // Fallback to conversation data
+    resolvedAvatar ??= conversation?.avatarUrl;
+    
+    // Resolve name
+    String displayName = conversation?.name ?? 'Chat';
+    if (conversation != null && conversation!.type == 'direct' && conversation!.receiverId != null) {
+      displayName = controller.getNameForUser(conversation!.receiverId!) ?? displayName;
+    }
+    if (displayName.isEmpty) displayName = 'Unknown';
+
+
+
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        child: Container(
+          decoration: BoxDecoration(
+            color: DesignTokens.surfaceGlass.withOpacity(0.85),
+            border: Border(
+              bottom: BorderSide(
+                color: Colors.white.withOpacity(0.07),
               ),
             ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Message list
-          Expanded(
-            child: messages.isEmpty
-                ? Center(child: Text('No messages yet'))
-                : ListView.builder(
-                    controller: _scrollController,
-                    itemCount: messages.length,
-                    itemBuilder: (context, index) {
-                      final msg = messages[index];
-                      final prevMsg = index > 0 ? messages[index - 1] : null;
-                      
-                      // Show date separator
-                      final showDateSeparator = prevMsg == null ||
-                          !_sameDay(msg.createdAt, prevMsg.createdAt);
-
-                      return Column(
-                        children: [
-                          if (showDateSeparator)
-                            Padding(
-                              padding: EdgeInsets.symmetric(vertical: 16),
-                              child: Center(
-                                child: Container(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey[200],
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  child: Text(
-                                    _formatDate(msg.createdAt),
-                                    style: Theme.of(context).textTheme.labelSmall,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          MessageBubble(
-                            message: msg,
-                            isFromCurrentUser: _currentUserId != null && msg.senderId == _currentUserId,
-                            isGroupChat: widget.conversation?.type == 'group',
-                            onRetry: msg.state == MessageState.failed
-                                ? () => controller.retryMessage(msg.id)
-                                : null,
-                          ),
-                        ],
-                      );
-                    },
-                  ),
           ),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+          child: Row(
+            children: [
+              // Back button
+              IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                    size: 18, color: DesignTokens.textLight),
+                onPressed: () => Navigator.pop(context),
+              ),
 
-          // Composer bar
-          SafeArea(
-            child: Container(
-              decoration: BoxDecoration(
-                border: Border(
-                  top: BorderSide(color: Colors.grey[300]!),
+              // Avatar
+              AvatarHelper.buildAvatar(
+                resolvedAvatar,
+                size: 40,
+                isGroup: isGroup,
+              ),
+              const SizedBox(width: 12),
+
+              // Name + status
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      displayName,
+                      style: DesignTokens.bodyL.copyWith(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Container(
+                          width: 7,
+                          height: 7,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: isContactOnline
+                                ? const Color(0xFF4CAF50)
+                                : Colors.grey[500],
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          isContactOnline ? 'Active now' : 'Offline',
+                          style: DesignTokens.caption.copyWith(
+                            color: isContactOnline
+                                ? const Color(0xFF4CAF50)
+                                : DesignTokens.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-              child: ComposerBar(
-                conversationId: widget.conversationId,
-                onSendMessage: (content, uploadIds, {voiceMetadata}) {
-                  controller.sendMessageWithAttachments(content, uploadIds, voiceMetadata: voiceMetadata);
-                  _scrollToBottom();
-                },
-                attachmentManager: _attachmentManager,
+
+              // Actions
+              IconButton(
+                icon: Icon(Icons.more_vert_rounded,
+                    color: DesignTokens.textSecondary),
+                onPressed: () {},
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Date separator
+// ─────────────────────────────────────────────────────────────────────────────
+class _DateSeparator extends StatelessWidget {
+  final DateTime date;
+  const _DateSeparator({required this.date});
+
+  String _label() {
+    final now = DateTime.now();
+    final yesterday = now.subtract(const Duration(days: 1));
+    if (date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day) {
+      return 'Today';
+    } else if (date.year == yesterday.year &&
+        date.month == yesterday.month &&
+        date.day == yesterday.day) {
+      return 'Yesterday';
+    }
+    return '${date.month}/${date.day}/${date.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              height: 1,
+              color: Colors.white.withOpacity(0.06),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              decoration: BoxDecoration(
+                color: DesignTokens.surfaceGlass,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.08),
+                ),
+              ),
+              child: Text(
+                _label(),
+                style: DesignTokens.caption.copyWith(
+                  color: DesignTokens.textSecondary,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Container(
+              height: 1,
+              color: Colors.white.withOpacity(0.06),
             ),
           ),
         ],
       ),
     );
   }
+}
 
-  bool _sameDay(DateTime a, DateTime b) {
-    return a.year == b.year && a.month == b.month && a.day == b.day;
+// ─────────────────────────────────────────────────────────────────────────────
+// Empty thread state
+// ─────────────────────────────────────────────────────────────────────────────
+class _EmptyThreadState extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [
+                  DesignTokens.accentGold.withOpacity(0.15),
+                  Colors.transparent,
+                ],
+              ),
+            ),
+            child: Icon(
+              Icons.waving_hand_rounded,
+              size: 32,
+              color: DesignTokens.accentGold.withOpacity(0.7),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Say hello!',
+            style: DesignTokens.bodyL.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Be the first to send a message.',
+            style: DesignTokens.bodyM,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Composer wrapper with top border glow
+// ─────────────────────────────────────────────────────────────────────────────
+class _ComposerWrapper extends StatelessWidget {
+  final String conversationId;
+  final AttachmentManager attachmentManager;
+  final Function(String, List<String>,
+      {Map<String, dynamic>? voiceMetadata, List<String>? localPaths}) onSendMessage;
+
+  const _ComposerWrapper({
+    required this.conversationId,
+    required this.attachmentManager,
+    required this.onSendMessage,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        child: Container(
+          decoration: BoxDecoration(
+            color: DesignTokens.surfaceGlass.withOpacity(0.9),
+            border: Border(
+              top: BorderSide(
+                color: Colors.white.withOpacity(0.07),
+              ),
+            ),
+          ),
+          child: SafeArea(
+            top: false,
+            child: ComposerBar(
+              conversationId: conversationId,
+              onSendMessage: onSendMessage,
+              attachmentManager: attachmentManager,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+// Message skeleton (loading state)
+// ─────────────────────────────────────────────────────────────────────────────
+class _MessageSkeleton extends StatefulWidget {
+  @override
+  State<_MessageSkeleton> createState() => _MessageSkeletonState();
+}
+
+class _MessageSkeletonState extends State<_MessageSkeleton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _anim;
+  late Animation<double> _opacity;
+
+  @override
+  void initState() {
+    super.initState();
+    _anim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+    _opacity = Tween<double>(begin: 0.3, end: 0.7).animate(
+      CurvedAnimation(parent: _anim, curve: Curves.easeInOut),
+    );
   }
 
-  String _formatDate(DateTime dt) {
-    final now = DateTime.now();
-    final yesterday = now.subtract(Duration(days: 1));
+  @override
+  void dispose() {
+    _anim.dispose();
+    super.dispose();
+  }
 
-    if (_sameDay(dt, now)) {
-      return 'Today';
-    } else if (_sameDay(dt, yesterday)) {
-      return 'Yesterday';
-    } else {
-      return '${dt.month}/${dt.day}/${dt.year}';
-    }
+  Widget _bubble(double width, bool isRight) {
+    return Align(
+      alignment: isRight ? Alignment.centerRight : Alignment.centerLeft,
+      child: AnimatedBuilder(
+        animation: _opacity,
+        builder: (_, __) => Opacity(
+          opacity: _opacity.value,
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+            width: width,
+            height: 44,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(18),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      reverse: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      children: [
+        _bubble(120, true),
+        _bubble(200, false),
+        _bubble(160, true),
+        _bubble(240, false),
+        _bubble(100, true),
+        _bubble(180, false),
+        _bubble(140, true),
+        _bubble(220, false),
+      ],
+    );
   }
 }

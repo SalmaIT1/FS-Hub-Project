@@ -2,7 +2,7 @@
 
 -- Table structure for users (Authentication)
 CREATE TABLE IF NOT EXISTS users (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id VARCHAR(50) PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
     role ENUM('Admin', 'RH', 'Employé') DEFAULT 'Employé',
@@ -14,14 +14,14 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- Table structure for employees
 CREATE TABLE IF NOT EXISTS employees (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT UNIQUE, -- Link to users table
+    id VARCHAR(50) PRIMARY KEY,
+    user_id VARCHAR(50) UNIQUE, -- Link to users table
     matricule VARCHAR(20) NOT NULL UNIQUE,
     nom VARCHAR(100) NOT NULL,
     prenom VARCHAR(100) NOT NULL,
     dateNaissance DATE,
     sexe ENUM('Homme', 'Femme'),
-    photo VARCHAR(255),
+    photo LONGTEXT,
     email VARCHAR(100) NOT NULL UNIQUE,
     telephone VARCHAR(20),
     adresse TEXT,
@@ -74,7 +74,7 @@ CREATE TABLE IF NOT EXISTS password_resets (
 -- Refresh tokens table for session revocation and validation
 CREATE TABLE IF NOT EXISTS refresh_tokens (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
+    user_id VARCHAR(50) NOT NULL,
     token VARCHAR(1024) NOT NULL,
     revoked BOOLEAN DEFAULT FALSE,
     expires_at TIMESTAMP NULL,
@@ -92,7 +92,7 @@ CREATE TABLE IF NOT EXISTS conversations (
     name VARCHAR(255) NULL, -- NULL for 1-1 conversations, name for groups
     avatar_url VARCHAR(500) NULL,
     type ENUM('direct', 'group') NOT NULL DEFAULT 'direct',
-    created_by INT NOT NULL,
+    created_by VARCHAR(50) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     is_archived BOOLEAN DEFAULT FALSE,
@@ -109,7 +109,7 @@ CREATE TABLE IF NOT EXISTS conversations (
 CREATE TABLE IF NOT EXISTS conversation_members (
     id INT AUTO_INCREMENT PRIMARY KEY,
     conversation_id INT NOT NULL,
-    user_id INT NOT NULL,
+    user_id VARCHAR(50) NOT NULL,
     role ENUM('admin', 'member') DEFAULT 'member',
     joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     left_at TIMESTAMP NULL,
@@ -129,7 +129,7 @@ CREATE TABLE IF NOT EXISTS conversation_members (
 CREATE TABLE IF NOT EXISTS messages (
     id INT AUTO_INCREMENT PRIMARY KEY,
     conversation_id INT NOT NULL,
-    sender_id INT NOT NULL,
+    sender_id VARCHAR(50) NOT NULL,
     content TEXT NULL,
     type ENUM('text', 'file', 'voice', 'system') DEFAULT 'text',
     reply_to_id INT NULL,
@@ -186,7 +186,7 @@ CREATE TABLE IF NOT EXISTS message_idempotency (
 CREATE TABLE IF NOT EXISTS message_reads (
     id INT AUTO_INCREMENT PRIMARY KEY,
     message_id INT NOT NULL,
-    user_id INT NOT NULL,
+    user_id VARCHAR(50) NOT NULL,
     read_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -200,7 +200,7 @@ CREATE TABLE IF NOT EXISTS message_reads (
 CREATE TABLE IF NOT EXISTS message_reactions (
     id INT AUTO_INCREMENT PRIMARY KEY,
     message_id INT NOT NULL,
-    user_id INT NOT NULL,
+    user_id VARCHAR(50) NOT NULL,
     emoji VARCHAR(50) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
@@ -214,7 +214,7 @@ CREATE TABLE IF NOT EXISTS message_reactions (
 CREATE TABLE IF NOT EXISTS typing_events (
     id INT AUTO_INCREMENT PRIMARY KEY,
     conversation_id INT NOT NULL,
-    user_id INT NOT NULL,
+    user_id VARCHAR(50) NOT NULL,
     is_typing BOOLEAN DEFAULT TRUE,
     last_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
@@ -233,7 +233,7 @@ CREATE TABLE IF NOT EXISTS file_uploads (
     file_path VARCHAR(500) NOT NULL,
     file_size BIGINT NOT NULL,
     mime_type VARCHAR(100) NOT NULL,
-    uploaded_by INT NOT NULL,
+    uploaded_by VARCHAR(50) NOT NULL,
     is_public BOOLEAN DEFAULT FALSE,
     download_count INT DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -323,29 +323,27 @@ CREATE PROCEDURE CreateEmployeeWithUser(
     IN p_statut VARCHAR(20)
 )
 BEGIN
-    DECLARE v_user_id INT;
+    DECLARE v_id VARCHAR(50);
+    SET v_id = UUID();
     
-    -- 1. Create the user account
-    INSERT INTO users (username, password, role, permissions) 
-    VALUES (p_username, p_password, p_role, p_permissions);
+    -- 1. Create the user account with random ID
+    INSERT INTO users (id, username, password, role, permissions) 
+    VALUES (v_id, p_username, p_password, p_role, p_permissions);
     
-    -- 2. Get the new user ID
-    SET v_user_id = LAST_INSERT_ID();
-    
-    -- 3. Create the employee record linked to that user
+    -- 2. Create the employee record linked to that user with SAME ID
     INSERT INTO employees (
-        user_id, matricule, nom, prenom, dateNaissance, sexe, photo,
+        id, user_id, matricule, nom, prenom, dateNaissance, sexe, photo,
         email, telephone, adresse, ville, poste, departement,
         dateEmbauche, typeContrat, statut
     )
     VALUES (
-        v_user_id, p_matricule, p_nom, p_prenom, p_dateNaissance, p_sexe, p_photo,
+        v_id, v_id, p_matricule, p_nom, p_prenom, p_dateNaissance, p_sexe, p_photo,
         p_email, p_telephone, p_adresse, p_ville, p_poste, p_departement,
         p_dateEmbauche, p_typeContrat, p_statut
     );
     
-    -- 4. Return the employee ID
-    SELECT LAST_INSERT_ID() AS employee_id;
+    -- 3. Return the generated ID
+    SELECT v_id AS created_id;
 END //
 
 DELIMITER ;

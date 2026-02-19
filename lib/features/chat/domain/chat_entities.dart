@@ -299,6 +299,7 @@ class ConversationEntity {
   final String name;
   final String type; // 'direct' or 'group'
   final String? avatarUrl;
+  final String? receiverId; // For direct conversations, the ID of the other user
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? lastMessageAt;
@@ -310,6 +311,7 @@ class ConversationEntity {
   final bool isArchived;
   final DateTime? archivedAt;
   final List<String> typingUserIds; // Real-time typing indicators
+  final bool isReceiverOnline;
 
   ConversationEntity({
     required this.id,
@@ -318,6 +320,7 @@ class ConversationEntity {
     required this.createdAt,
     required this.updatedAt,
     this.avatarUrl,
+    this.receiverId,
     this.lastMessageAt,
     this.lastMessage,
     this.lastMessageSenderId,
@@ -327,6 +330,7 @@ class ConversationEntity {
     this.isArchived = false,
     this.archivedAt,
     this.typingUserIds = const [],
+    this.isReceiverOnline = false,
   });
 
   factory ConversationEntity.fromServerJson(Map<String, dynamic> json) {
@@ -337,6 +341,7 @@ class ConversationEntity {
       createdAt: _parseDateTime(json['createdAt']),
       updatedAt: _parseDateTime(json['updatedAt']),
       avatarUrl: json['avatarUrl'],
+      receiverId: json['receiverId']?.toString(),
       lastMessageAt: json['lastMessageAt'] != null ? _parseDateTime(json['lastMessageAt']) : null,
       lastMessage: json['lastMessage'],
       lastMessageSenderId: json['lastMessageSenderId']?.toString(),
@@ -345,6 +350,7 @@ class ConversationEntity {
       unreadCount: json['unreadCount'] ?? 0,
       isArchived: json['isArchived'] ?? false,
       archivedAt: json['archivedAt'] != null ? _parseDateTime(json['archivedAt']) : null,
+      isReceiverOnline: json['isReceiverOnline'] == 1 || json['isReceiverOnline'] == true,
     );
   }
 
@@ -353,6 +359,7 @@ class ConversationEntity {
     'name': name,
     'type': type,
     'avatarUrl': avatarUrl,
+    'receiverId': receiverId,
     'createdAt': createdAt.toIso8601String(),
     'updatedAt': updatedAt.toIso8601String(),
     'lastMessageAt': lastMessageAt?.toIso8601String(),
@@ -364,6 +371,7 @@ class ConversationEntity {
     'isArchived': isArchived,
     'archivedAt': archivedAt?.toIso8601String(),
     'typingUserIds': typingUserIds,
+    'isReceiverOnline': isReceiverOnline,
   };
 
   ConversationEntity copyWith({
@@ -371,6 +379,7 @@ class ConversationEntity {
     String? name,
     String? type,
     String? avatarUrl,
+    String? receiverId,
     DateTime? createdAt,
     DateTime? updatedAt,
     DateTime? lastMessageAt,
@@ -382,12 +391,14 @@ class ConversationEntity {
     bool? isArchived,
     DateTime? archivedAt,
     List<String>? typingUserIds,
+    bool? isReceiverOnline,
   }) {
     return ConversationEntity(
       id: id ?? this.id,
       name: name ?? this.name,
       type: type ?? this.type,
       avatarUrl: avatarUrl ?? this.avatarUrl,
+      receiverId: receiverId ?? this.receiverId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       lastMessageAt: lastMessageAt ?? this.lastMessageAt,
@@ -399,6 +410,7 @@ class ConversationEntity {
       isArchived: isArchived ?? this.isArchived,
       archivedAt: archivedAt ?? this.archivedAt,
       typingUserIds: typingUserIds ?? this.typingUserIds,
+      isReceiverOnline: isReceiverOnline ?? this.isReceiverOnline,
     );
   }
 }

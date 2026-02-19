@@ -38,6 +38,13 @@ class DesignTokens {
     height: 1.3,
   );
   
+  static const TextStyle headingS = TextStyle(
+    fontSize: 18,
+    fontWeight: FontWeight.w600,
+    color: textLight,
+    height: 1.3,
+  );
+  
   static const TextStyle bodyL = TextStyle(
     fontSize: 16,
     color: textLight,

@@ -10,16 +10,17 @@ import '../data/chat_socket_client.dart';
 import '../data/upload_service.dart';
 import '../domain/chat_entities.dart';
 import '../domain/message_state_machine.dart';
+import '../../shared/models/employee_model.dart';
+import '../../features/employees/services/employee_service.dart';
 
 /// Controller/Provider for chat UI state
-/// 
-/// Wraps repository and provides:
-/// - Typed streams for UI consumption
-/// - High-level actions (send, retry, load more, etc.)
-/// - Clean error handling
-/// - No UI logic (pure data orchestration)
+/// ...
 class ChatController extends ChangeNotifier {
   final ChatRepository repository;
+
+  // Cache for employee data (employeeId is userId)
+  final Map<String, Employee> _employeeCache = {};
+  Map<String, Employee> get employeeCache => _employeeCache;
 
   // Current conversation context
   String? _currentConversationId;
@@ -39,6 +40,15 @@ class ChatController extends ChangeNotifier {
 
   // Error handling
   String? _lastError;
+  bool _isDisposed = false;
+  bool _isInitialized = false;
+  bool get isInitialized => _isInitialized;
+
+  void _safeNotifyListeners() {
+    if (!_isDisposed) {
+      notifyListeners();
+    }
+  }
 
   // Getters for UI
   List<ConversationEntity> get conversations => List.unmodifiable(_conversations);
@@ -57,12 +67,60 @@ class ChatController extends ChangeNotifier {
 
   /// Initialize the controller
   Future<void> init() async {
+    if (_isInitialized) return;
     try {
-      await repository.init();
+      await Future.wait([
+        repository.init(),
+        loadEmployeeData(),
+      ]);
+      _isInitialized = true;
     } catch (e) {
       _lastError = 'Failed to initialize: $e';
-      notifyListeners();
+      _safeNotifyListeners();
     }
+  }
+
+  /// Load employee data for avatar/name resolution
+  Future<void> loadEmployeeData() async {
+    try {
+      print('[CTRL] loadEmployeeData: Fetching employees...');
+      final employees = await EmployeeService.getAllEmployees();
+      print('[CTRL] loadEmployeeData: Received ${employees.length} employees');
+      
+      for (final emp in employees) {
+        if (emp.id != null) {
+          _employeeCache[emp.id!] = emp;
+          if (emp.avatarUrl != null || emp.photo != null) {
+            print('[CTRL] Cached employee: id=${emp.id} hasAvatar=${emp.avatarUrl != null || emp.photo != null}');
+          }
+        }
+      }
+      print('[CTRL] Total employees in cache: ${_employeeCache.length}');
+      _safeNotifyListeners();
+    } catch (e) {
+      print('[CTRL] Error loading employee data: $e');
+    }
+  }
+
+  /// Resolve avatar for a given userId
+  String? getAvatarForUser(String userId) {
+    // 1. Check employee cache (primary source)
+    if (_employeeCache.containsKey(userId)) {
+      final avatar = _employeeCache[userId]!.avatarUrl;
+      if (avatar != null && avatar.isNotEmpty) {
+        // print('[CTRL] Resolved avatar for $userId: ${avatar.substring(0, avatar.length > 30 ? 30 : avatar.length)}...');
+      }
+      return avatar;
+    }
+    return null;
+  }
+
+  /// Resolve full name for a given userId
+  String? getNameForUser(String userId) {
+    if (_employeeCache.containsKey(userId)) {
+      return _employeeCache[userId]!.fullName;
+    }
+    return null;
   }
 
   /// Load conversations
@@ -72,10 +130,15 @@ class ChatController extends ChangeNotifier {
       final convos = await repository.getConversations();
       _conversations.clear();
       _conversations.addAll(convos);
-      notifyListeners();
+      // Sort conversations so freshest is at top
+      _conversations.sort((a, b) => (b.lastMessageAt ?? b.updatedAt).compareTo(a.lastMessageAt ?? a.updatedAt));
+      for (final conv in convos) {
+        print('📱 Conversation: ${conv.name}, avatarUrl: ${conv.avatarUrl}, type: ${conv.type}');
+      }
+      _safeNotifyListeners();
     } catch (e) {
       _lastError = 'Failed to load conversations: $e';
-      notifyListeners();
+      _safeNotifyListeners();
     }
   }
 
@@ -84,45 +147,38 @@ class ChatController extends ChangeNotifier {
     try {
       _lastError = null;
       _currentConversationId = conversationId;
-      print('[CTRL] setCurrentConversation: $conversationId');
 
       if (!_conversationMessages.containsKey(conversationId)) {
-        print('[CTRL] Loading messages for conversation: $conversationId');
+        // First open: fetch from server, show when ready
         final messages = await repository.getMessages(conversationId: conversationId);
+        // Backend returns newest first, so we MUST sort or reverse to maintain [oldest...newest] internal order
+        messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
         _conversationMessages[conversationId] = messages;
-        print('[CTRL] Loaded ${messages.length} messages');
-        notifyListeners();
+        _safeNotifyListeners();
       } else {
-        print('[CTRL] Conversation already in cache: ${_conversationMessages[conversationId]!.length} messages');
-        // CRITICAL FIX: Merge REST messages with any messages that may have arrived via WebSocket
-        // while the conversation was being loaded. This prevents message loss due to race conditions.
-        print('[CTRL] Refreshing from repository to ensure no WebSocket messages were missed...');
-        final restMessages = await repository.getMessages(conversationId: conversationId);
-        final existingMessages = _conversationMessages[conversationId]!;
-        
-        // Create a map of existing messages by ID
-        final existingMap = {for (var msg in existingMessages) msg.id: msg};
-        
-        // Add any new messages from REST that aren't already in the list
-        for (var msg in restMessages) {
-          if (!existingMap.containsKey(msg.id)) {
-            print('[CTRL] Adding REST message that wasn\'t in cache: ${msg.id}');
-            existingMessages.add(msg);
-          } else {
-            // Update existing messages with fresh data from REST
-            existingMap[msg.id] = msg;
+        // Already cached: show immediately
+        _safeNotifyListeners();
+        // Then silently refresh in background to pick up any missed messages
+        repository.getMessages(conversationId: conversationId).then((restMessages) {
+          if (_isDisposed) return;
+          final existing = _conversationMessages[conversationId]!;
+          final existingIds = {for (var m in existing) m.id};
+          bool changed = false;
+          for (var msg in restMessages) {
+            if (!existingIds.contains(msg.id)) {
+              existing.add(msg);
+              changed = true;
+            }
           }
-        }
-        
-        // Re-sort all messages
-        existingMessages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
-        print('[CTRL] Merged cache and REST: now ${existingMessages.length} total messages');
+          if (changed) {
+            existing.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+            _safeNotifyListeners();
+          }
+        }).catchError((_) {});
       }
-
-      notifyListeners();
     } catch (e) {
       _lastError = 'Failed to load conversation messages: $e';
-      notifyListeners();
+      _safeNotifyListeners();
     }
   }
 
@@ -130,7 +186,7 @@ class ChatController extends ChangeNotifier {
   Future<void> sendMessage(String content) async {
     if (_currentConversationId == null || _currentConversationId!.isEmpty) {
       _lastError = 'No conversation selected';
-      notifyListeners();
+      _safeNotifyListeners();
       return;
     }
 
@@ -142,7 +198,7 @@ class ChatController extends ChangeNotifier {
       final userId = await getCurrentUserId();
       if (userId == null || userId.isEmpty) {
         _lastError = 'Failed to get user ID';
-        notifyListeners();
+        _safeNotifyListeners();
         return;
       }
       
@@ -153,18 +209,18 @@ class ChatController extends ChangeNotifier {
         senderId: userId,
         content: content,
       );
-      notifyListeners();
+      _safeNotifyListeners();
     } catch (e) {
       _lastError = 'Failed to send message: $e';
-      notifyListeners();
+      _safeNotifyListeners();
     }
   }
 
   /// Send message with attachments
-  Future<void> sendMessageWithAttachments(String content, List<String> uploadIds, {Map<String, dynamic>? voiceMetadata}) async {
+  Future<void> sendMessageWithAttachments(String content, List<String> uploadIds, {Map<String, dynamic>? voiceMetadata, List<String>? localPaths}) async {
     if (_currentConversationId == null || _currentConversationId!.isEmpty) {
       _lastError = 'No conversation selected';
-      notifyListeners();
+      _safeNotifyListeners();
       return;
     }
 
@@ -176,7 +232,7 @@ class ChatController extends ChangeNotifier {
       final userId = await getCurrentUserId();
       if (userId == null || userId.isEmpty) {
         _lastError = 'Failed to get user ID';
-        notifyListeners();
+        _safeNotifyListeners();
         return;
       }
       
@@ -196,11 +252,12 @@ class ChatController extends ChangeNotifier {
         type: messageType,
         uploadIds: uploadIds,
         voiceMetadata: voiceMetadata,
+        localPaths: localPaths,
       );
-      notifyListeners();
+      _safeNotifyListeners();
     } catch (e) {
       _lastError = 'Failed to send message with attachments: $e';
-      notifyListeners();
+      _safeNotifyListeners();
     }
   }
 
@@ -214,7 +271,7 @@ class ChatController extends ChangeNotifier {
     } catch (e) {
       print('[CTRL] Error joining conversation: $e');
       _lastError = 'Failed to subscribe to updates: $e';
-      notifyListeners();
+      _safeNotifyListeners();
     }
   }
 
@@ -223,10 +280,10 @@ class ChatController extends ChangeNotifier {
     try {
       _lastError = null;
       await repository.retryMessage(messageId);
-      notifyListeners();
+      _safeNotifyListeners();
     } catch (e) {
       _lastError = 'Failed to retry message: $e';
-      notifyListeners();
+      _safeNotifyListeners();
     }
   }
 
@@ -235,10 +292,10 @@ class ChatController extends ChangeNotifier {
     try {
       _lastError = null;
       await repository.processOfflineQueue();
-      notifyListeners();
+      _safeNotifyListeners();
     } catch (e) {
       _lastError = 'Failed to process queue: $e';
-      notifyListeners();
+      _safeNotifyListeners();
     }
   }
 
@@ -276,7 +333,7 @@ class ChatController extends ChangeNotifier {
       if (convId == _currentConversationId) {
         print('[CTRL] Current conversation updated, notifying listeners');
         print('[CTRL] Message count before notify: ${_conversationMessages[convId]?.length ?? 0}');
-        notifyListeners();
+        _safeNotifyListeners();
         print('[CTRL] notifyListeners() called');
       } else {
         print('[CTRL] Different conversation, not notifying');
@@ -284,23 +341,28 @@ class ChatController extends ChangeNotifier {
     });
 
     _conversationSubscription = repository.conversationUpdated.listen((conv) {
+      if (conv == null) {
+        _safeNotifyListeners();
+        return;
+      }
       final idx = _conversations.indexWhere((c) => c.id == conv.id);
       if (idx >= 0) {
         _conversations[idx] = conv;
       } else {
         _conversations.add(conv);
       }
-      notifyListeners();
+      _conversations.sort((a, b) => (b.lastMessageAt ?? b.updatedAt).compareTo(a.lastMessageAt ?? a.updatedAt));
+      _safeNotifyListeners();
     });
 
     _queueSubscription = repository.queueChanged.listen((queue) {
       _currentQueue = queue;
-      notifyListeners();
+      _safeNotifyListeners();
     });
 
     _onlineSubscription = repository.onlineStatusChanged.listen((isOnline) {
       _isOnline = isOnline;
-      notifyListeners();
+      _safeNotifyListeners();
 
       if (isOnline) {
         processQueue();
@@ -315,21 +377,39 @@ class ChatController extends ChangeNotifier {
       return await repository.getAvailableUsers();
     } catch (e) {
       _lastError = e.toString();
-      notifyListeners();
+      _safeNotifyListeners();
       rethrow;
     }
   }
 
-  /// Create a new conversation with another user
-  Future<ConversationEntity?> createConversation(int userId) async {
+  /// Create a new conversation with another user (legacy support)
+  Future<ConversationEntity?> createConversation(String userId) async {
+    return createGroupConversation(
+      participantIds: [userId],
+      type: 'direct',
+    );
+  }
+
+  /// Create a new group or direct conversation
+  Future<ConversationEntity?> createGroupConversation({
+    required List<String> participantIds,
+    String type = 'group',
+    String? name,
+    String? avatarUrl,
+  }) async {
     try {
       _lastError = null;
-      final conversation = await repository.createConversation(user2Id: userId);
-      notifyListeners();
+      final conversation = await repository.createConversation(
+        participantIds: participantIds,
+        type: type,
+        name: name,
+        avatarUrl: avatarUrl,
+      );
+      _safeNotifyListeners();
       return conversation;
     } catch (e) {
       _lastError = e.toString();
-      notifyListeners();
+      _safeNotifyListeners();
       rethrow;
     }
   }
@@ -378,7 +458,7 @@ class ChatController extends ChangeNotifier {
     
     if (_currentConversationId == null || _currentConversationId!.isEmpty) {
       _lastError = 'No conversation selected';
-      notifyListeners();
+      _safeNotifyListeners();
       return null;
     }
 
@@ -400,14 +480,14 @@ class ChatController extends ChangeNotifier {
         print('[CTRL] File stat: size=${file.size}');
         if (file.size == 0) {
           _lastError = 'Audio file is empty (0 bytes) - cannot upload';
-          notifyListeners();
+          _safeNotifyListeners();
           return null;
         }
       }
     } catch (e) {
       print('[CTRL] File validation error: $e');
       _lastError = 'Audio file not found at: $audioFilePath';
-      notifyListeners();
+      _safeNotifyListeners();
       return null;
     }
 
@@ -415,13 +495,13 @@ class ChatController extends ChangeNotifier {
     if (audioBytes.isEmpty && !kIsWeb) {
       _lastError = 'No audio data available for upload';
       print('[CTRL] ERROR: audioBytes is empty!');
-      notifyListeners();
+      _safeNotifyListeners();
       return null;
     }
 
     if (durationMs <= 0) {
       _lastError = 'Invalid voice note duration';
-      notifyListeners();
+      _safeNotifyListeners();
       return null;
     }
 
@@ -433,7 +513,7 @@ class ChatController extends ChangeNotifier {
       final userId = await getCurrentUserId();
       if (userId == null || userId.isEmpty) {
         _lastError = 'Failed to get user ID';
-        notifyListeners();
+        _safeNotifyListeners();
         return null;
       }
 
@@ -452,7 +532,7 @@ class ChatController extends ChangeNotifier {
 
       if (uploadId == null || uploadId.isEmpty || signedUrl == null || signedUrl.isEmpty) {
         _lastError = 'Failed to get upload URL from server';
-        notifyListeners();
+        _safeNotifyListeners();
         return null;
       }
 
@@ -484,15 +564,16 @@ class ChatController extends ChangeNotifier {
           'duration_seconds': durationSeconds,
           'waveform_data': waveformData,
         },
+        localPaths: [audioFilePath], // Pass as list for consistency
       );
 
       print('[CTRL] Voice message sent successfully: ${message.id}');
-      notifyListeners();
+      _safeNotifyListeners();
       return message;
     } catch (e) {
       _lastError = 'Failed to send voice note: $e';
       print('[CTRL-ERROR] $e');
-      notifyListeners();
+      _safeNotifyListeners();
       rethrow;
     }
   }
@@ -535,8 +616,20 @@ class ChatController extends ChangeNotifier {
     }
   }
 
+  /// Leave a conversation (delete for self)
+  Future<void> leaveConversation(String conversationId) async {
+    try {
+      await repository.leaveConversation(conversationId);
+      notifyListeners();
+    } catch (e) {
+      print('Error leaving conversation in controller: $e');
+      rethrow;
+    }
+  }
+
   @override
   void dispose() {
+    _isDisposed = true;
     _messageSubscription?.cancel();
     _conversationSubscription?.cancel();
     _queueSubscription?.cancel();

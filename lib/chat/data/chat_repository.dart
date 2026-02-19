@@ -37,8 +37,8 @@ class ChatRepository {
   /// Streams
   final StreamController<ChatMessage> _messageUpdated = 
       StreamController<ChatMessage>.broadcast();
-  final StreamController<ConversationEntity> _conversationUpdated =
-      StreamController<ConversationEntity>.broadcast();
+  final StreamController<ConversationEntity?> _conversationUpdated =
+      StreamController<ConversationEntity?>.broadcast();
   final StreamController<List<ChatMessage>> _queueChanged =
       StreamController<List<ChatMessage>>.broadcast();
   final StreamController<bool> _isOnlineChanged =
@@ -50,7 +50,7 @@ class ChatRepository {
   Stream<ChatMessage> get messageUpdated => _messageUpdated.stream;
 
   /// Listen to conversation changes
-  Stream<ConversationEntity> get conversationUpdated => _conversationUpdated.stream;
+  Stream<ConversationEntity?> get conversationUpdated => _conversationUpdated.stream;
 
   /// Listen to queue changes
   Stream<List<ChatMessage>> get queueChanged => _queueChanged.stream;
@@ -256,6 +256,7 @@ class ChatRepository {
     required String type,
     required List<String> uploadIds,
     Map<String, dynamic>? voiceMetadata,
+    List<String>? localPaths, // CHANGED: Support multiple local paths
   }) async {
     final clientId = const Uuid().v4();
     final now = DateTime.now();
@@ -263,9 +264,28 @@ class ChatRepository {
     print('[REPO] sendMessageWithAttachments: conversationId=$conversationId senderId=$senderId');
     print('[REPO] Generated clientMessageId=$clientId with ${uploadIds.length} attachments');
 
-    // Step 1: Create optimistic local message
+    // Step 1: Create optimistic local message with localPaths for instant preview
+    final List<AttachmentEntity> optimisticAttachments = [];
+    if (type != 'voice') {
+      for (int i = 0; i < uploadIds.length; i++) {
+        final path = (localPaths != null && i < localPaths.length) ? localPaths[i] : '';
+        optimisticAttachments.add(
+          AttachmentEntity(
+            id: 'temp_${clientId}_$i',
+            filename: 'Uploading...',
+            uploadUrl: path,
+            mimeType: type == 'image' ? 'image/jpeg' : 'application/octet-stream',
+            size: 0,
+            conversationId: conversationId,
+            messageId: clientId,
+            uploadedAt: now,
+          ),
+        );
+      }
+    }
+
     final message = ChatMessage(
-      id: clientId, // Temporary; will be replaced by server ID
+      id: clientId,
       conversationId: conversationId,
       senderId: senderId,
       content: content,
@@ -274,6 +294,14 @@ class ChatRepository {
       createdAt: now,
       updatedAt: now,
       clientMessageId: clientId,
+      attachments: optimisticAttachments,
+      voiceNote: type == 'voice' ? VoiceNoteEntity(
+        id: 'temp_$clientId',
+        durationMs: ((voiceMetadata?['duration_seconds'] ?? 0) * 1000).toInt(),
+        waveformData: (voiceMetadata?['waveform_data'] ?? '').toString(),
+        uploadUrl: (localPaths != null && localPaths.isNotEmpty) ? localPaths.first : '',
+        recordedAt: now,
+      ) : null,
     );
 
     // Step 2: Add to store and emit
@@ -305,16 +333,15 @@ class ChatRepository {
 
         if (response['success']) {
           // Transition: sending → sent
-          final serverMessage = response['message'];
-          final serverId = serverMessage['id'].toString();
-          final sentMessage = message.copyWith(
-            id: serverId,
-            state: MessageState.sent,
-          );
+          final serverMessageJson = response['message'] as Map<String, dynamic>;
+          final sentMessage = ChatMessage.fromServerJson(serverMessageJson);
+          final serverId = sentMessage.id;
           
-          store[clientId] = sentMessage;
-          store[serverId] = sentMessage; // Also store by server ID
-          print('[REPO] Transitioning to sent: $clientId → $serverId');
+          // CRITICAL: Remove the temporary clientId to avoid duplication in store.values
+          store.remove(clientId);
+          store[serverId] = sentMessage;
+          
+          print('[REPO] Replaced optimistic with canonical: $clientId → $serverId');
           _messageUpdated.add(sentMessage);
 
           // Update idempotency map
@@ -570,9 +597,12 @@ class ChatRepository {
     }
   }
 
-  /// Create a new conversation with another user
+  /// Create a new conversation (direct or group)
   Future<ConversationEntity?> createConversation({
-    required int user2Id,
+    required List<String> participantIds,
+    String type = 'direct',
+    String? name,
+    String? avatarUrl,
   }) async {
     try {
       final userId = await _extractUserIdFromToken();
@@ -581,24 +611,27 @@ class ChatRepository {
       }
 
       final result = await rest.createConversation(
-        user1Id: int.parse(userId),
-        user2Id: user2Id,
-        type: 'direct',
+        creatorId: userId,
+        participantIds: participantIds,
+        type: type,
+        name: name,
+        avatarUrl: avatarUrl,
       );
 
       if (result['success'] == true) {
-        final conversationId = result['data']['conversationId'];
+        final conversationId = result['data']['conversationId'].toString();
         
         // Load the new conversation (refresh the list)
         await getConversations();
         
         // Find and return the newly created conversation
         return _conversations.firstWhere(
-          (c) => c.id.toString() == conversationId.toString(),
+          (c) => c.id.toString() == conversationId,
           orElse: () => ConversationEntity(
-            id: conversationId.toString(),
-            name: '',
-            type: 'direct',
+            id: conversationId,
+            name: name ?? '',
+            type: type,
+            avatarUrl: avatarUrl,
             createdAt: DateTime.now(),
             updatedAt: DateTime.now(),
           ),
@@ -627,6 +660,28 @@ class ChatRepository {
     } catch (e) {
       print('Error marking conversation as read: $e');
       // Don't rethrow - marking as read shouldn't block UI
+    }
+  }
+
+  /// Leave a conversation (delete for self)
+  Future<void> leaveConversation(String conversationId) async {
+    try {
+      final userId = await _extractUserIdFromToken();
+      if (userId == null) {
+        throw Exception('Unable to extract userId from token');
+      }
+
+      await rest.leaveConversation(
+        conversationId: conversationId,
+        userId: userId,
+      );
+
+      // Remove from local cache
+      _conversations.removeWhere((c) => c.id == conversationId);
+      _conversationUpdated.add(null); // Notify listeners
+    } catch (e) {
+      print('Error leaving conversation: $e');
+      rethrow;
     }
   }
 

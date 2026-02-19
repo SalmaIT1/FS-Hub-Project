@@ -4,6 +4,7 @@ import '../../../shared/widgets/luxury/luxury_app_bar.dart';
 import '../../../widgets/glass_notification_card.dart';
 import '../../employees/services/employee_service.dart';
 import '../../auth/data/services/auth_service.dart';
+import '../../../core/theme/app_theme.dart';
 
 class NotificationCenterPage extends StatefulWidget {
   const NotificationCenterPage({super.key});
@@ -12,36 +13,49 @@ class NotificationCenterPage extends StatefulWidget {
   State<NotificationCenterPage> createState() => _NotificationCenterPageState();
 }
 
-class _NotificationCenterPageState extends State<NotificationCenterPage> {
+class _NotificationCenterPageState extends State<NotificationCenterPage> with TickerProviderStateMixin {
   List<Map<String, dynamic>> notifications = [];
   List<Map<String, dynamic>> filteredNotifications = [];
   String _selectedFilter = 'All';
   bool _isLoading = true;
   bool _isMarkingAllAsRead = false;
   String? _userId;
+  
+  late AnimationController _staggerController;
+  final List<Animation<double>> _staggeredAnimations = [];
 
   @override
   void initState() {
     super.initState();
+    _staggerController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
     _initializePage();
+  }
+
+  @override
+  void dispose() {
+    _staggerController.dispose();
+    super.dispose();
   }
 
   Future<void> _initializePage() async {
     final user = await AuthService.getCurrentUser();
     if (user != null) {
-      setState(() {
-        _userId = user['id'];
-      });
-      await _loadNotifications();
+      if (mounted) {
+        setState(() {
+          _userId = user['id'];
+        });
+        await _loadNotifications();
+      }
     }
   }
 
   Future<void> _loadNotifications() async {
     if (_userId == null) return;
     
-    setState(() {
-      _isLoading = true;
-    });
+    if (mounted) setState(() => _isLoading = true);
 
     try {
       final result = await EmployeeService.getUserNotifications(_userId!);
@@ -50,20 +64,28 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
           notifications = List<Map<String, dynamic>>.from(result['data']);
           _applyFilter();
           _isLoading = false;
+          _prepareAnimations();
+          _staggerController.reset();
+          _staggerController.forward();
         });
       } else {
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-          });
-        }
+        if (mounted) setState(() => _isLoading = false);
       }
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _prepareAnimations() {
+    _staggeredAnimations.clear();
+    final count = filteredNotifications.length > 10 ? 10 : filteredNotifications.length;
+    for (int i = 0; i < count; i++) {
+      _staggeredAnimations.add(
+        CurvedAnimation(
+          parent: _staggerController,
+          curve: Interval(i * 0.1, 1.0, curve: Curves.easeOutCubic),
+        ),
+      );
     }
   }
 
@@ -77,17 +99,19 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
       case 'Demands':
         filtered = filtered.where((n) => n['type'] == 'demand').toList();
         break;
-      case 'System':
-        filtered = filtered.where((n) => n['type'] == 'system').toList();
+      case 'Recent':
+        filtered = filtered.take(5).toList();
         break;
       case 'All':
       default:
-        // No filter applied
         break;
     }
 
     setState(() {
       filteredNotifications = filtered;
+      _prepareAnimations();
+      _staggerController.reset();
+      _staggerController.forward();
     });
   }
 
@@ -105,17 +129,13 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
           _applyFilter();
         });
       }
-    } catch (e) {
-      // Handle error silently or show snackbar
-    }
+    } catch (e) {}
   }
 
   Future<void> _markAllAsRead() async {
     if (_userId == null) return;
     
-    setState(() {
-      _isMarkingAllAsRead = true;
-    });
+    setState(() => _isMarkingAllAsRead = true);
 
     try {
       final result = await EmployeeService.markAllNotificationsAsRead(_userId!);
@@ -129,178 +149,208 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
         });
       }
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isMarkingAllAsRead = false;
-        });
-      }
+      if (mounted) setState(() => _isMarkingAllAsRead = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final unreadCount = notifications.where((n) => !n['isRead']).length;
 
-    return Scaffold(
-      body: LuxuryScaffold(
-        title: 'Notifications',
-        subtitle: '${filteredNotifications.length} items',
-        isPremium: true,
-        actions: [
-          if (!_isMarkingAllAsRead)
-            LuxuryAppBarAction(
-              icon: Icons.done_all_outlined,
-              onPressed: _markAllAsRead,
-            )
-          else
-            const SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-        ],
-        body: Container(
-          decoration: BoxDecoration(
-            gradient: RadialGradient(
-              center: const Alignment(-0.8, -0.8),
-              radius: 1.2,
-              colors: isDark 
-                  ? [const Color(0xFF1A1A1A), Colors.black]
-                  : [const Color(0xFFF5F5F7), const Color(0xFFE8E8EA)],
-            ),
+    return LuxuryScaffold(
+      title: 'Communications',
+      subtitle: unreadCount > 0 ? '$unreadCount unread alerts' : 'Intelligence Center',
+      isPremium: true,
+      actions: [
+        if (unreadCount > 0)
+          _isMarkingAllAsRead
+              ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.accentGold))
+              : LuxuryAppBarAction(
+                  icon: Icons.checklist_rounded,
+                  onPressed: _markAllAsRead,
+                  isPremium: true,
+                ),
+      ],
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: RadialGradient(
+            center: const Alignment(-0.8, -0.8),
+            radius: 1.2,
+            colors: isDark 
+                ? [const Color(0xFF1A1A1A), Colors.black]
+                : [const Color(0xFFF5F5F7), const Color(0xFFE8E8EA)],
           ),
-          child: SafeArea(
-            child: Column(
-              children: [
-                // Filter Segmented Control
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Container(
-                    height: 40,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
-                      color: isDark 
-                          ? Colors.white.withOpacity(0.08) 
-                          : Colors.black.withOpacity(0.04),
-                      border: Border.all(
-                        color: const Color(0xFFFFD700).withOpacity(0.4),
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        _buildFilterButton('All', isDark),
-                        _buildFilterButton('Unread', isDark),
-                        _buildFilterButton('Demands', isDark),
-                        _buildFilterButton('System', isDark),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // Notifications List
-                Expanded(
-                  child: _isLoading
-                      ? const Center(
-                          child: CircularProgressIndicator(),
-                        )
-                      : filteredNotifications.isEmpty
-                          ? Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.notifications_none_outlined,
-                                    size: 64,
-                                    color: isDark 
-                                        ? Colors.white.withOpacity(0.6) 
-                                        : Colors.black.withOpacity(0.4),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    'No notifications',
-                                    style: TextStyle(
-                                      color: isDark 
-                                          ? Colors.white.withOpacity(0.6) 
-                                          : Colors.black.withOpacity(0.4),
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : RefreshIndicator(
-                              onRefresh: _loadNotifications,
-                              child: ListView.separated(
-                                padding: const EdgeInsets.only(left: 16, right: 16, top: 8),
-                                itemCount: filteredNotifications.length,
-                                separatorBuilder: (context, index) => const SizedBox(height: 8),
-                                itemBuilder: (context, index) {
-                                  final notification = filteredNotifications[index];
-                                  return GlassNotificationCard(
-                                    title: notification['title'],
-                                    message: notification['message'],
-                                    timestamp: notification['timestamp'],
-                                    isRead: notification['isRead'],
-                                    type: notification['type'],
-                                    onTap: () {
-                                      _markAsRead(notification['id']);
-                                      // Navigate to related entity based on type
-                                      _navigateToRelatedEntity(notification);
-                                    },
-                                    onMarkAsRead: () => _markAsRead(notification['id']),
-                                  );
-                                },
-                              ),
-                            ),
-                ),
-              ],
+        ),
+        child: Column(
+          children: [
+            _buildFilterRow(isDark),
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator(color: AppTheme.accentGold))
+                  : filteredNotifications.isEmpty
+                      ? _buildEmptyState(isDark)
+                      : RefreshIndicator(
+                          color: AppTheme.accentGold,
+                          onRefresh: _loadNotifications,
+                          child: ListView.builder(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
+                            physics: const BouncingScrollPhysics(),
+                            itemCount: filteredNotifications.length,
+                            itemBuilder: (context, index) {
+                              final notification = filteredNotifications[index];
+                              final animationIdx = index < _staggeredAnimations.length ? index : _staggeredAnimations.length - 1;
+                              
+                              return _buildAnimatedItem(
+                                index,
+                                animationIdx,
+                                GlassNotificationCard(
+                                  title: notification['title'],
+                                  message: notification['message'],
+                                  timestamp: notification['timestamp'],
+                                  isRead: notification['isRead'],
+                                  type: notification['type'],
+                                  onTap: () {
+                                    _markAsRead(notification['id']);
+                                    _navigateToRelatedEntity(notification);
+                                  },
+                                  onMarkAsRead: () => _markAsRead(notification['id']),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAnimatedItem(int index, int animIndex, Widget child) {
+    return AnimatedBuilder(
+      animation: _staggeredAnimations[animIndex],
+      builder: (context, child) {
+        final value = _staggeredAnimations[animIndex].value;
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, 30 * (1 - value)),
+            child: child,
+          ),
+        );
+      },
+      child: child,
+    );
+  }
+
+  Widget _buildFilterRow(bool isDark) {
+    final filters = ['All', 'Unread', 'Demands', 'Recent'];
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        child: Row(
+          children: filters.map((f) => _buildFilterChip(f, isDark)).toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterChip(String filter, bool isDark) {
+    final isSelected = _selectedFilter == filter;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedFilter = filter;
+          _applyFilter();
+        });
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        margin: const EdgeInsets.only(right: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(30),
+          gradient: isSelected
+              ? LinearGradient(
+                  colors: [AppTheme.accentGold, const Color(0xFF8B6914)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : null,
+          color: !isSelected 
+              ? (isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03))
+              : null,
+          border: Border.all(
+            color: isSelected 
+                ? Colors.transparent 
+                : (isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05)),
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: AppTheme.accentGold.withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  )
+                ]
+              : null,
+        ),
+        child: Text(
+          filter,
+          style: TextStyle(
+            color: isSelected ? Colors.white : (isDark ? Colors.white70 : Colors.black54),
+            fontSize: 13,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
           ),
         ),
       ),
     );
   }
 
-  Widget _buildFilterButton(String filter, bool isDark) {
-    final isSelected = _selectedFilter == filter;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          setState(() {
-            _selectedFilter = filter;
-            _applyFilter();
-          });
-        },
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            color: isSelected
-                ? const Color(0xFFFFD700).withOpacity(0.2)
-                : Colors.transparent,
-          ),
-          child: Center(
-            child: Text(
-              filter,
-              style: TextStyle(
-                color: isSelected
-                    ? const Color(0xFFFFD700)
-                    : isDark 
-                        ? Colors.white.withOpacity(0.7) 
-                        : Colors.black.withOpacity(0.7),
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-              ),
+  Widget _buildEmptyState(bool isDark) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.02),
+            ),
+            child: Icon(
+              Icons.notifications_off_rounded,
+              size: 64,
+              color: AppTheme.accentGold.withOpacity(0.4),
             ),
           ),
-        ),
+          const SizedBox(height: 24),
+          Text(
+            'Zen Protocol Active',
+            style: TextStyle(
+              color: isDark ? Colors.white : Colors.black,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'No pending transmissions found.',
+            style: TextStyle(
+              color: isDark ? Colors.white54 : Colors.black54,
+              fontSize: 14,
+            ),
+          ),
+        ],
       ),
     );
   }
 
   void _navigateToRelatedEntity(Map<String, dynamic> notification) {
-    // Implement navigation based on notification type
-    // For example, if it's a demand notification, navigate to the demand details
-    // This would depend on the notification structure and business logic
+    // Logic for routing based on notification payload
   }
 }

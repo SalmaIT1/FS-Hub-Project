@@ -20,6 +20,8 @@ class InlineImageBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final url = attachment.uploadUrl;
+    final isLocal = !url.startsWith('http') && !url.startsWith('blob:') && !url.startsWith('data:');
+    
     return GestureDetector(
       onTap: () {
         if (url.isEmpty) return;
@@ -27,7 +29,9 @@ class InlineImageBubble extends StatelessWidget {
           context: context,
           builder: (_) => Dialog(
             child: InteractiveViewer(
-              child: Image.network(url, fit: BoxFit.contain),
+              child: isLocal 
+                ? Image.file(io.File(url), fit: BoxFit.contain)
+                : Image.network(url, fit: BoxFit.contain),
             ),
           ),
         );
@@ -37,15 +41,21 @@ class InlineImageBubble extends StatelessWidget {
         height: maxSize,
         clipBehavior: Clip.hardEdge,
         decoration: BoxDecoration(borderRadius: BorderRadius.circular(8), color: Colors.grey[200]),
-        child: Image.network(
-          url,
-          fit: BoxFit.cover,
-          loadingBuilder: (c, child, loadingProgress) {
-            if (loadingProgress == null) return child;
-            return Center(child: CircularProgressIndicator());
-          },
-          errorBuilder: (c, e, st) => Center(child: Icon(Icons.broken_image, size: 48)),
-        ),
+        child: isLocal
+          ? Image.file(
+              io.File(url),
+              fit: BoxFit.cover,
+              errorBuilder: (c, e, st) => Center(child: Icon(Icons.broken_image, size: 48)),
+            )
+          : Image.network(
+              url,
+              fit: BoxFit.cover,
+              loadingBuilder: (c, child, loadingProgress) {
+                if (loadingProgress == null) return child;
+                return Center(child: CircularProgressIndicator());
+              },
+              errorBuilder: (c, e, st) => Center(child: Icon(Icons.broken_image, size: 48)),
+            ),
       ),
     );
   }

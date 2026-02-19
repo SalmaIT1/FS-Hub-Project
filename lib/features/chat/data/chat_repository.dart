@@ -572,7 +572,7 @@ class ChatRepository {
 
   /// Create a new conversation with another user
   Future<ConversationEntity?> createConversation({
-    required int user2Id,
+    required String user2Id,
   }) async {
     try {
       final userId = await _extractUserIdFromToken();
@@ -581,7 +581,7 @@ class ChatRepository {
       }
 
       final result = await rest.createConversation(
-        user1Id: int.parse(userId),
+        user1Id: userId,
         user2Id: user2Id,
         type: 'direct',
       );

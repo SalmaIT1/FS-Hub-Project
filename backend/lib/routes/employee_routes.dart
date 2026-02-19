@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
+import 'package:uuid/uuid.dart';
 import '../database/db_connection.dart';
 
 class EmployeeRoutes {
@@ -138,41 +139,84 @@ class EmployeeRoutes {
 
       final conn = DBConnection.getConnection();
       
-      // Check if user exists, if not create one
+      // Debug: Print database info
+      print('Creating employee with data: $data');
+      
+      // Generate a new random ID for both user and employee
+      final randomId = const Uuid().v4();
       String? userId = data['userId'];
-      if (userId == null) {
-        // Create user account first
-        final userResult = await conn.execute('''
-          INSERT INTO users (username, email, password, role, created_at)
-          VALUES (:username, :email, :password, :role, NOW())
-        ''', {
-          'username': data['username'],
-          'email': data['email'],
-          'password': 'default_password', // Should be hashed in production
-          'role': data['role'] ?? 'Employé',
-        });
 
-        // Get the created user ID
-        final selectResult = await conn.execute('SELECT LAST_INSERT_ID() as id');
-        userId = selectResult.rows.first.colByName('id').toString();
+      if (userId == null) {
+        // Check if username already exists first
+        final existingUser = await conn.execute('''
+          SELECT id FROM users WHERE username = :username
+        ''', {'username': data['username']});
+        
+        if (existingUser.rows.isNotEmpty) {
+          return Response.internalServerError(
+            body: jsonEncode({
+              'success': false, 
+              'message': 'Username "${data['username']}" already exists'
+            }),
+            headers: {'Content-Type': 'application/json'},
+          );
+        }
+        
+        // Create user account with randomized ID
+        userId = randomId;
+        print('Creating user with ID: $userId, username: ${data['username']}');
+        try {
+          await conn.execute('''
+            INSERT INTO users (id, username, password, role, created_at)
+            VALUES (:id, :username, :password, :role, NOW())
+          ''', {
+            'id': userId,
+            'username': data['username'],
+            'password': data['password'] ?? 'default_password', // Use provided password
+            'role': data['role'] ?? 'Employé',
+          });
+        } catch (insertError) {
+          print('User INSERT failed: $insertError');
+          throw Exception('Failed to create user: $insertError');
+        }
+      } else {
+        // Verify user ID exists and is not already linked to an employee
+        final existingEmployee = await conn.execute('''
+          SELECT id FROM employees WHERE user_id = :userId
+        ''', {'userId': userId});
+        
+        if (existingEmployee.rows.isNotEmpty) {
+          return Response.internalServerError(
+            body: jsonEncode({
+              'success': false, 
+              'message': 'User ID $userId is already linked to an employee'
+            }),
+            headers: {'Content-Type': 'application/json'},
+          );
+        }
       }
       
-      // Insert employee record
+      // Debug: Check table structure before INSERT
+      final tableCheck = await conn.execute('DESCRIBE employees');
+      print('Table columns: ${tableCheck.rows.map((r) => r.colByName("Field")).toList()}');
+      
+      // Insert employee record with the SAME ID as the user
       await conn.execute('''
-        INSERT INTO employees (user_id, matricule, nom, prenom, dateNaissance, sexe, 
+        INSERT INTO employees (id, user_id, matricule, nom, prenom, dateNaissance, sexe, 
                               photo, email, telephone, adresse, ville, poste, 
                               departement, dateEmbauche, typeContrat, statut)
-        VALUES (:userId, :matricule, :nom, :prenom, :dateNaissance, :sexe, 
+        VALUES (:id, :user_id, :matricule, :nom, :prenom, :dateNaissance, :sexe, 
                 :photo, :email, :telephone, :adresse, :ville, :poste, 
                 :departement, :dateEmbauche, :typeContrat, :statut)
       ''', {
-        'userId': userId,
+        'id': userId, // Primary key is same as user_id for consistency
+        'user_id': userId,
         'matricule': data['matricule'],
         'nom': data['nom'],
         'prenom': data['prenom'],
         'dateNaissance': data['dateNaissance'],
         'sexe': data['sexe'],
-        'photo': data['photo'],
+        'photo': data['photo'], // photo is LONGTEXT now
         'email': data['email'],
         'telephone': data['telephone'],
         'adresse': data['adresse'],

@@ -1,11 +1,14 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../data/services/auth_service.dart';
 import '../../employees/services/employee_service.dart';
 import '../../email/services/email_service.dart';
 import '../../../shared/widgets/luxury/luxury_app_bar.dart';
 import '../../../shared/widgets/glass_text_field.dart';
 import '../../../shared/widgets/glass_button.dart';
+import '../../../core/state/settings_controller.dart';
+import '../../../shared/widgets/luxury/luxury_scaffold.dart';
 
 class ResetPasswordPage extends StatefulWidget {
   const ResetPasswordPage({super.key});
@@ -20,10 +23,10 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
   String? _message;
   bool _isError = false;
 
-  Future<void> _handleRequestPasswordReset() async {
+  Future<void> _handleRequestPasswordReset(SettingsController settings) async {
     if (_emailController.text.trim().isEmpty) {
       setState(() {
-        _message = 'Please enter your email address';
+        _message = settings.translate('enter_email_address');
         _isError = true;
       });
       return;
@@ -41,7 +44,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
       if (employee == null) {
         setState(() {
           _isLoading = false;
-          _message = 'No account found with this email address. Please check your email and try again.';
+          _message = settings.translate('no_account_found');
           _isError = true;
         });
         return;
@@ -62,15 +65,15 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
       setState(() {
         _isLoading = false;
         if (result['success']) {
-          _message = 'Password reset request submitted successfully. An administrator will review your request and send you a new password via email.';
+          _message = settings.translate('reset_request_submitted');
           _isError = false;
         } else {
           // Check if it's a backend connection issue
           if (result['message']?.contains('connection') == true || 
               result['message']?.contains('MySQL') == true) {
-            _message = 'Server is experiencing technical difficulties. Please try again in a few minutes or contact support.';
+            _message = settings.translate('server_technical_difficulties');
           } else {
-            _message = result['message'] ?? 'Failed to submit password reset request';
+            _message = result['message'] ?? settings.translate('failed_submit_reset');
           }
           _isError = true;
         }
@@ -88,7 +91,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
     } catch (e) {
       setState(() {
         _isLoading = false;
-        _message = 'An error occurred: ${e.toString()}';
+        _message = '${settings.translate('error_occurred')}: ${e.toString()}';
         _isError = true;
       });
     }
@@ -97,9 +100,10 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final settings = context.watch<SettingsController>();
     
     return LuxuryScaffold(
-      title: 'Reset Password',
+      title: settings.translate('reset_password'),
       isPremium: true,
       body: Container(
         decoration: BoxDecoration(
@@ -131,15 +135,15 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(
+                          const Icon(
                             Icons.lock_reset,
                             size: 48,
-                            color: const Color(0xFFD4AF37),
+                            color: Color(0xFFD4AF37),
                           ),
                           const SizedBox(height: 16),
-                          const Text(
-                            'Password Reset',
-                            style: TextStyle(
+                          Text(
+                            settings.translate('reset_password'),
+                            style: const TextStyle(
                               color: Colors.white,
                               fontSize: 24,
                               fontWeight: FontWeight.w700,
@@ -148,7 +152,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'Enter your email address to request a password reset',
+                            settings.translate('enter_email_to_reset'),
                             style: TextStyle(
                               color: Colors.white.withOpacity(0.7),
                               fontSize: 14,
@@ -197,14 +201,14 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                           if (_message == null || _isError) ...[
                             GlassTextField(
                               controller: _emailController,
-                              label: 'Email Address',
+                              label: settings.translate('email_address'),
                               icon: Icons.email_outlined,
                               keyboardType: TextInputType.emailAddress,
                             ),
                             const SizedBox(height: 24),
                             GlassButton(
-                              text: 'REQUEST PASSWORD RESET',
-                              onPressed: _isLoading ? null : _handleRequestPasswordReset,
+                              text: settings.translate('request_password_reset_btn'),
+                              onPressed: _isLoading ? null : () => _handleRequestPasswordReset(settings),
                               isLoading: _isLoading,
                             ),
                           ],
@@ -212,7 +216,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                           if (_message != null && !_isError) ...[
                             const SizedBox(height: 24),
                             GlassButton(
-                              text: 'BACK TO LOGIN',
+                              text: settings.translate('back_to_login'),
                               onPressed: () => Navigator.of(context).pop(),
                               isLoading: false,
                             ),
@@ -233,15 +237,15 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                               children: [
                                 Row(
                                   children: [
-                                    Icon(
+                                    const Icon(
                                       Icons.info_outline,
-                                      color: const Color(0xFFD4AF37),
+                                      color: Color(0xFFD4AF37),
                                       size: 20,
                                     ),
                                     const SizedBox(width: 8),
-                                    const Text(
-                                      'How it works:',
-                                      style: TextStyle(
+                                    Text(
+                                      settings.translate('how_it_works'),
+                                      style: const TextStyle(
                                         color: Color(0xFFD4AF37),
                                         fontSize: 14,
                                         fontWeight: FontWeight.w600,
@@ -251,7 +255,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                                 ),
                                 const SizedBox(height: 12),
                                 Text(
-                                  '1. Submit your email address\n2. Administrator reviews your request\n3. You receive a new password via email\n4. Log in and change your password',
+                                  settings.translate('reset_steps'),
                                   style: TextStyle(
                                     color: Colors.white.withOpacity(0.8),
                                     fontSize: 13,

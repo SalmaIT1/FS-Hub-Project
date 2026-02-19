@@ -1,11 +1,30 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AppTheme {
-  static const Color accentGold = Color(0xFFD4AF37);
+  static const Color accentGold = Color(0xFFC9A24D); // Changed to match Premium theme better
   static const Color darkCharcoal = Color(0xFF121212);
+  static const String _themeKey = 'theme_mode';
   
   // Theme Toggle Notifier
   static final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.dark);
+
+  static Future<void> init() async {
+    final prefs = await SharedPreferences.getInstance();
+    final themeIndex = prefs.getInt(_themeKey);
+    if (themeIndex != null) {
+      themeNotifier.value = ThemeMode.values[themeIndex];
+    }
+  }
+
+  static Future<void> toggleTheme() async {
+    final current = themeNotifier.value;
+    final next = current == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
+    themeNotifier.value = next;
+    
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_themeKey, next.index);
+  }
 
   static ThemeData get glassDarkTheme => _buildTheme(Brightness.dark);
   static ThemeData get glassLightTheme => _buildTheme(Brightness.light);

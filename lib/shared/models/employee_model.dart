@@ -21,6 +21,7 @@ class Employee {
   final List<String>? permissions;
   final String? avatarUrl; // For display (URL or base64)
   final String? photo; // For storage (base64 string)
+  final bool isOnline;
 
   Employee({
     this.id,
@@ -43,6 +44,7 @@ class Employee {
     this.permissions,
     this.avatarUrl,
     this.photo,
+    this.isOnline = false,
   });
 
   String get fullName => '$prenom $nom';
@@ -92,6 +94,7 @@ class Employee {
       permissions: permissionsList,
       avatarUrl: json['avatarUrl'] ?? json['photo'], // Use 'photo' from backend as 'avatarUrl'
       photo: json['photo'],
+      isOnline: json['isOnline'] == 1 || json['isOnline'] == true,
     );
   }
 
@@ -117,6 +120,7 @@ class Employee {
       'permissions': permissions,
       'avatarUrl': avatarUrl,
       'photo': photo,
+      'isOnline': isOnline,
     };
   }
 
@@ -140,6 +144,7 @@ class Employee {
     String? role,
     List<String>? permissions,
     String? avatarUrl,
+    bool? isOnline,
   }) {
     return Employee(
       id: id ?? this.id,
@@ -161,6 +166,7 @@ class Employee {
       role: role ?? this.role,
       permissions: permissions ?? this.permissions,
       avatarUrl: avatarUrl ?? this.avatarUrl,
+      isOnline: isOnline ?? this.isOnline,
     );
   }
 }

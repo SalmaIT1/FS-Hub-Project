@@ -8,6 +8,9 @@ import '../../../employees/services/employee_service.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../navigation/chat_router.dart';
 
+import 'package:provider/provider.dart';
+import '../../../../core/state/settings_controller.dart';
+
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -89,21 +92,22 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  String _getGreeting() {
+  String _getGreeting(SettingsController settings) {
     final hour = DateTime.now().hour;
-    if (hour < 12) return 'Good morning';
-    if (hour < 17) return 'Good afternoon';
-    return 'Good evening';
+    if (hour < 12) return settings.translate('good_morning');
+    if (hour < 17) return settings.translate('good_afternoon');
+    return settings.translate('good_evening');
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final settings = context.watch<SettingsController>();
 
     return Scaffold(
       appBar: LuxuryAppBar(
         title: 'FS Hub',
-        subtitle: '${_getGreeting()}, ${_greetingName.isNotEmpty ? _greetingName : 'User'}',
+        subtitle: '${_getGreeting(settings)}, ${_greetingName.isNotEmpty ? _greetingName : 'User'}',
         showBackButton: false,
         isPremium: true,
       ),
@@ -132,7 +136,7 @@ class _HomePageState extends State<HomePage> {
                     Padding(
                       padding: const EdgeInsets.only(bottom: 20.0),
                       child: Text(
-                        'Operations Overview',
+                        settings.translate('ops_overview'),
                         style: TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.w600,
@@ -151,29 +155,29 @@ class _HomePageState extends State<HomePage> {
                       childAspectRatio: 1.1,
                       children: [
                         GlassCard(
-                          title: 'Employees',
-                          caption: 'Staff & Roles',
+                          title: settings.translate('employees'),
+                          caption: settings.languageCode == 'fr' ? 'Personnel' : 'Staff & Roles',
                           icon: Icons.badge_outlined,
                           onTap: () => Navigator.pushNamed(context, '/employees'),
                           isPrimary: true,
                         ),
                         GlassCard(
-                          title: 'Projects',
-                          caption: 'Active Labs',
+                          title: settings.translate('projects'),
+                          caption: settings.languageCode == 'fr' ? 'Labos actifs' : 'Active Labs',
                           icon: Icons.biotech_outlined,
                           onTap: () => Navigator.pushNamed(context, '/demands'),
                           isPrimary: true,
                         ),
                         GlassCard(
-                          title: 'Demands',
-                          caption: 'Requests',
+                          title: settings.translate('demands'),
+                          caption: settings.languageCode == 'fr' ? 'Requêtes' : 'Requests',
                           icon: Icons.assignment_outlined,
                           onTap: () => Navigator.pushNamed(context, '/demands'),
                           isPrimary: true,
                         ),
                         GlassCard(
-                          title: 'Finance',
-                          caption: 'Capital & Yield',
+                          title: settings.translate('finance'),
+                          caption: settings.languageCode == 'fr' ? 'Capital & Rendement' : 'Capital & Yield',
                           icon: Icons.account_balance_outlined,
                           onTap: () => Navigator.pushNamed(context, '/notifications'),
                           isPrimary: true,
@@ -184,7 +188,7 @@ class _HomePageState extends State<HomePage> {
                     Padding(
                       padding: const EdgeInsets.only(top: 20.0, bottom: 10.0),
                       child: Text(
-                        'Support Modules',
+                        settings.translate('support_modules'),
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w500,
@@ -202,44 +206,44 @@ class _HomePageState extends State<HomePage> {
                       childAspectRatio: 1.0,
                       children: [
                         GlassCard(
-                          title: 'Tasks',
+                          title: settings.translate('tasks'),
                           caption: 'Pipeline',
                           icon: Icons.checklist_rtl_outlined,
                           onTap: () => Navigator.pushNamed(context, '/demands'),
                         ),
                         GlassCard(
-                          title: 'Clients',
-                          caption: 'Partnerships',
+                          title: settings.translate('clients'),
+                          caption: settings.languageCode == 'fr' ? 'Partenariats' : 'Partnerships',
                           icon: Icons.handshake_outlined,
                           onTap: () => Navigator.pushNamed(context, '/employees'),
                         ),
                         GlassCard(
-                          title: 'Invoices',
-                          caption: 'Settlements',
+                          title: settings.translate('invoices'),
+                          caption: settings.languageCode == 'fr' ? 'Règlements' : 'Settlements',
                           icon: Icons.request_quote_outlined,
                           onTap: () => Navigator.pushNamed(context, '/notifications'),
                         ),
                         GlassCard(
-                          title: 'Reports',
+                          title: settings.translate('reports'),
                           caption: 'Analytics',
                           icon: Icons.analytics_outlined,
                           onTap: () => Navigator.pushNamed(context, '/notifications'),
                         ),
                         GlassCard(
-                          title: 'Messages',
+                          title: settings.translate('messages'),
                           caption: 'Collaboration',
                           icon: Icons.alternate_email_outlined,
                           onTap: () => Navigator.of(context).push(ChatRouter.buildHome()),
                         ),
                         GlassCard(
-                          title: 'Profile',
-                          caption: 'My Account',
+                          title: settings.translate('profile'),
+                          caption: settings.languageCode == 'fr' ? 'Mon Compte' : 'My Account',
                           icon: Icons.person_outlined,
-                          onTap: () => Navigator.pushNamed(context, '/settings'),
+                          onTap: () => Navigator.pushNamed(context, '/profile'),
                         ),
                         GlassCard(
-                          title: 'Settings',
-                          caption: 'Preferences',
+                          title: settings.translate('settings'),
+                          caption: settings.translate('preferences'),
                           icon: Icons.tune_outlined,
                           onTap: () => Navigator.pushNamed(context, '/settings'),
                         ),

@@ -65,7 +65,7 @@ class DBMigration {
                 await conn.execute('''
                   CREATE TABLE IF NOT EXISTS refresh_tokens (
                       id INT AUTO_INCREMENT PRIMARY KEY,
-                      user_id INT NOT NULL,
+                      user_id VARCHAR(50) NOT NULL,
                       token VARCHAR(1024) NOT NULL,
                       revoked BOOLEAN DEFAULT FALSE,
                       expires_at TIMESTAMP NULL,
@@ -79,6 +79,43 @@ class DBMigration {
               }
             } catch (e) {
               print('Failed to create refresh_tokens incremental migration: $e');
+            }
+
+            // Migration: Convert all user_id columns to VARCHAR(50) if they are INT
+            // We check each table individually to ensure complete coverage even if some were partially migrated.
+            final tablesToFix = {
+              'conversations': 'created_by',
+              'conversation_members': 'user_id',
+              'messages': 'sender_id',
+              'message_reads': 'user_id',
+              'message_reactions': 'user_id',
+              'typing_events': 'user_id',
+              'refresh_tokens': 'user_id',
+            };
+
+            for (final entry in tablesToFix.entries) {
+              try {
+                final table = entry.key;
+                final column = entry.value;
+                
+                final checkCol = await conn.execute(
+                  "SELECT DATA_TYPE FROM information_schema.columns WHERE table_schema = :db AND table_name = :table AND column_name = :col",
+                  {'db': dbName, 'table': table, 'col': column},
+                );
+                
+                if (checkCol.rows.isNotEmpty && checkCol.rows.first.colAt(0).toString().toLowerCase().contains('int')) {
+                   print('Applying migration: Convert $table.$column to VARCHAR(50)');
+                   await conn.execute('SET FOREIGN_KEY_CHECKS = 0');
+                   try {
+                     await conn.execute('ALTER TABLE $table MODIFY $column VARCHAR(50) NOT NULL');
+                     print('  Successfully converted $table.$column');
+                   } finally {
+                     await conn.execute('SET FOREIGN_KEY_CHECKS = 1');
+                   }
+                }
+              } catch (e) {
+                print('Failed to convert table ${entry.key}: $e');
+              }
             }
 
             return;

@@ -10,6 +10,7 @@ class User {
   final String? email;
   final String? poste;
   final String? departement;
+  final bool isOnline;
 
   User({
     required this.id,
@@ -23,6 +24,7 @@ class User {
     this.email,
     this.poste,
     this.departement,
+    this.isOnline = false,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -38,6 +40,7 @@ class User {
       email: json['email'],
       poste: json['poste'],
       departement: json['departement'],
+      isOnline: json['isOnline'] == 1 || json['isOnline'] == true,
     );
   }
 
@@ -54,6 +57,7 @@ class User {
       'email': email,
       'poste': poste,
       'departement': departement,
+      'isOnline': isOnline,
     };
   }
 }

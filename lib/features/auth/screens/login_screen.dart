@@ -1,9 +1,11 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../data/services/auth_service.dart';
 import '../../../shared/widgets/glass_text_field.dart';
 import '../../../shared/widgets/glass_button.dart';
 import '../../../core/routes/app_routes.dart';
+import '../../../core/state/settings_controller.dart';
 
 class GlassLoginPage extends StatefulWidget {
   const GlassLoginPage({super.key});
@@ -45,13 +47,18 @@ class _GlassLoginPageState extends State<GlassLoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final settings = context.watch<SettingsController>();
+    
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: RadialGradient(
-            center: Alignment(-0.8, -0.8),
+            center: const Alignment(-0.8, -0.8),
             radius: 1.2,
-            colors: [Color(0xFF1A1A1A), Colors.black],
+            colors: isDark 
+                ? [const Color(0xFF1A1A1A), Colors.black]
+                : [const Color(0xFFF5F5F7), const Color(0xFFE8E8EA)],
           ),
         ),
         child: Center(
@@ -67,19 +74,19 @@ class _GlassLoginPageState extends State<GlassLoginPage> {
                     child: Container(
                       padding: const EdgeInsets.all(32),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.05),
+                        color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03),
                         borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: Colors.white.withOpacity(0.1)),
+                        border: Border.all(color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05)),
                       ),
                       child: Form(
                         key: _formKey,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              'Welcome back',
+                            Text(
+                              settings.translate('welcome_back'),
                               style: TextStyle(
-                                color: Colors.white,
+                                color: isDark ? Colors.white : Colors.black,
                                 fontSize: 24,
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: -0.5,
@@ -87,11 +94,11 @@ class _GlassLoginPageState extends State<GlassLoginPage> {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              'Sign in to continue',
+                              settings.translate('signin_continue'),
                               style: TextStyle(
-                                color: Colors.white.withOpacity(0.4),
+                                color: isDark ? Colors.white.withOpacity(0.4) : Colors.black.withOpacity(0.4),
                                 fontSize: 14,
-                              ),
+                               ),
                             ),
                             const SizedBox(height: 32),
                             if (_errorMessage != null)
@@ -118,14 +125,14 @@ class _GlassLoginPageState extends State<GlassLoginPage> {
                               ),
                             GlassTextField(
                               controller: _usernameController,
-                              label: 'Email or Username',
+                              label: settings.translate('email_username'),
                               icon: Icons.person_outline,
-                              validator: (v) => v!.isEmpty ? 'Enter email or username' : null,
+                              validator: (v) => v!.isEmpty ? settings.translate('enter_email_username') : null,
                             ),
                             const SizedBox(height: 16),
                             GlassTextField(
                               controller: _passwordController,
-                              label: 'Password',
+                              label: settings.translate('password'),
                               icon: Icons.lock_outline,
                               obscureText: !_isPasswordVisible,
                               suffixIcon: IconButton(
@@ -136,7 +143,7 @@ class _GlassLoginPageState extends State<GlassLoginPage> {
                                 ),
                                 onPressed: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
                               ),
-                              validator: (v) => v!.isEmpty ? 'Enter password' : null,
+                              validator: (v) => v!.isEmpty ? settings.translate('enter_password') : null,
                             ),
                             const SizedBox(height: 12),
                             Align(
@@ -147,26 +154,26 @@ class _GlassLoginPageState extends State<GlassLoginPage> {
                                   foregroundColor: const Color(0xFFD4AF37),
                                 ),
                                 child: Text(
-                                  'Forgot password?',
-                                  style: TextStyle(color: const Color(0xFFD4AF37), fontSize: 13, fontWeight: FontWeight.w500),
+                                  settings.translate('forgot_password'),
+                                  style: const TextStyle(color: Color(0xFFD4AF37), fontSize: 13, fontWeight: FontWeight.w500),
                                 ),
                               ),
                             ),
                             const SizedBox(height: 24),
                             GlassButton(
-                              text: 'LOGIN',
+                              text: settings.translate('login'),
                               onPressed: _handleLogin,
                               isLoading: _isLoading,
                             ),
                             const SizedBox(height: 24),
-                            const Row(
+                            Row(
                               children: [
-                                Expanded(child: Divider(color: Colors.white10)),
+                                const Expanded(child: Divider(color: Colors.white10)),
                                 Padding(
-                                  padding: EdgeInsets.symmetric(horizontal: 16),
-                                  child: Text('OR', style: TextStyle(color: Colors.white24, fontSize: 10)),
+                                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                                  child: Text(settings.translate('or'), style: const TextStyle(color: Colors.white24, fontSize: 10)),
                                 ),
-                                Expanded(child: Divider(color: Colors.white10)),
+                                const Expanded(child: Divider(color: Colors.white10)),
                               ],
                             ),
                             const SizedBox(height: 24),
@@ -181,9 +188,9 @@ class _GlassLoginPageState extends State<GlassLoginPage> {
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                 ),
-                                child: const Text(
-                                  'Sign in with SSO',
-                                  style: TextStyle(fontSize: 13),
+                                child: Text(
+                                  settings.translate('signin_sso'),
+                                  style: const TextStyle(fontSize: 13),
                                 ),
                               ),
                             ),

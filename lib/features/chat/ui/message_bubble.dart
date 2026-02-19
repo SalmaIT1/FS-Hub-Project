@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../chat/domain/chat_entities.dart';
 import '../../../chat/domain/message_state_machine.dart';
 import 'media_components.dart';
+import '../../../core/state/settings_controller.dart';
 
 /// Message bubble widget
 class MessageBubble extends StatelessWidget {
@@ -46,6 +48,7 @@ class MessageBubble extends StatelessWidget {
   }
 
   Widget _buildMessageContent(BuildContext context) {
+    final settings = context.watch<SettingsController>();
     return GestureDetector(
       onTap: onRetap,
       child: Container(
@@ -53,13 +56,13 @@ class MessageBubble extends StatelessWidget {
           color: isFromCurrentUser ? Colors.blue[100] : Colors.grey[200],
           borderRadius: BorderRadius.circular(12),
         ),
-        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (!isFromCurrentUser && isGroupChat && message.senderName != null)
               Padding(
-                padding: EdgeInsets.only(bottom: 4),
+                padding: const EdgeInsets.only(bottom: 4),
                 child: Text(message.senderName!, style: Theme.of(context).textTheme.labelSmall),
               ),
             if (message.type == 'text')
@@ -69,15 +72,15 @@ class MessageBubble extends StatelessWidget {
             else if (message.type == 'audio' || message.type == 'voice')
               _buildVoiceNotePreview(context),
             Padding(
-              padding: EdgeInsets.only(top: 4),
+              padding: const EdgeInsets.only(top: 4),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(_formatTime(message.createdAt), style: Theme.of(context).textTheme.labelSmall),
+                   Text(_formatTime(message.createdAt), style: Theme.of(context).textTheme.labelSmall),
                   if (message.isEdited)
                     Padding(
-                      padding: EdgeInsets.only(left: 4),
-                      child: Text('(edited)', style: Theme.of(context).textTheme.labelSmall),
+                      padding: const EdgeInsets.only(left: 4),
+                      child: Text(settings.translate('edited'), style: Theme.of(context).textTheme.labelSmall),
                     ),
                 ],
               ),

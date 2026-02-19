@@ -280,8 +280,16 @@ class AttachmentManager {
       print('[AttachmentManager] Voice metadata: $voiceMetadata');
     }
     
+    // Get local paths for all uploaded attachments
+    final localPaths = _attachments.values
+        .where((a) => a.state == AttachmentState.uploaded || a.state == AttachmentState.ready)
+        .map((a) => a.localPath ?? '')
+        .where((p) => p.isNotEmpty)
+        .toList();
+    
     return {
       'uploadIds': uploadIds,
+      'localPaths': localPaths,
       if (voiceMetadata != null) 'voiceMetadata': voiceMetadata,
     };
   }

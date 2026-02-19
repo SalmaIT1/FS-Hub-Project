@@ -6,18 +6,8 @@ import '../../../chat/state/chat_controller.dart';
 import '../../uploads/services/attachment_manager.dart';
 import 'message_bubble.dart';
 import 'composer_bar.dart';
+import '../../../core/state/settings_controller.dart';
 
-/// Chat thread screen with virtualized message list
-/// 
-/// Features:
-/// - Virtualized list (efficient scrolling)
-/// - Sticky date separators
-/// - Keyboard-safe layout
-/// - Scroll position preservation
-/// - Delivery status indicators
-/// - Retry failed messages
-/// - Offline badge
-/// - Typing indicators
 class ChatThreadPage extends StatefulWidget {
   final String conversationId;
   final ConversationEntity? conversation;
@@ -135,20 +125,48 @@ class _ChatThreadPageState extends State<ChatThreadPage> {
   Widget build(BuildContext context) {
     print('[BUILD] chat_thread_page.dart rebuilding');
     final controller = context.watch<ChatController>();
+    final settings = context.watch<SettingsController>();
     final messages = controller.currentMessages;
     final isOnline = controller.isOnline;
     print('[BUILD] Chat thread has ${messages.length} messages');
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.conversation?.name ?? 'Chat'),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(widget.conversation?.name ?? settings.translate('chat')),
+            if (widget.conversation?.type == 'direct')
+              Row(
+                children: [
+                   Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: widget.conversation?.isReceiverOnline == true ? Colors.green : Colors.grey,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    widget.conversation?.isReceiverOnline == true ? settings.translate('online_badge') : settings.translate('offline_badge'),
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.normal,
+                      color: widget.conversation?.isReceiverOnline == true ? Colors.green : Colors.grey,
+                    ),
+                  ),
+                ],
+              ),
+          ],
+        ),
         actions: [
           if (!isOnline)
             Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Chip(
-                label: Text('Offline'),
-                avatar: Icon(Icons.cloud_off),
+                label: Text(settings.translate('offline_badge')),
+                avatar: const Icon(Icons.cloud_off),
                 backgroundColor: Colors.orange[100],
               ),
             ),
@@ -159,7 +177,7 @@ class _ChatThreadPageState extends State<ChatThreadPage> {
           // Message list
           Expanded(
             child: messages.isEmpty
-                ? Center(child: Text('No messages yet'))
+                ? Center(child: Text(settings.translate('no_messages_yet')))
                 : ListView.builder(
                     controller: _scrollController,
                     itemCount: messages.length,
@@ -175,10 +193,10 @@ class _ChatThreadPageState extends State<ChatThreadPage> {
                         children: [
                           if (showDateSeparator)
                             Padding(
-                              padding: EdgeInsets.symmetric(vertical: 16),
+                              padding: const EdgeInsets.symmetric(vertical: 16),
                               child: Center(
                                 child: Container(
-                                  padding: EdgeInsets.symmetric(
+                                  padding: const EdgeInsets.symmetric(
                                     horizontal: 12,
                                     vertical: 6,
                                   ),
@@ -187,7 +205,7 @@ class _ChatThreadPageState extends State<ChatThreadPage> {
                                     borderRadius: BorderRadius.circular(16),
                                   ),
                                   child: Text(
-                                    _formatDate(msg.createdAt),
+                                    _formatDate(msg.createdAt, settings),
                                     style: Theme.of(context).textTheme.labelSmall,
                                   ),
                                 ),
@@ -234,14 +252,14 @@ class _ChatThreadPageState extends State<ChatThreadPage> {
     return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 
-  String _formatDate(DateTime dt) {
+  String _formatDate(DateTime dt, SettingsController settings) {
     final now = DateTime.now();
-    final yesterday = now.subtract(Duration(days: 1));
+    final yesterday = now.subtract(const Duration(days: 1));
 
     if (_sameDay(dt, now)) {
-      return 'Today';
+      return settings.translate('today');
     } else if (_sameDay(dt, yesterday)) {
-      return 'Yesterday';
+      return settings.translate('yesterday');
     } else {
       return '${dt.month}/${dt.day}/${dt.year}';
     }

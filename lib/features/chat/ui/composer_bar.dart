@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'dart:async';
 import 'dart:typed_data';
 import '../domain/message_state_machine.dart' as chat_domain;
 import '../../uploads/services/attachment_manager.dart';
 import '../../uploads/widgets/attachment_preview_tray.dart';
 import '../../../chat/ui/voice_recorder.dart';
+import '../../../core/state/settings_controller.dart';
 
 /// Enhanced composer bar with full attachment support
 /// 
@@ -78,52 +80,11 @@ class _ComposerBarState extends State<ComposerBar> {
     return !hasFailedAttachments;
   }
 
-  Future<void> _send() async {
-    if (!_canSend) return;
-
-    final text = _textController.text.trim();
-    
-    try {
-      final uploadResult = await widget.attachmentManager.uploadAllAttachments();
-      final uploadIds = uploadResult['uploadIds'] as List<String>;
-      final voiceMetadata = uploadResult['voiceMetadata'] as Map<String, dynamic>?;
-      
-      // Check if there's content to send (text or uploaded attachments)
-      if (text.isNotEmpty || uploadIds.isNotEmpty) {
-        widget.onSendMessage(text, uploadIds, voiceMetadata: voiceMetadata);
-        
-        // Clear UI
-        _textController.clear();
-        setState(() {
-          _hasText = false;
-        });
-        
-        // Clear attachments after successful send
-        await widget.attachmentManager.clearAllAttachments();
-      } else {
-        // Show error if nothing to send (attachments may have all failed)
-        if (_attachments.isNotEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Upload failed. Please try again.'),
-              duration: Duration(seconds: 2),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      print('Error sending message: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: $e'),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
+    final settings = context.watch<SettingsController>();
+
     return Column(
       children: [
         // Voice recorder (shown when activated)
@@ -178,7 +139,7 @@ class _ComposerBarState extends State<ComposerBar> {
               // Attachment button
               IconButton(
                 icon: const Icon(Icons.attachment),
-                onPressed: _showAttachmentMenu,
+                onPressed: () => _showAttachmentMenu(settings),
               ),
 
               // Text input
@@ -191,7 +152,7 @@ class _ComposerBarState extends State<ComposerBar> {
                   child: TextField(
                     controller: _textController,
                     decoration: InputDecoration(
-                      hintText: 'Message...',
+                      hintText: settings.translate('message_hint'),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -200,7 +161,7 @@ class _ComposerBarState extends State<ComposerBar> {
                     ),
                     maxLines: null,
                     textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => _send(),
+                    onSubmitted: (_) => _send(settings),
                   ),
                 ),
               ),
@@ -211,7 +172,7 @@ class _ComposerBarState extends State<ComposerBar> {
                   Icons.send,
                   color: _canSend ? Colors.blue : Colors.grey,
                 ),
-                onPressed: _canSend ? _send : null,
+                onPressed: _canSend ? () => _send(settings) : null,
               ),
             ],
           ),
@@ -220,7 +181,7 @@ class _ComposerBarState extends State<ComposerBar> {
     );
   }
 
-  void _showAttachmentMenu() {
+  void _showAttachmentMenu(SettingsController settings) {
     showModalBottomSheet(
       context: context,
       builder: (_) => Container(
@@ -228,7 +189,7 @@ class _ComposerBarState extends State<ComposerBar> {
           children: [
             ListTile(
               leading: const Icon(Icons.camera_alt),
-              title: const Text('Camera'),
+              title: Text(settings.translate('camera')),
               onTap: () {
                 Navigator.pop(context);
                 widget.attachmentManager.selectImages(fromCamera: true);
@@ -236,7 +197,7 @@ class _ComposerBarState extends State<ComposerBar> {
             ),
             ListTile(
               leading: const Icon(Icons.image),
-              title: const Text('Gallery'),
+              title: Text(settings.translate('gallery')),
               onTap: () {
                 Navigator.pop(context);
                 widget.attachmentManager.selectImages(fromCamera: false);
@@ -244,7 +205,7 @@ class _ComposerBarState extends State<ComposerBar> {
             ),
             ListTile(
               leading: const Icon(Icons.attach_file),
-              title: const Text('File'),
+              title: Text(settings.translate('file')),
               onTap: () {
                 Navigator.pop(context);
                 widget.attachmentManager.selectFiles();
@@ -252,7 +213,7 @@ class _ComposerBarState extends State<ComposerBar> {
             ),
             ListTile(
               leading: const Icon(Icons.mic),
-              title: const Text('Voice Recording'),
+              title: Text(settings.translate('voice_recording')),
               onTap: () {
                 Navigator.pop(context);
                 setState(() {
@@ -264,5 +225,49 @@ class _ComposerBarState extends State<ComposerBar> {
         ),
       ),
     );
+  }
+
+  Future<void> _send(SettingsController settings) async {
+    if (!_canSend) return;
+
+    final text = _textController.text.trim();
+    
+    try {
+      final uploadResult = await widget.attachmentManager.uploadAllAttachments();
+      final uploadIds = uploadResult['uploadIds'] as List<String>;
+      final voiceMetadata = uploadResult['voiceMetadata'] as Map<String, dynamic>?;
+      
+      // Check if there's content to send (text or uploaded attachments)
+      if (text.isNotEmpty || uploadIds.isNotEmpty) {
+        widget.onSendMessage(text, uploadIds, voiceMetadata: voiceMetadata);
+        
+        // Clear UI
+        _textController.clear();
+        setState(() {
+          _hasText = false;
+        });
+        
+        // Clear attachments after successful send
+        await widget.attachmentManager.clearAllAttachments();
+      } else {
+        // Show error if nothing to send (attachments may have all failed)
+        if (_attachments.isNotEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(settings.translate('upload_failed')),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      print('Error sending message: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
 }

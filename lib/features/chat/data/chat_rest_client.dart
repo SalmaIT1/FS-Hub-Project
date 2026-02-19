@@ -312,8 +312,8 @@ class ChatRestClient {
   /// POST /v1/conversations
   /// Create a new conversation
   Future<Map<String, dynamic>> createConversation({
-    required int user1Id,
-    required int user2Id,
+    required String user1Id,
+    required String user2Id,
     String type = 'direct',
     String? name,
   }) async {

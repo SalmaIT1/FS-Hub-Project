@@ -195,7 +195,7 @@
     },
     {
       "name": "mime",
-      "rootUri": "file:///C:/Users/salma/AppData/Local/Pub/Cache/hosted/pub.dev/mime-2.0.0",
+      "rootUri": "file:///C:/Users/salma/AppData/Local/Pub/Cache/hosted/pub.dev/mime-1.0.6",
       "packageUri": "lib/",
       "languageVersion": "3.2"
     },
@@ -344,6 +344,12 @@
       "languageVersion": "3.5"
     },
     {
+      "name": "uuid",
+      "rootUri": "file:///C:/Users/salma/AppData/Local/Pub/Cache/hosted/pub.dev/uuid-4.5.2",
+      "packageUri": "lib/",
+      "languageVersion": "3.0"
+    },
+    {
       "name": "vm_service",
       "rootUri": "file:///C:/Users/salma/AppData/Local/Pub/Cache/hosted/pub.dev/vm_service-15.0.2",
       "packageUri": "lib/",
@@ -357,15 +363,15 @@
     },
     {
       "name": "web",
-      "rootUri": "file:///C:/Users/salma/AppData/Local/Pub/Cache/hosted/pub.dev/web-1.1.1",
+      "rootUri": "file:///C:/Users/salma/AppData/Local/Pub/Cache/hosted/pub.dev/web-0.5.1",
       "packageUri": "lib/",
-      "languageVersion": "3.4"
+      "languageVersion": "3.3"
     },
     {
       "name": "web_socket_channel",
-      "rootUri": "file:///C:/Users/salma/AppData/Local/Pub/Cache/hosted/pub.dev/web_socket_channel-2.4.0",
+      "rootUri": "file:///C:/Users/salma/AppData/Local/Pub/Cache/hosted/pub.dev/web_socket_channel-2.4.5",
       "packageUri": "lib/",
-      "languageVersion": "2.15"
+      "languageVersion": "3.3"
     },
     {
       "name": "webkit_inspection_protocol",

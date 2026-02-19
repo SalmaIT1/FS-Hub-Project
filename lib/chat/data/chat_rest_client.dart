@@ -310,12 +310,13 @@ class ChatRestClient {
   }
 
   /// POST /v1/conversations
-  /// Create a new conversation
+  /// Create a new conversation (direct or group)
   Future<Map<String, dynamic>> createConversation({
-    required int user1Id,
-    required int user2Id,
+    required String creatorId,
+    required List<String> participantIds,
     String type = 'direct',
     String? name,
+    String? avatarUrl,
   }) async {
     try {
       final token = await tokenProvider();
@@ -327,10 +328,12 @@ class ChatRestClient {
           'Content-Type': 'application/json',
         },
         body: jsonEncode({
-          'user1Id': user1Id,
-          'user2Id': user2Id,
+          'creatorId': creatorId,
+          'user1Id': creatorId, // Backward compatibility
+          'participantIds': participantIds,
           'type': type,
           'name': name,
+          'avatarUrl': avatarUrl,
         }),
       );
 
@@ -406,6 +409,33 @@ class ChatRestClient {
       }
     } catch (e) {
       throw Exception('Error requesting signed URL: $e');
+    }
+  }
+  /// DELETE /v1/conversations/{conversationId}/leave
+  /// Leave a conversation (removes it from current user's view)
+  Future<Map<String, dynamic>> leaveConversation({
+    required String conversationId,
+    required String userId,
+  }) async {
+    try {
+      final token = await tokenProvider();
+      
+      final response = await httpClient.delete(
+        Uri.parse('$baseUrl/v1/conversations/$conversationId/leave'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'userId': userId}),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Failed to leave conversation: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error leaving conversation: $e');
     }
   }
 }

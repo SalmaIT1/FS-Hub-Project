@@ -7,6 +7,9 @@ import '../../auth/data/services/auth_service.dart';
 import '../../../shared/widgets/luxury/luxury_app_bar.dart';
 import '../../../core/routes/app_routes.dart';
 
+import 'package:provider/provider.dart';
+import '../../../core/state/settings_controller.dart';
+
 class MyProfilePage extends StatefulWidget {
   const MyProfilePage({super.key});
 
@@ -94,7 +97,21 @@ class _MyProfilePageState extends State<MyProfilePage> {
     }
   }
 
-  String _getTypeDisplayName(String type) {
+  String _getTypeDisplayName(String type, SettingsController settings) {
+    if (settings.languageCode == 'fr') {
+      switch (type) {
+        case 'password_reset':
+          return 'Réinitialisation de mot de passe';
+        case 'hardware':
+          return 'Matériel';
+        case 'administrative':
+          return 'Administratif';
+        case 'custom':
+          return 'Personnalisé';
+        default:
+          return type;
+      }
+    }
     switch (type) {
       case 'password_reset':
         return 'Password Reset';
@@ -109,7 +126,21 @@ class _MyProfilePageState extends State<MyProfilePage> {
     }
   }
 
-  String _getStatusDisplayName(String status) {
+  String _getStatusDisplayName(String status, SettingsController settings) {
+    if (settings.languageCode == 'fr') {
+      switch (status) {
+        case 'pending':
+          return 'En attente';
+        case 'in_progress':
+          return 'En cours';
+        case 'resolved':
+          return 'Résolu';
+        case 'rejected':
+          return 'Rejeté';
+        default:
+          return status;
+      }
+    }
     switch (status) {
       case 'pending':
         return 'Pending';
@@ -166,9 +197,12 @@ class _MyProfilePageState extends State<MyProfilePage> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final settings = context.watch<SettingsController>();
 
     return LuxuryScaffold(
-      title: 'My Profile',
+      title: settings.translate('my_profile'),
+      showBackButton: Navigator.canPop(context),
+      onBackPress: () => Navigator.pop(context),
       isPremium: true,
       actions: [
         if (_userRole != 'Admin')
@@ -178,6 +212,12 @@ class _MyProfilePageState extends State<MyProfilePage> {
               Navigator.pushNamed(context, AppRoutes.createDemand);
             },
           ),
+        LuxuryAppBarAction(
+          icon: Icons.settings_outlined,
+          onPressed: () {
+            Navigator.pushNamed(context, AppRoutes.settings);
+          },
+        ),
       ],
       body: Container(
         decoration: BoxDecoration(
@@ -234,7 +274,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text(
-                                      'My Demands',
+                                      settings.translate('my_demands'),
                                       style: TextStyle(
                                         color: isDark ? Colors.white : Colors.black,
                                         fontSize: 18,
@@ -247,7 +287,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
                                           Navigator.pushNamed(context, AppRoutes.createDemand);
                                         },
                                         child: Text(
-                                          'New Demand',
+                                          settings.translate('new_demand'),
                                           style: TextStyle(
                                             color: const Color(0xFFFFD700),
                                             fontWeight: FontWeight.w600,
@@ -277,7 +317,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
                                                 ),
                                                 const SizedBox(height: 16),
                                                 Text(
-                                                  'No demands yet',
+                                                  settings.languageCode == 'fr' ? 'Aucune demande pour le moment' : 'No demands yet',
                                                   style: TextStyle(
                                                     color: isDark 
                                                         ? Colors.white.withOpacity(0.6) 
@@ -298,7 +338,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
                                                         borderRadius: BorderRadius.circular(12),
                                                       ),
                                                     ),
-                                                    child: const Text('Create Demand'),
+                                                    child: Text(settings.translate('new_demand')),
                                                   ),
                                                 ],
                                               ],
@@ -314,7 +354,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
                                               separatorBuilder: (context, index) => const SizedBox(height: 8),
                                               itemBuilder: (context, index) {
                                                 final demand = _demands[index];
-                                                return _buildDemandCard(demand, isDark);
+                                                return _buildDemandCard(demand, isDark, settings);
                                               },
                                             ),
                                           ),
@@ -403,7 +443,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
     );
   }
 
-  Widget _buildDemandCard(Demand demand, bool isDark) {
+  Widget _buildDemandCard(Demand demand, bool isDark, SettingsController settings) {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
@@ -453,7 +493,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
                       children: [
                         // Title
                         Text(
-                          _getTypeDisplayName(demand.type),
+                          _getTypeDisplayName(demand.type, settings),
                           style: TextStyle(
                             color: isDark 
                                 ? Colors.white
@@ -487,7 +527,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
                         
                         // Status and date
                         Row(
-                          children: [
+                           children: [
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
@@ -499,7 +539,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
                                 ),
                               ),
                               child: Text(
-                                _getStatusDisplayName(demand.status),
+                                _getStatusDisplayName(demand.status, settings),
                                 style: TextStyle(
                                   color: _getStatusColor(demand.status),
                                   fontSize: 11,

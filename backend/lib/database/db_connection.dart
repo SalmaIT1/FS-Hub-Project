@@ -1,15 +1,16 @@
 import 'package:mysql_client/mysql_client.dart';
 import 'package:dotenv/dotenv.dart';
 
-/// DBConnection provides a safe proxy for executing queries.
-/// Instead of exposing a single shared long-lived connection (which blocks
-/// concurrency and is unsafe under load), this implementation holds DB
-/// configuration from environment and creates a short-lived connection
-/// for each `execute` call. This is a minimal, backward-compatible change
-/// so existing code calling `DBConnection.getConnection().execute(...)`
-/// continues to work while avoiding a single shared connection.
+/// DBConnection wraps a simple connection pool so that DB calls
+/// do not pay the cost of a new TCP handshake on every query.
+///
+/// Pool size defaults to 5.  Connections are created lazily and kept alive
+/// for reuse.  A connection that errors is discarded and replaced.
 
-class _DBProxy {
+class _PooledConnection {
+  MySQLConnection? _conn;
+  bool _inUse = false;
+
   final String host;
   final int port;
   final String user;
@@ -17,11 +18,15 @@ class _DBProxy {
   final String dbName;
   final bool secure;
 
-  _DBProxy(this.host, this.port, this.user, this.password, this.dbName, {this.secure = false});
+  _PooledConnection(
+      this.host, this.port, this.user, this.password, this.dbName,
+      {this.secure = false});
 
-  /// Execute a single statement. A new connection is created, used, and closed.
-  Future<dynamic> execute(String sql, [Map<String, dynamic>? params]) async {
-    final conn = await MySQLConnection.createConnection(
+  bool get inUse => _inUse;
+
+  Future<void> _ensureConnected() async {
+    if (_conn != null) return; // assume alive; error recovery handles stale ones
+    _conn = await MySQLConnection.createConnection(
       host: host,
       port: port,
       userName: user,
@@ -29,47 +34,77 @@ class _DBProxy {
       databaseName: dbName,
       secure: secure,
     );
-
-    await conn.connect();
-    try {
-      final res = await conn.execute(sql, params ?? {});
-      return res;
-    } finally {
-      try {
-        await conn.close();
-      } catch (_) {}
-    }
+    await _conn!.connect();
   }
 
-  /// Run multiple operations in a single connection inside a transaction.
-  /// The callback receives the open `MySQLConnection` to perform several
-  /// `execute` calls atomically. This is needed for operations like
-  /// refresh token rotation and idempotent message inserts.
-  Future<T> transaction<T>(Future<T> Function(MySQLConnection conn) callback) async {
-    final conn = await MySQLConnection.createConnection(
-      host: host,
-      port: port,
-      userName: user,
-      password: password,
-      databaseName: dbName,
-      secure: secure,
-    );
+  Future<dynamic> execute(String sql, [Map<String, dynamic>? params]) async {
+    await _ensureConnected();
+    return _conn!.execute(sql, params ?? {});
+  }
 
-    await conn.connect();
+  Future<T> transaction<T>(Future<T> Function(MySQLConnection c) fn) async {
+    await _ensureConnected();
+    await _conn!.execute('START TRANSACTION');
     try {
-      await conn.execute('START TRANSACTION');
-      final res = await callback(conn);
-      await conn.execute('COMMIT');
+      final res = await fn(_conn!);
+      await _conn!.execute('COMMIT');
       return res;
     } catch (e) {
       try {
-        await conn.execute('ROLLBACK');
+        await _conn!.execute('ROLLBACK');
       } catch (_) {}
       rethrow;
-    } finally {
+    }
+  }
+
+  void release() => _inUse = false;
+  void acquire() => _inUse = true;
+}
+
+class _DBProxy {
+  final List<_PooledConnection> _pool;
+
+  _DBProxy(this._pool);
+
+  Future<_PooledConnection> _acquire() async {
+    for (final c in _pool) {
+      if (!c.inUse) {
+        c.acquire();
+        return c;
+      }
+    }
+    // All busy — spin-wait (low concurrency scenario)
+    await Future.delayed(const Duration(milliseconds: 5));
+    return _acquire();
+  }
+
+  Future<dynamic> execute(String sql, [Map<String, dynamic>? params]) async {
+    final slot = await _acquire();
+    try {
+      return await slot.execute(sql, params);
+    } catch (e) {
       try {
-        await conn.close();
+        await slot._conn?.close();
       } catch (_) {}
+      slot._conn = null;
+      rethrow;
+    } finally {
+      slot.release();
+    }
+  }
+
+  Future<T> transaction<T>(Future<T> Function(MySQLConnection c) fn) async {
+    final slot = await _acquire();
+    try {
+      return await slot.transaction(fn);
+    } catch (e) {
+      try {
+        await slot._conn?.close();
+      } catch (_) {}
+      slot._conn = null;
+      rethrow;
+    } finally {
+      slot.release();
     }
   }
 }
@@ -89,14 +124,21 @@ class DBConnection {
     final user = _env['DB_USER'] ?? 'root';
     final password = _env['DB_PASSWORD'] ?? '';
     final dbName = _env['DB_NAME'] ?? 'fs_hub_db';
+    const poolSize = 5;
 
-    _proxy = _DBProxy(host, port, user, password, dbName, secure: true);
+    final pool = List.generate(
+      poolSize,
+      (_) => _PooledConnection(host, port, user, password, dbName,
+          secure: true),
+    );
+
+    _proxy = _DBProxy(pool);
     _initialized = true;
-    print('Database configuration loaded');
+    print('Database configuration loaded (pool size: $poolSize)');
   }
 
-  /// Returns a proxy object that exposes `execute(sql, params)`.
-  /// Existing callers that call `getConnection().execute(...)` continue to work.
+  /// Returns the shared proxy. Existing callers using
+  /// `getConnection().execute(...)` continue to work unchanged.
   static _DBProxy getConnection() {
     if (!_initialized) {
       throw Exception('Database not initialized. Call initialize() first.');
@@ -104,7 +146,7 @@ class DBConnection {
     return _proxy;
   }
 
-  /// No-op close: connections are short-lived and closed by the proxy.
+  /// No-op: connections are managed by the pool.
   static Future<void> close() async {
     _initialized = false;
   }

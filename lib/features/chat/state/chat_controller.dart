@@ -314,7 +314,7 @@ class ChatController extends ChangeNotifier {
   }
 
   /// Create a new conversation with another user
-  Future<ConversationEntity?> createConversation(int userId) async {
+  Future<ConversationEntity?> createConversation(String userId) async {
     try {
       _lastError = null;
       final conversation = await repository.createConversation(user2Id: userId);

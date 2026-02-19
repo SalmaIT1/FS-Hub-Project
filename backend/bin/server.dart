@@ -11,7 +11,12 @@ import '../lib/routes/notification_routes.dart';
 import '../lib/routes/employee_routes.dart';
 import '../lib/routes/email_routes.dart';
 import '../lib/routes/conversation_routes.dart';
+import '../lib/routes/upload_routes.dart';
+import '../lib/routes/media_routes.dart';
+import '../lib/routes/enhanced_media_routes.dart';
+import '../lib/routes/voice_routes.dart';
 import '../lib/modules/chat/websocket_server.dart';
+import '../lib/services/data_integrity_service.dart';
 
 // Import database initialization
 import '../lib/database/db_migration.dart';
@@ -24,6 +29,9 @@ void main(List<String> args) async {
   final wsServer = WebSocketServer();
   wsServer.startCleanupTimer();
 
+  // Start data integrity service
+  DataIntegrityService.startPeriodicCleanup();
+
   // Create router with versioned API paths
   final router = Router()
     ..mount('/v1/auth', AuthRoutes().router)
@@ -32,6 +40,14 @@ void main(List<String> args) async {
     ..mount('/v1/employees', EmployeeRoutes().router)
     ..mount('/v1/email', EmailRoutes().router)
     ..mount('/v1/conversations', ConversationRoutes().router)
+    ..mount('/v1/uploads', UploadRoutes().router)
+    // Redirect legacy /media/voice.wav requests to /voice/voice.wav (must be before /media mount)
+    ..get('/media/<filename|.*\\.wav>', (Request req, String filename) {
+      return Response.movedPermanently('/voice/$filename');
+    })
+    ..mount('/media', EnhancedMediaRoutes().router)
+    ..mount('/api/voice', VoiceRoutes().router)
+    ..mount('/voice', VoiceRoutes().router)
     ..mount('/ws', wsServer.router);
 
   // Add CORS middleware

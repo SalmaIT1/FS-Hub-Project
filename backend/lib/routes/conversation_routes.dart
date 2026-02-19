@@ -22,7 +22,8 @@ class ConversationRoutes {
       ..put('/<id>/read/', _markConversationAsRead)
       ..post('/messages/read', _markMessagesAsRead)
       ..post('/typing', _setTypingIndicator)
-      ..get('/<id>/typing', _getTypingUsers);
+      ..get('/<id>/typing', _getTypingUsers)
+      ..delete('/<id>/leave', _leaveConversation);
   }
 
   Future<Response> _getConversations(Request request) async {
@@ -38,16 +39,6 @@ class ConversationRoutes {
         );
       }
 
-      int userIdInt;
-      try {
-        userIdInt = int.parse(userId);
-      } catch (e) {
-        return Response.badRequest(
-          body: jsonEncode({'success': false, 'message': 'Invalid userId format'}),
-          headers: {'Content-Type': 'application/json'},
-        );
-      }
-
       int? limitInt;
       if (limit != null) {
         try {
@@ -58,7 +49,7 @@ class ConversationRoutes {
       }
 
       final result = await ChatService.getConversations(
-        userId: userIdInt,
+        userId: userId.toString(),
         before: before,
         limit: limitInt,
       );
@@ -140,34 +131,34 @@ class ConversationRoutes {
       final body = await request.readAsString();
       final data = jsonDecode(body);
       
-      final user1IdStr = data['user1Id'];
-      final user2IdStr = data['user2Id'];
-      final name = data['name']; // For group conversations
       final type = data['type'] ?? 'direct';
+      final name = data['name'];
+      final avatarUrl = data['avatarUrl'];
       
-      if (user1IdStr == null || user2IdStr == null) {
+      // Support both old format (user2Id) and new format (participantIds)
+      final List<String> participantIds = [];
+      if (data['participantIds'] is List) {
+        participantIds.addAll((data['participantIds'] as List).map((e) => e.toString()));
+      } else if (data['user2Id'] != null) {
+        participantIds.add(data['user2Id'].toString());
+      }
+
+      final creatorIdRaw = data['user1Id'] ?? data['creatorId'];
+      if (creatorIdRaw == null || (type == 'direct' && participantIds.isEmpty)) {
         return Response.badRequest(
-          body: jsonEncode({'success': false, 'message': 'user1Id and user2Id are required'}),
+          body: jsonEncode({'success': false, 'message': 'creatorId and participants are required'}),
           headers: {'Content-Type': 'application/json'},
         );
       }
 
-      int user1Id, user2Id;
-      try {
-        user1Id = user1IdStr is int ? user1IdStr : int.parse(user1IdStr.toString());
-        user2Id = user2IdStr is int ? user2IdStr : int.parse(user2IdStr.toString());
-      } catch (e) {
-        return Response.badRequest(
-          body: jsonEncode({'success': false, 'message': 'Invalid user ID format: $e'}),
-          headers: {'Content-Type': 'application/json'},
-        );
-      }
+      String creatorId = creatorIdRaw.toString();
 
       final result = await ChatService.createConversation(
-        user1Id: user1Id,
-        user2Id: user2Id,
+        creatorId: creatorId,
+        participantIds: participantIds,
         type: type,
         name: name,
+        avatarUrl: avatarUrl,
       );
 
       if (result['success']) {
@@ -324,19 +315,11 @@ class ConversationRoutes {
         );
       }
 
-      int senderIdInt;
-      try {
-        senderIdInt = int.parse(senderId.toString());
-      } catch (e) {
-        return Response.badRequest(
-          body: jsonEncode({'success': false, 'message': 'Invalid senderId format'}),
-          headers: {'Content-Type': 'application/json'},
-        );
-      }
+      final senderIdStr = senderId.toString();
 
       final result = await ChatService.sendMessage(
         conversationId: id,
-        senderId: senderIdInt,
+        senderId: senderIdStr,
         content: content,
         type: type,
         replyToId: replyToId,
@@ -349,7 +332,7 @@ class ConversationRoutes {
         // Broadcast to all participants in conversation via WebSocket (including sender)
         // The sender's optimistic message will be deduplicated by clientMessageId
         final messageId = result['message']?['id'] ?? 'unknown';
-        print('[REST-SEND] Message sent: id=$messageId conversationId=$id senderId=$senderIdInt');
+        print('[REST-SEND] Message sent: id=$messageId conversationId=$id senderId=$senderIdStr');
         print('[REST-SEND] Broadcasting via WebSocket to conversation members...');
         
         try {
@@ -403,19 +386,11 @@ class ConversationRoutes {
         );
       }
 
-      int userIdInt;
-      try {
-        userIdInt = int.parse(userId);
-      } catch (e) {
-        return Response.badRequest(
-          body: jsonEncode({'success': false, 'message': 'Invalid userId format'}),
-          headers: {'Content-Type': 'application/json'},
-        );
-      }
-
+      String userIdStr = userId.toString();
+      
       final result = await ChatService.markConversationAsRead(
         conversationId: id,
-        userId: userIdInt,
+        userId: userIdStr,
       );
 
       if (result['success']) {
@@ -453,19 +428,9 @@ class ConversationRoutes {
         );
       }
 
-      int userIdInt;
-      try {
-        userIdInt = int.parse(userId);
-      } catch (e) {
-        return Response.badRequest(
-          body: jsonEncode({'success': false, 'message': 'Invalid userId format'}),
-          headers: {'Content-Type': 'application/json'},
-        );
-      }
-
       final result = await ChatService.markMessagesAsRead(
         messageIds: messageIds,
-        userId: userIdInt,
+        userId: userId.toString(),
       );
 
       if (result['success']) {
@@ -504,20 +469,10 @@ class ConversationRoutes {
         );
       }
 
-      int userIdInt;
-      try {
-        userIdInt = int.parse(userId);
-      } catch (e) {
-        return Response.badRequest(
-          body: jsonEncode({'success': false, 'message': 'Invalid userId format'}),
-          headers: {'Content-Type': 'application/json'},
-        );
-      }
-
       final result = await ChatService.setTypingIndicator(
-        conversationId: conversationId,
-        userId: userIdInt,
-        isTyping: isTyping,
+        conversationId: conversationId.toString(),
+        userId: userId.toString(),
+        isTyping: isTyping == true,
       );
 
       if (result['success']) {
@@ -557,6 +512,44 @@ class ConversationRoutes {
       }
     } catch (e) {
       print('Error getting typing users: $e');
+      return Response.internalServerError(
+        body: jsonEncode({'success': false, 'message': e.toString()}),
+        headers: {'Content-Type': 'application/json'},
+      );
+    }
+  }
+
+  Future<Response> _leaveConversation(Request request, String id) async {
+    try {
+      final body = await request.readAsString();
+      final data = jsonDecode(body);
+      
+      final userId = data['userId'];
+      if (userId == null) {
+        return Response.badRequest(
+          body: jsonEncode({'success': false, 'message': 'userId is required'}),
+          headers: {'Content-Type': 'application/json'},
+        );
+      }
+
+      final result = await ChatService.leaveConversation(
+        conversationId: id,
+        userId: userId.toString(),
+      );
+
+      if (result['success']) {
+        return Response.ok(
+          jsonEncode(result),
+          headers: {'Content-Type': 'application/json'},
+        );
+      } else {
+        return Response.internalServerError(
+          body: jsonEncode(result),
+          headers: {'Content-Type': 'application/json'},
+        );
+      }
+    } catch (e) {
+      print('Error leaving conversation: $e');
       return Response.internalServerError(
         body: jsonEncode({'success': false, 'message': e.toString()}),
         headers: {'Content-Type': 'application/json'},

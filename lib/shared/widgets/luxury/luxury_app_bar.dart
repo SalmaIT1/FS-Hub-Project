@@ -1,9 +1,11 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:provider/provider.dart';
 import '../../../features/auth/data/services/auth_service.dart';
 import '../../../features/employees/services/employee_service.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/state/settings_controller.dart';
 import '../notification_badge.dart';
 
 class LuxuryAppBar extends StatefulWidget implements PreferredSizeWidget {
@@ -470,36 +472,37 @@ class _LuxuryAppBarState extends State<LuxuryAppBar> with TickerProviderStateMix
   }
 
   List<Widget> _buildPremiumControls(BuildContext context, bool isDark) {
+    final settings = context.watch<SettingsController>();
+    
     // Create user menu dropdown with theme toggle, settings, logout
     final userMenu = PopupMenuButton<String>(
       icon: Icon(Icons.person_outline, color: isDark ? const Color(0xFFC9A24D) : const Color(0xFF0A0A0A)),
       itemBuilder: (BuildContext context) => [
-        const PopupMenuItem(
+        PopupMenuItem(
           value: 'theme',
           child: ListTile(
-            leading: Icon(Icons.wb_sunny_outlined),
-            title: Text('Toggle Theme'),
+            leading: const Icon(Icons.wb_sunny_outlined),
+            title: Text(settings.languageCode == 'fr' ? 'Changer de thème' : 'Toggle Theme'),
           ),
         ),
-        const PopupMenuItem(
+        PopupMenuItem(
           value: 'settings',
           child: ListTile(
-            leading: Icon(Icons.settings_outlined),
-            title: Text('Settings'),
+            leading: const Icon(Icons.settings_outlined),
+            title: Text(settings.translate('settings')),
           ),
         ),
-        const PopupMenuItem(
+        PopupMenuItem(
           value: 'logout',
           child: ListTile(
-            leading: Icon(Icons.power_settings_new_outlined),
-            title: Text('Logout'),
+            leading: const Icon(Icons.power_settings_new_outlined),
+            title: Text(settings.translate('logout')),
           ),
         ),
       ],
       onSelected: (String value) async {
         if (value == 'theme') {
-          final currentTheme = AppTheme.themeNotifier.value;
-          AppTheme.themeNotifier.value = currentTheme == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
+          await AppTheme.toggleTheme();
         } else if (value == 'settings') {
           Navigator.pushNamed(context, '/settings');
         } else if (value == 'logout') {
@@ -731,6 +734,7 @@ class _LuxurySearchInlineState extends State<LuxurySearchInline> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final settings = context.watch<SettingsController>();
     
     return Container(
       height: 36,
@@ -755,7 +759,7 @@ class _LuxurySearchInlineState extends State<LuxurySearchInline> {
           fontWeight: FontWeight.w400,
         ),
         decoration: InputDecoration(
-          hintText: widget.hintText ?? 'Search...',
+          hintText: widget.hintText ?? settings.translate('search'),
           hintStyle: TextStyle(
             color: isDark ? const Color(0xFF888888).withValues(alpha: 1.0) : const Color(0xFF666666).withValues(alpha: 1.0),
             fontSize: 14,
