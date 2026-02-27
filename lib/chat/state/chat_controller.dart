@@ -3,7 +3,9 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'dart:html' as html;
+// Platform-specific imports (conditional: stub on non-web, dart:html on web)
+import 'package:fs_hub/core/platform/html_stub.dart'
+    if (dart.library.html) 'package:fs_hub/core/platform/html_web.dart' as html;
 import '../data/chat_repository.dart';
 import '../data/chat_rest_client.dart';
 import '../data/chat_socket_client.dart';
@@ -583,33 +585,35 @@ class ChatController extends ChangeNotifier {
     try {
       print('[CTRL] _fetchBlobBytes: Starting fetch for $blobUrl');
       
-      // For blob URLs, we need to use dart:html to fetch the data
-      final request = await html.HttpRequest.request(
-        blobUrl,
-        method: 'GET',
-        responseType: 'arraybuffer',
-      );
-      
-      print('[CTRL] _fetchBlobBytes: Response status: ${request.status}');
-      print('[CTRL] _fetchBlobBytes: Response type: ${request.response.runtimeType}');
-      
-      if (request.status == 200) {
-        final arrayBuffer = request.response as dynamic;
-        print('[CTRL] _fetchBlobBytes: ArrayBuffer type: ${arrayBuffer.runtimeType}');
+      if (kIsWeb) {
+        // For blob URLs on web, we need to use dart:html to fetch the data
+        final request = await html.HttpRequest.request(
+          blobUrl,
+          method: 'GET',
+          responseType: 'arraybuffer',
+        );
         
-        if (arrayBuffer != null) {
-          // Convert ArrayBuffer to List<int>
-          final uint8List = Uint8List.view(arrayBuffer);
-          final result = uint8List.toList();
-          print('[CTRL] _fetchBlobBytes: Successfully converted ${result.length} bytes');
-          return result;
+        print('[CTRL] _fetchBlobBytes: Response status: ${request.status}');
+        print('[CTRL] _fetchBlobBytes: Response type: ${request.response.runtimeType}');
+        
+        if (request.status == 200) {
+          final arrayBuffer = request.response as dynamic;
+          print('[CTRL] _fetchBlobBytes: ArrayBuffer type: ${arrayBuffer.runtimeType}');
+          
+          if (arrayBuffer != null) {
+            final bytes = Uint8List.view(arrayBuffer);
+            print('[CTRL] _fetchBlobBytes: Successfully fetched ${bytes.length} bytes');
+            return bytes;
+          } else {
+            throw Exception('ArrayBuffer is null');
+          }
         } else {
-          print('[CTRL] _fetchBlobBytes: ArrayBuffer is null');
+          throw Exception('Failed to fetch blob: ${request.status}');
         }
       } else {
-        print('[CTRL] _fetchBlobBytes: HTTP error ${request.status}');
+        // Desktop platforms don't support blob URLs in the same way
+        throw Exception('Blob URLs are only supported on web platform');
       }
-      return [];
     } catch (e) {
       print('[CTRL] _fetchBlobBytes error: $e');
       return [];

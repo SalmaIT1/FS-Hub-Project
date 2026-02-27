@@ -169,7 +169,7 @@ class UploadService {
       
       Uint8List bytes;
       
-      if (kIsWeb && audioFile.path.startsWith('blob:')) {
+      if (audioFile.path.startsWith('blob:')) {
         // Web: Fetch blob data using dart:html
         print('[UPLOAD] Web blob detected, fetching data...');
         try {
@@ -188,34 +188,22 @@ class UploadService {
               throw Exception('ArrayBuffer is null');
             }
           } else {
-            throw Exception('Failed to fetch blob data: ${response.status}');
+            throw Exception('Failed to fetch blob: ${response.status}');
           }
         } catch (e) {
-          print('[UPLOAD] Blob fetch error: $e');
-          throw Exception('Failed to fetch blob data: $e');
+          print('[UPLOAD] Error fetching blob: $e');
+          rethrow;
         }
       } else {
-        // Desktop/Mobile: Read file bytes
-        bytes = await audioFile.readAsBytes();
-
-      }
-      
-      final fileSize = bytes.length;
-
-      final request = http.Request('PUT', Uri.parse(signedUrl))
-        ..headers['content-type'] = 'audio/aac'
-        ..bodyBytes = bytes;
-
-      final streamedResponse = await request.send();
-
-      if (streamedResponse.statusCode != 200 && streamedResponse.statusCode != 201) {
-        throw Exception('Voice upload failed: ${streamedResponse.statusCode}');
+        // Desktop/Mobile: Read file directly
+        bytes = await File(audioFile.path).readAsBytes();
+        print('[UPLOAD] Read ${bytes.length} bytes from file');
       }
 
       final progress = UploadProgress(
         uploadId: uploadId,
-        bytesUploaded: fileSize,
-        totalBytes: fileSize,
+        bytesUploaded: bytes.length,
+        totalBytes: bytes.length,
       );
       _progressController.add(progress);
       onProgress?.call(1.0);

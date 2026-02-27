@@ -206,25 +206,33 @@ class RealAudioRecorder {
   String get duration => '${_durationMs ~/ 1000}';
 
   Future<List<int>> _fetchBlobAsBytes(String blobUrl) async {
-    try {
-      final response = await html.HttpRequest.request(
-        blobUrl,
-        method: 'GET',
-        responseType: 'arraybuffer',
-      );
-      
-      if (response.status == 200) {
-        final arrayBuffer = response.response as dynamic;
-        try {
-          return Uint8List.view(arrayBuffer).toList();
-        } catch (e) {
-          print('[RealAudioRecorder._fetchBlobAsBytes] Error converting array buffer: $e');
+    if (kIsWeb) {
+      try {
+        final response = await html.HttpRequest.request(
+          blobUrl,
+          method: 'GET',
+          responseType: 'arraybuffer',
+        );
+        
+        if (response.status == 200) {
+          final arrayBuffer = response.response as dynamic;
+          try {
+            return Uint8List.view(arrayBuffer).toList();
+          } catch (e) {
+            print('[RealAudioRecorder._fetchBlobAsBytes] Error converting array buffer: $e');
+            return [];
+          }
+        } else {
+          print('[RealAudioRecorder._fetchBlobAsBytes] HTTP error: ${response.status}');
           return [];
         }
+      } catch (e) {
+        print('[RealAudioRecorder._fetchBlobAsBytes] Error fetching blob: $e');
+        return [];
       }
-      return [];
-    } catch (e) {
-      print('[RealAudioRecorder._fetchBlobAsBytes] Error: $e');
+    } else {
+      // Desktop platforms don't support blob URLs
+      print('[RealAudioRecorder._fetchBlobAsBytes] Blob URLs not supported on desktop');
       return [];
     }
   }

@@ -161,13 +161,10 @@ class AttachmentManager {
             if (arrayBuffer != null) {
               final blobBytes = Uint8List.view(arrayBuffer);
               fileSize = blobBytes.length;
-              _bytesData[id] = blobBytes; // Store for upload
-              print('[AttachmentManager] Fetched blob size: $fileSize bytes');
             }
+          } catch (e) {
+            print('[AttachmentManager] Failed to fetch blob: $e');
           }
-        } catch (e) {
-          print('[AttachmentManager] Failed to fetch blob: $e');
-          fileSize = 0;
         }
       } else if (!kIsWeb && audioPath.length > 0) {
         fileSize = await File(audioPath).length();

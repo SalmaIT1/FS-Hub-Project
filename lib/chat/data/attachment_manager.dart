@@ -7,7 +7,9 @@ import 'package:uuid/uuid.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as path;
-import 'dart:html' as html;
+// Platform-specific imports (conditional: stub on non-web, dart:html on web)
+import 'package:fs_hub/core/platform/html_stub.dart'
+    if (dart.library.html) 'package:fs_hub/core/platform/html_web.dart' as html;
 import '../ui/attachment_preview_tray.dart';
 import 'upload_service.dart';
 

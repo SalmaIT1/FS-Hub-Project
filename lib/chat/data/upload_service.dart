@@ -4,7 +4,9 @@ import 'dart:typed_data';
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
-import 'dart:html' as html;
+// Platform-specific imports (conditional: stub on non-web, dart:html on web)
+import 'package:fs_hub/core/platform/html_stub.dart'
+    if (dart.library.html) 'package:fs_hub/core/platform/html_web.dart' as html;
 
 /// Upload progress event
 class UploadProgress {
@@ -188,15 +190,15 @@ class UploadService {
               throw Exception('ArrayBuffer is null');
             }
           } else {
-            throw Exception('Failed to fetch blob data: ${response.status}');
+            throw Exception('Failed to fetch blob: ${response.status}');
           }
         } catch (e) {
-          print('[UPLOAD] Blob fetch error: $e');
-          throw Exception('Failed to fetch blob data: $e');
+          print('[UPLOAD] Error fetching blob: $e');
+          rethrow;
         }
       } else {
-        // Desktop/Mobile: Read file bytes
-        bytes = await audioFile.readAsBytes();
+        // Desktop/Mobile: Read file directly
+        bytes = await File(audioFile.path).readAsBytes();
         print('[UPLOAD] Read ${bytes.length} bytes from file');
       }
       
