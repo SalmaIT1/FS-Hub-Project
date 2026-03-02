@@ -39,14 +39,14 @@ class GlassButton extends StatelessWidget {
           color: !isPrimary
               ? isDark
                   ? Colors.white.withValues(alpha: 0.08)
-                  : Colors.black.withValues(alpha: 0.04)
+                  : Colors.black.withValues(alpha: 0.08)
               : null,
           borderRadius: BorderRadius.circular(14),
           border: !isPrimary
               ? Border.all(
                   color: isDark
                       ? Colors.white.withValues(alpha: 0.12)
-                      : Colors.black.withValues(alpha: 0.08),
+                      : Colors.black.withValues(alpha: 0.15),
                 )
               : null,
           boxShadow: isPrimary

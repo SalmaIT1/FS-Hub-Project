@@ -1,0 +1,11 @@
+# Flutter/Dart
+.dart_tool/
+.metadata
+.packages
+build/
+*.iml
+*.log
+.last_build_id
+NativeAssetsManifest.json
+NOTICES.Z
+kernel_blob.bin

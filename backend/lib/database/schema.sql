@@ -352,3 +352,34 @@ DELIMITER ;
 -- Note: In production, password should be hashed using the application logic.
 -- Initial admin creation removed from schema for security reasons.
 -- Create admin accounts via a secure provisioning process; do NOT store plaintext passwords in schema files.
+
+-- Table structure for factures
+CREATE TABLE IF NOT EXISTS factures (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    projet_id INT,
+    client_id INT,
+    numero_facture VARCHAR(50),
+    montant_ht DECIMAL(15,2),
+    tva DECIMAL(5,2),
+    montant_ttc DECIMAL(15,2),
+    date_emission DATE,
+    date_echeance DATE,
+    statut ENUM('Brouillon','Envoyée','Payée','En retard') DEFAULT 'Brouillon',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (projet_id) REFERENCES projets(id) ON DELETE SET NULL,
+    FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL
+);
+
+-- Table structure for paiements
+CREATE TABLE IF NOT EXISTS paiements (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    facture_id INT,
+    montant DECIMAL(15,2),
+    mode ENUM('Virement','Espèces','Carte','Chèque'),
+    date_paiement DATE,
+    reference_transaction VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (facture_id) REFERENCES factures(id) ON DELETE CASCADE
+);

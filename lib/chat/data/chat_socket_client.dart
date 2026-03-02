@@ -64,6 +64,19 @@ class ErrorEvent extends ChatSocketEvent {
   const ErrorEvent({required this.message});
 }
 
+/// User presence change (broadcast to conversation members)
+class PresenceEvent extends ChatSocketEvent {
+  final String userId;
+  final String state; // 'online', 'offline', 'away'
+  final DateTime lastSeen;
+
+  PresenceEvent({
+    required this.userId,
+    required this.state,
+    required this.lastSeen,
+  });
+}
+
 /// WebSocket client for real-time chat
 /// 
 /// Lifecycle:
@@ -276,6 +289,14 @@ class ChatSocketClient {
         case 'error':
           _eventController.add(ErrorEvent(
             message: payload['message'] ?? json['message'] ?? 'Unknown error',
+          ));
+          break;
+
+        case 'presence':
+          _eventController.add(PresenceEvent(
+            userId: payload['userId']?.toString() ?? '',
+            state: payload['state'] ?? 'offline',
+            lastSeen: DateTime.fromMillisecondsSinceEpoch(payload['lastSeen'] ?? DateTime.now().millisecondsSinceEpoch),
           ));
           break;
 

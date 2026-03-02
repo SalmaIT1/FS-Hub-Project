@@ -3,7 +3,7 @@ import '../navigation/glass_nav_bar.dart';
 import '../../../features/home/screens/home/home_page.dart';
 import '../../../features/employees/screens/employees_list_page.dart';
 import '../../../features/demands/screens/demands_list_page.dart';
-import '../../../chat/ui/conversation_list_page.dart';
+import '../../../features/chat/ui/conversation_list_page.dart';
 import '../../../features/employees/screens/my_profile_page.dart';
 
 class MainLayout extends StatefulWidget {

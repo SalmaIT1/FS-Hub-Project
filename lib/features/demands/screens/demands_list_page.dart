@@ -24,6 +24,7 @@ class _DemandsListPageState extends State<DemandsListPage> with SingleTickerProv
   String _selectedStatus = 'all';
   String _selectedType = 'all';
   late AnimationController _listController;
+  String? _userRole;
 
   @override
   void initState() {
@@ -32,7 +33,7 @@ class _DemandsListPageState extends State<DemandsListPage> with SingleTickerProv
       vsync: this,
       duration: const Duration(milliseconds: 600),
     );
-    _loadUserData();
+    _loadUserAndDemands();
   }
 
   @override
@@ -41,7 +42,15 @@ class _DemandsListPageState extends State<DemandsListPage> with SingleTickerProv
     super.dispose();
   }
 
-  Future<void> _loadUserData() async => _loadDemands();
+  Future<void> _loadUserAndDemands() async {
+    final user = await AuthService.getCurrentUser();
+    if (mounted) {
+      setState(() {
+        _userRole = user?['role'];
+      });
+      _loadDemands();
+    }
+  }
 
   Future<void> _loadDemands() async {
     setState(() => _isLoading = true);
@@ -62,9 +71,15 @@ class _DemandsListPageState extends State<DemandsListPage> with SingleTickerProv
             _isLoading = false;
           });
           _listController.forward(from: 0);
+        } else {
+           setState(() => _isLoading = false);
         }
+      } else {
+        if (mounted) setState(() => _isLoading = false);
+        print('Demands load failed: \$result');
       }
     } catch (e) {
+      print('Error loading demands: $e');
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -76,10 +91,12 @@ class _DemandsListPageState extends State<DemandsListPage> with SingleTickerProv
 
     return Scaffold(
       appBar: LuxuryAppBar(
-        title: settings.translate('system_demands'),
-        subtitle: settings.translate('demands_subtitle'),
-        showBackButton: Navigator.canPop(context),
-        onBackPress: () => Navigator.pop(context),
+        title: _userRole == 'Admin' 
+            ? (settings.languageCode == 'fr' ? 'Toutes les Demandes' : 'All Employee Demands')
+            : settings.translate('system_demands'),
+        subtitle: _userRole == 'Admin'
+            ? (settings.languageCode == 'fr' ? 'Gérer les requêtes du personnel' : 'Manage employee requests')
+            : settings.translate('demands_subtitle'),
         isPremium: true,
       ),
       body: Container(
@@ -255,9 +272,19 @@ class _DemandsListPageState extends State<DemandsListPage> with SingleTickerProv
         children: [
           Icon(Icons.assignment_turned_in_rounded, size: 80, color: AppTheme.accentGold.withOpacity(0.2)),
           const SizedBox(height: 20),
-          Text(settings.translate('crystal_clear'), style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
+          Text(
+            _userRole == 'Admin' 
+              ? (settings.languageCode == 'fr' ? 'Aucune demande' : 'No demands found')
+              : settings.translate('crystal_clear'), 
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)
+          ),
           const SizedBox(height: 8),
-          Text(settings.translate('no_demands_filter'), style: TextStyle(color: isDark ? Colors.white38 : Colors.black38)),
+          Text(
+            _userRole == 'Admin'
+              ? (settings.languageCode == 'fr' ? 'Aucune requête d\'employé ne correspond à vos filtres' : 'No employee requests match your current filters')
+              : settings.translate('no_demands_filter'), 
+            style: TextStyle(color: isDark ? Colors.white38 : Colors.black38)
+          ),
         ],
       ),
     );

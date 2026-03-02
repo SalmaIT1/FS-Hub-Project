@@ -631,6 +631,16 @@ class ChatController extends ChangeNotifier {
     }
   }
 
+  /// Logout: clear state and disconnect socket
+  Future<void> logout() async {
+    _conversations.clear();
+    _conversationMessages.clear();
+    _currentConversationId = null;
+    _isInitialized = false;
+    await repository.disconnect();
+    _safeNotifyListeners();
+  }
+
   @override
   void dispose() {
     _isDisposed = true;

@@ -3,6 +3,7 @@ import 'package:dart_jsonwebtoken/dart_jsonwebtoken.dart';
 import 'package:dotenv/dotenv.dart' as dotenv;
 import '../database/db_connection.dart';
 import 'package:mysql_client/mysql_client.dart';
+import 'package:bcrypt/bcrypt.dart';
 
 class AuthService {
   // Secret is read from environment at runtime to avoid hardcoding secrets in code.
@@ -43,19 +44,21 @@ class AuthService {
       final userRole = row.colByName('role') as String?;
       final permissions = row.colByName('permissions') as String?;
 
-      // Password comparison: legacy systems may store plaintext; prefer hashed.
-      // If stored password appears to be a bcrypt hash (starts with "$2"),
-      // production should verify accordingly. For backwards compatibility,
-      // fall back to direct comparison when no hash is present.
+      // Password comparison: support both bcrypt and plaintext
+      bool isValid = false;
       if (storedPassword.startsWith(r'$2')) {
-        // bcrypt verification not implemented here to avoid adding libraries.
-        // Treat as invalid and require migration if hash format detected but
-        // no verifier is available.
-        return {'success': false, 'message': 'Password verification not available for hashed passwords'};
-      } else {
-        if (password != storedPassword) {
-          return {'success': false, 'message': 'Invalid credentials'};
+        try {
+          isValid = BCrypt.checkpw(password, storedPassword);
+        } catch (e) {
+          print('BCrypt check failed: $e');
+          isValid = (password == storedPassword); // Fallback for edge cases
         }
+      } else {
+        isValid = (password == storedPassword);
+      }
+
+      if (!isValid) {
+        return {'success': false, 'message': 'Invalid credentials'};
       }
 
       // Update last login

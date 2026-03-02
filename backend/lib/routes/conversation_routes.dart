@@ -329,28 +329,8 @@ class ConversationRoutes {
       );
 
       if (result['success']) {
-        // Broadcast to all participants in conversation via WebSocket (including sender)
-        // The sender's optimistic message will be deduplicated by clientMessageId
         final messageId = result['message']?['id'] ?? 'unknown';
-        print('[REST-SEND] Message sent: id=$messageId conversationId=$id senderId=$senderIdStr');
-        print('[REST-SEND] Broadcasting via WebSocket to conversation members...');
-        
-        try {
-          print('[REST-SEND] About to call broadcastToConversationMembers...');
-          print('[REST-SEND] excludeUserId parameter: not provided (should be null)');
-          await WebSocketServer.broadcastToConversationMembers(
-            id,
-            {
-              'type': 'message:created',
-              'payload': {'message': result['message']},
-              'timestamp': DateTime.now().millisecondsSinceEpoch,
-            },
-          );
-          print('[REST-SEND] Broadcast complete for messageId=$messageId');
-        } catch (e) {
-          print('[REST-SEND-ERROR] Broadcast failed: $e');
-          print('[REST-SEND-ERROR] Stack trace: ${StackTrace.current}');
-        }
+        print('[REST-SEND] Message created: id=$messageId conversationId=$id senderId=$senderIdStr');
         
         return Response.ok(
           jsonEncode(result),

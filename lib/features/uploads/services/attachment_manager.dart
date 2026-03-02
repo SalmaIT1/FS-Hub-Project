@@ -7,7 +7,8 @@ import 'package:uuid/uuid.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as path;
-import 'dart:html' as html;
+import '../../../core/platform/html_stub.dart'
+    if (dart.library.html) '../../../core/platform/html_web.dart' as html;
 import '../widgets/attachment_preview_tray.dart';
 import '../../../chat/data/upload_service.dart';
 
@@ -162,9 +163,9 @@ class AttachmentManager {
               final blobBytes = Uint8List.view(arrayBuffer);
               fileSize = blobBytes.length;
             }
-          } catch (e) {
-            print('[AttachmentManager] Failed to fetch blob: $e');
           }
+        } catch (e) {
+          print('[AttachmentManager] Failed to fetch blob: $e');
         }
       } else if (!kIsWeb && audioPath.length > 0) {
         fileSize = await File(audioPath).length();

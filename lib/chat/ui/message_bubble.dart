@@ -88,8 +88,11 @@ class MessageBubble extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           gradient: isMe
-              ? const LinearGradient(
-                  colors: [Color(0xFFC9A24D), Color(0xFF8B6914)],
+              ? LinearGradient(
+                  colors: [
+                    const Color(0xFFC9A24D).withOpacity(0.22),
+                    const Color(0xFF8B6914).withOpacity(0.12),
+                  ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 )
@@ -104,14 +107,14 @@ class MessageBubble extends StatelessWidget {
           boxShadow: [
             BoxShadow(
               color: isMe
-                  ? DesignTokens.accentGold.withOpacity(0.18)
-                  : Colors.black.withOpacity(0.18),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
+                  ? const Color(0xFFC9A24D).withOpacity(0.08)
+                  : Colors.black.withOpacity(0.12),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
             ),
           ],
           border: isMe
-              ? null
+              ? Border.all(color: const Color(0xFFC9A24D).withOpacity(0.25), width: 1.0)
               : Border.all(color: Colors.white.withOpacity(0.06)),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -176,9 +179,9 @@ class MessageBubble extends StatelessWidget {
             ),
           ),
 
-        if (message.type == 'audio' || message.type == 'voice')
+        if ((message.type == 'audio' || message.type == 'voice') && message.voiceNote != null)
           _buildVoiceNotePreview(context)
-        else
+        else if (message.attachments.isNotEmpty)
           _buildAttachmentPreview(context),
 
         // Timestamp below media
@@ -207,7 +210,9 @@ class MessageBubble extends StatelessWidget {
               message.content,
               style: TextStyle(
                 color: isFromCurrentUser
-                    ? Colors.black.withOpacity(0.9)
+                    ? (Theme.of(context).brightness == Brightness.dark 
+                        ? Colors.white.withOpacity(0.95) 
+                        : Colors.black.withOpacity(0.85))
                     : DesignTokens.textLight,
                 fontSize: 14.5,
                 height: 1.4,
@@ -235,8 +240,10 @@ class MessageBubble extends StatelessWidget {
   }
 
   Widget _buildVoiceNotePreview(BuildContext context) {
-    if (message.voiceNote == null) return const SizedBox.shrink();
-    return VoiceNoteBubble(voice: message.voiceNote!);
+    return VoiceNoteBubble(
+      voice: message.voiceNote!,
+      isSentByMe: isFromCurrentUser,
+    );
   }
 
   String _formatTime(DateTime dt) =>
@@ -283,7 +290,9 @@ class _TextWithTimestamp extends StatelessWidget {
                   text: text,
                   style: TextStyle(
                     color: isMe
-                        ? Colors.black.withOpacity(0.9)
+                        ? (Theme.of(context).brightness == Brightness.dark 
+                            ? Colors.white.withOpacity(0.95) 
+                            : Colors.black.withOpacity(0.85))
                         : DesignTokens.textLight,
                     fontSize: 14.5,
                     height: 1.4,
@@ -326,7 +335,9 @@ class _TimestampRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = isMe
-        ? Colors.black.withOpacity(0.45)
+        ? (Theme.of(context).brightness == Brightness.dark 
+            ? Colors.white.withOpacity(0.55) 
+            : Colors.black.withOpacity(0.45))
         : DesignTokens.textSecondary;
 
     return Row(

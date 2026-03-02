@@ -69,12 +69,20 @@ class ChatRepository {
   /// Initialize: connect socket, load initial state, listen for events
   Future<void> init() async {
     try {
+      if (socket.isConnected) await socket.disconnect();
       await socket.connect();
       _listenToSocketEvents();
     } catch (e) {
       _isOnline = false;
       _isOnlineChanged.add(false);
     }
+  }
+
+  /// Disconnect: cleanup state and close socket
+  Future<void> disconnect() async {
+    _isOnline = false;
+    _isOnlineChanged.add(false);
+    await socket.disconnect();
   }
 
   /// Extract userId from JWT token
@@ -497,6 +505,21 @@ class ChatRepository {
         _applyDeliveryReceipt(event.messageId, event.recipientId, event.deliveredAt);
       } else if (event is MessageReadEvent) {
         _applyReadReceipt(event.messageId, event.readByUserId, event.readAt);
+      } else if (event is PresenceEvent) {
+        print('[REPO] Presence update: userId=${event.userId} state=${event.state}');
+        bool changed = false;
+        for (var i = 0; i < _conversations.length; i++) {
+          if (_conversations[i].receiverId == event.userId) {
+            _conversations[i] = _conversations[i].copyWith(
+              isOnline: event.state == 'online',
+            );
+            _conversationUpdated.add(_conversations[i]);
+            changed = true;
+          }
+        }
+        if (changed) {
+          print('[REPO] Updated presence for userId=${event.userId} across conversations');
+        }
       } else if (event is ErrorEvent) {
         _isOnline = false;
         _isOnlineChanged.add(false);

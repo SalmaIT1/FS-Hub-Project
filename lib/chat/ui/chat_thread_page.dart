@@ -123,7 +123,7 @@ class _ChatThreadPageState extends State<ChatThreadPage> {
             );
 
     return Scaffold(
-      backgroundColor: DesignTokens.baseDark,
+      backgroundColor: DesignTokens.background(context),
       body: SafeArea(
         child: Column(
           children: [
@@ -253,10 +253,10 @@ class _ChatThreadAppBar extends StatelessWidget {
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
           decoration: BoxDecoration(
-            color: DesignTokens.surfaceGlass.withOpacity(0.85),
+            color: DesignTokens.surface(context).withOpacity(0.92),
             border: Border(
               bottom: BorderSide(
-                color: Colors.white.withOpacity(0.07),
+                color: DesignTokens.border(context),
               ),
             ),
           ),
@@ -265,8 +265,8 @@ class _ChatThreadAppBar extends StatelessWidget {
             children: [
               // Back button
               IconButton(
-                icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                    size: 18, color: DesignTokens.textLight),
+                icon: Icon(Icons.arrow_back_ios_new_rounded,
+                    size: 18, color: DesignTokens.primaryText(context)),
                 onPressed: () => Navigator.pop(context),
               ),
 
@@ -285,7 +285,7 @@ class _ChatThreadAppBar extends StatelessWidget {
                   children: [
                     Text(
                       displayName,
-                      style: DesignTokens.bodyL.copyWith(
+                      style: DesignTokens.bodyLCtx(context).copyWith(
                         fontWeight: FontWeight.w600,
                         fontSize: 15,
                       ),
@@ -308,10 +308,10 @@ class _ChatThreadAppBar extends StatelessWidget {
                         const SizedBox(width: 5),
                         Text(
                           isContactOnline ? 'Active now' : 'Offline',
-                          style: DesignTokens.caption.copyWith(
+                          style: DesignTokens.captionCtx(context).copyWith(
                             color: isContactOnline
                                 ? const Color(0xFF4CAF50)
-                                : DesignTokens.textSecondary,
+                                : DesignTokens.secondaryText(context),
                           ),
                         ),
                       ],
@@ -323,7 +323,7 @@ class _ChatThreadAppBar extends StatelessWidget {
               // Actions
               IconButton(
                 icon: Icon(Icons.more_vert_rounded,
-                    color: DesignTokens.textSecondary),
+                    color: DesignTokens.secondaryText(context)),
                 onPressed: () {},
               ),
             ],
@@ -365,7 +365,7 @@ class _DateSeparator extends StatelessWidget {
           Expanded(
             child: Container(
               height: 1,
-              color: Colors.white.withOpacity(0.06),
+              color: DesignTokens.divider(context),
             ),
           ),
           Padding(
@@ -374,16 +374,15 @@ class _DateSeparator extends StatelessWidget {
               padding:
                   const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
               decoration: BoxDecoration(
-                color: DesignTokens.surfaceGlass,
+                color: DesignTokens.surface(context),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.08),
+                  color: DesignTokens.border(context),
                 ),
               ),
               child: Text(
                 _label(),
-                style: DesignTokens.caption.copyWith(
-                  color: DesignTokens.textSecondary,
+                style: DesignTokens.captionCtx(context).copyWith(
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -392,7 +391,7 @@ class _DateSeparator extends StatelessWidget {
           Expanded(
             child: Container(
               height: 1,
-              color: Colors.white.withOpacity(0.06),
+              color: DesignTokens.divider(context),
             ),
           ),
         ],
@@ -432,14 +431,14 @@ class _EmptyThreadState extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             'Say hello!',
-            style: DesignTokens.bodyL.copyWith(
+            style: DesignTokens.bodyLCtx(context).copyWith(
               fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(height: 6),
           Text(
             'Be the first to send a message.',
-            style: DesignTokens.bodyM,
+            style: DesignTokens.bodyMCtx(context),
           ),
         ],
       ),
@@ -469,10 +468,10 @@ class _ComposerWrapper extends StatelessWidget {
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
           decoration: BoxDecoration(
-            color: DesignTokens.surfaceGlass.withOpacity(0.9),
+            color: DesignTokens.surface(context).withOpacity(0.92),
             border: Border(
               top: BorderSide(
-                color: Colors.white.withOpacity(0.07),
+                color: DesignTokens.border(context),
               ),
             ),
           ),
@@ -520,7 +519,8 @@ class _MessageSkeletonState extends State<_MessageSkeleton>
     super.dispose();
   }
 
-  Widget _bubble(double width, bool isRight) {
+  Widget _bubble(BuildContext context, double width, bool isRight) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Align(
       alignment: isRight ? Alignment.centerRight : Alignment.centerLeft,
       child: AnimatedBuilder(
@@ -532,7 +532,7 @@ class _MessageSkeletonState extends State<_MessageSkeleton>
             width: width,
             height: 44,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.12),
+              color: (isDark ? Colors.white : Colors.black).withOpacity(0.10),
               borderRadius: BorderRadius.circular(18),
             ),
           ),
@@ -548,14 +548,14 @@ class _MessageSkeletonState extends State<_MessageSkeleton>
       physics: const NeverScrollableScrollPhysics(),
       padding: const EdgeInsets.symmetric(vertical: 12),
       children: [
-        _bubble(120, true),
-        _bubble(200, false),
-        _bubble(160, true),
-        _bubble(240, false),
-        _bubble(100, true),
-        _bubble(180, false),
-        _bubble(140, true),
-        _bubble(220, false),
+        _bubble(context, 120, true),
+        _bubble(context, 200, false),
+        _bubble(context, 160, true),
+        _bubble(context, 240, false),
+        _bubble(context, 100, true),
+        _bubble(context, 180, false),
+        _bubble(context, 140, true),
+        _bubble(context, 220, false),
       ],
     );
   }

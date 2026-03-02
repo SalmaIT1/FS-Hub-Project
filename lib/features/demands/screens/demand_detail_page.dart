@@ -20,17 +20,20 @@ class DemandDetailPage extends StatefulWidget {
 
 class _DemandDetailPageState extends State<DemandDetailPage> with TickerProviderStateMixin {
   late Demand _demand;
-  bool _isLoading = false;
+  bool _isLoading = true;
   String? _selectedStatus;
   final TextEditingController _resolutionNotesController = TextEditingController();
   
   late AnimationController _fadeController;
   late List<Animation<double>> _staggeredAnimations;
+  String? _userRole;
+  String? _userId;
 
   @override
   void initState() {
     super.initState();
     _demand = widget.demand;
+    _loadUserInfo();
     
     _fadeController = AnimationController(
       vsync: this,
@@ -100,6 +103,53 @@ class _DemandDetailPageState extends State<DemandDetailPage> with TickerProvider
     }
   }
 
+  Future<void> _loadUserInfo() async {
+    final user = await AuthService.getCurrentUser();
+    if (mounted) {
+      setState(() {
+        _userRole = user?['role'];
+        _userId = user?['id'];
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _deleteDemand() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Deletion'),
+        content: const Text('Are you sure you want to delete this demand? This action cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() => _isLoading = true);
+      final result = await DemandService.deleteDemand(_demand.id!);
+      if (mounted) {
+        setState(() => _isLoading = false);
+        if (result['success']) {
+          Navigator.pop(context, true);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Demand deleted successfully')),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(result['message'] ?? 'Failed to delete demand')),
+          );
+        }
+      }
+    }
+  }
+
   Future<void> _updateDemandStatusWithNotes(String status, String resolutionNotes) async {
     setState(() => _isLoading = true);
 
@@ -150,6 +200,13 @@ class _DemandDetailPageState extends State<DemandDetailPage> with TickerProvider
         showBackButton: true,
         onBackPress: () => Navigator.pop(context),
         isPremium: true,
+        actions: [
+          if (_userRole == 'Admin' || (_userId == _demand.requesterId && _demand.status == 'pending'))
+            LuxuryAppBarAction(
+              icon: Icons.delete_outline_rounded,
+              onPressed: _deleteDemand,
+            ),
+        ],
       ),
       body: Container(
         decoration: BoxDecoration(
@@ -186,8 +243,8 @@ class _DemandDetailPageState extends State<DemandDetailPage> with TickerProvider
                       
                       const SizedBox(height: 20),
                       
-                      // Action Controls (If not resolved)
-                      if (_demand.status != 'resolved' && _demand.status != 'rejected')
+                      // Action Controls (Only for Admin)
+                      if (_userRole == 'Admin' && _demand.status != 'resolved' && _demand.status != 'rejected')
                         _buildAnimatedSection(3, _buildActionCard(isDark)),
                       
                       const SizedBox(height: 100), // Space for bottom nav

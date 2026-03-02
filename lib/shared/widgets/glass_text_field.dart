@@ -39,12 +39,12 @@ class GlassTextField extends StatelessWidget {
           decoration: BoxDecoration(
             color: isDark 
                 ? Colors.white.withOpacity(0.05)
-                : Colors.black.withOpacity(0.03),
+                : Colors.white.withOpacity(0.7),
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: isDark 
                   ? Colors.white.withOpacity(0.1)
-                  : Colors.black.withOpacity(0.08),
+                  : Colors.black.withOpacity(0.12),
             ),
           ),
           child: TextFormField(

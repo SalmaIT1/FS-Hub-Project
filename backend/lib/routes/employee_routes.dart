@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 import 'package:uuid/uuid.dart';
+import 'package:bcrypt/bcrypt.dart';
 import '../database/db_connection.dart';
 
 class EmployeeRoutes {
@@ -172,7 +173,7 @@ class EmployeeRoutes {
           ''', {
             'id': userId,
             'username': data['username'],
-            'password': data['password'] ?? 'default_password', // Use provided password
+            'password': BCrypt.hashpw(data['password'] ?? 'default_password', BCrypt.gensalt()), 
             'role': data['role'] ?? 'Employé',
           });
         } catch (insertError) {

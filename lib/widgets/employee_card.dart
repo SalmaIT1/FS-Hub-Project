@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../shared/models/employee_model.dart';
 import '../core/theme/app_theme.dart';
 import '../core/localization/translations.dart';
@@ -62,7 +63,7 @@ class _EmployeeCardState extends State<EmployeeCard> with SingleTickerProviderSt
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final settings = context.watch<SettingsController>();
+    final settings = Provider.of<SettingsController>(context, listen: true);
     final languageCode = settings.languageCode;
     
     return MouseRegion(
@@ -195,7 +196,7 @@ class _EmployeeCardState extends State<EmployeeCard> with SingleTickerProviderSt
                               ),
                             ),
                             if (widget.onEdit != null || widget.onDelete != null)
-                              _buildActionMenu(isDark),
+                              _buildActionMenu(isDark, languageCode),
                           ],
                         ),
                       ),
@@ -353,7 +354,7 @@ Widget _buildImageWidget(String avatarUrl, bool isDark) {
     );
   }
 
-  Widget _buildActionMenu(bool isDark) {
+  Widget _buildActionMenu(bool isDark, String languageCode) {
     return PopupMenuButton<String>(
       icon: Icon(
         Icons.more_horiz_rounded,

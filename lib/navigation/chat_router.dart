@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:fs_hub/chat/ui/conversation_list_page.dart' as new_chat;
-import 'package:fs_hub/chat/ui/chat_thread_page.dart' as new_chat;
+import 'package:fs_hub/features/chat/ui/conversation_list_page.dart' as chat_ui;
+import 'package:fs_hub/features/chat/ui/chat_thread_page.dart' as chat_ui;
 import 'package:fs_hub/chat/domain/chat_entities.dart';
 
 class ChatRouter {
@@ -19,11 +19,11 @@ class ChatRouter {
   }
 
   static Route buildHome() {
-    return _makeRoute(const new_chat.ConversationListPage());
+    return _makeRoute(const chat_ui.ConversationListPage());
   }
 
   static Route thread(String conversationId, {ConversationEntity? conversation}) {
-    return _makeRoute(new_chat.ChatThreadPage(
+    return _makeRoute(chat_ui.ChatThreadPage(
       conversationId: conversationId,
       conversation: conversation,
     ));

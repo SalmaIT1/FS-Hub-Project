@@ -164,4 +164,8 @@ class DemandService {
       };
     }
   }
+
+  static Future<Map<String, dynamic>> deleteDemand(String id) async {
+    return await ApiService.delete('/demands/$id');
+  }
 }

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'package:mysql_client/mysql_client.dart';
 import '../database/db_connection.dart';
 
 /// Data integrity service for attachment and message consistency
@@ -30,15 +29,142 @@ class DataIntegrityService {
   /// Perform comprehensive cleanup and validation
   static Future<void> _performCleanup() async {
     try {
-      print('[INTEGRITY] Starting periodic cleanup...');
+      print('[INTEGRITY] Starting periodic tasks...');
       
       await _cleanupExpiredUploads();
       await _validateMessageAttachments();
       await _cleanupOrphanedAttachments();
+      await checkDeadlines();
+      await _checkOverdueTasks();
       
-      print('[INTEGRITY] Cleanup completed');
+      print('[INTEGRITY] Periodic tasks completed');
     } catch (e) {
-      print('[INTEGRITY] Cleanup failed: $e');
+      print('[INTEGRITY] Periodic tasks failed: $e');
+    }
+  }
+
+  /// Check for tasks that are past their deadline or have exceeded effort
+  static Future<void> _checkOverdueTasks() async {
+    final conn = DBConnection.getConnection();
+    
+    try {
+      // Find tasks in sprints that have passed their end date but are NOT 'Done'
+      final overdueTasks = await conn.execute('''
+        SELECT t.id, t.titre, t.employee_id, s.nom as sprint_nom, p.nom as project_nom
+        FROM taches t
+        JOIN sprints s ON t.sprint_id = s.id
+        JOIN projets p ON s.projet_id = p.id
+        WHERE s.date_fin < CURDATE()
+        AND t.statut != 'Done'
+      ''');
+
+      for (final row in overdueTasks.rows) {
+        final taskTitle = row.colByName('titre');
+        final employeeId = row.colByName('employee_id');
+        final sprintName = row.colByName('sprint_nom');
+        final projectNom = row.colByName('project_nom');
+
+        if (employeeId != null) {
+          await conn.execute('''
+            INSERT INTO notifications (user_id, title, message, type, timestamp, is_read)
+            VALUES (:uid, :title, :msg, :type, :ts, :read)
+          ''', {
+            'uid': employeeId,
+            'title': 'Tâche en retard',
+            'msg': 'La tâche "$taskTitle" du sprint $sprintName ($projectNom) est en retard.',
+            'type': 'task_overdue',
+            'ts': DateTime.now().toIso8601String(),
+            'read': 0
+          });
+        }
+      }
+    } catch (e) {
+      print('[INTEGRITY] Overdue task check failed: $e');
+    }
+  }
+
+  /// Check for upcoming project and sprint deadlines
+  static Future<void> checkDeadlines() async {
+    final conn = DBConnection.getConnection();
+    
+    try {
+      // 1. Check Projects due in 3 days
+      final projects = await conn.execute('''
+        SELECT id, nom, date_fin_prevue 
+        FROM projets 
+        WHERE date_fin_prevue = DATE_ADD(CURDATE(), INTERVAL 3 DAY)
+        AND statut != 'Terminé'
+      ''');
+
+      for (final row in projects.rows) {
+        final projectId = row.colByName('id');
+        final projectName = row.colByName('nom');
+        
+        await _notifyProjectStakeholders(
+          projectId!, 
+          'Échéance du projet proche', 
+          'Le projet "$projectName" se termine dans 3 jours.',
+          'deadline_warning'
+        );
+      }
+
+      // 2. Check Sprints due in 3 days
+      final sprints = await conn.execute('''
+        SELECT s.id, s.nom, s.projet_id, p.nom as project_nom
+        FROM sprints s
+        JOIN projets p ON s.projet_id = p.id
+        WHERE s.date_fin = DATE_ADD(CURDATE(), INTERVAL 3 DAY)
+      ''');
+
+      for (final row in sprints.rows) {
+        final sprintId = row.colByName('id');
+        final sprintName = row.colByName('nom');
+        final projectId = row.colByName('projet_id');
+        final projectNom = row.colByName('project_nom');
+        
+        await _notifyProjectStakeholders(
+          projectId!,
+          'Échéance de Sprint proche',
+          'Le sprint "$sprintName" ($projectNom) se termine dans 3 jours.',
+          'sprint_warning'
+        );
+      }
+    } catch (e) {
+      print('[INTEGRITY] Deadline check failed: $e');
+    }
+  }
+
+  static Future<void> _notifyProjectStakeholders(String projectId, String title, String message, String type) async {
+    final conn = DBConnection.getConnection();
+    
+    // Get project members
+    final members = await conn.execute(
+      'SELECT employee_id FROM projet_membres WHERE projet_id = :pid', 
+      {'pid': projectId}
+    );
+
+    // Get admins
+    final admins = await conn.execute("SELECT id FROM employees WHERE role = 'Admin'");
+
+    final recipientIds = <String>{};
+    for (var r in members.rows) recipientIds.add(r.colByName('employee_id')!);
+    for (var r in admins.rows) recipientIds.add(r.colByName('id')!);
+
+    for (var userId in recipientIds) {
+      // Import NotificationService at top or use fully qualified name
+      // To avoid circular dependency if any, we'll assume it's available
+      // or we can direct insert
+      await conn.execute('''
+        INSERT INTO notifications (user_id, title, message, type, timestamp, is_read)
+        VALUES (:uid, :title, :msg, :type, :ts, :read)
+      ''', {
+        'uid': userId,
+        'title': title,
+        'msg': message,
+        'type': type,
+        'ts': DateTime.now().toIso8601String(),
+        'read': 0
+      });
     }
   }
   
@@ -57,10 +183,9 @@ class DataIntegrityService {
 
     int cleanedCount = 0;
     for (final row in result.rows) {
-      try {
+        try {
         final uploadId = row.colByName('id');
         final filePath = row.colByName('file_path');
-        final storedFilename = row.colByName('stored_filename');
         
         // Delete physical file
         final file = File(filePath);

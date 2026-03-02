@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
 import 'dart:typed_data';
-import '../domain/message_state_machine.dart' as chat_domain;
+import '../../../chat/domain/message_state_machine.dart' as chat_domain;
 import '../../uploads/services/attachment_manager.dart';
 import '../../uploads/widgets/attachment_preview_tray.dart';
 import '../../../chat/ui/voice_recorder.dart';

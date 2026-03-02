@@ -9,6 +9,8 @@ import '../../../shared/widgets/glass_avatar_picker.dart';
 import '../../../shared/widgets/glass_text_field.dart';
 import '../../../shared/widgets/luxury/luxury_app_bar.dart';
 import '../../../shared/widgets/glass_button.dart';
+import '../../departments/services/department_service.dart';
+import '../../../shared/models/department_model.dart';
 
 class AddEditEmployeePage extends StatefulWidget {
   final Employee? employee;
@@ -39,6 +41,8 @@ class _AddEditEmployeePageState extends State<AddEditEmployeePage> {
   DateTime? _dateEmbauche;
   String _sexe = 'Homme';
   String _departement = 'IT';
+  List<Department> _availableDepartments = [];
+  bool _isDeptsLoading = true;
   String _typeContrat = 'CDI';
   String _statut = 'Actif';
   String _role = 'Employé';
@@ -50,6 +54,34 @@ class _AddEditEmployeePageState extends State<AddEditEmployeePage> {
   void initState() {
     super.initState();
     _initializeControllers();
+    _loadDepartments();
+  }
+
+  Future<void> _loadDepartments() async {
+    setState(() => _isDeptsLoading = true);
+    try {
+      final depts = await DepartmentService.getAllDepartments();
+      if (mounted) {
+        setState(() {
+          _availableDepartments = depts;
+          _isDeptsLoading = false;
+          
+          // If we have depts and current selection isn't in the list, 
+          // default to the first one or keep as is if creating
+          if (depts.isNotEmpty) {
+            final deptNames = depts.map((d) => d.nom).toList();
+            if (!deptNames.contains(_departement)) {
+              _departement = deptNames.first;
+            }
+          }
+        });
+      }
+    } catch (e) {
+      print('Error loading departments: $e');
+      if (mounted) {
+        setState(() => _isDeptsLoading = false);
+      }
+    }
   }
 
   void _initializeControllers() {
@@ -152,6 +184,7 @@ class _AddEditEmployeePageState extends State<AddEditEmployeePage> {
         role: _role,
         permissions: _selectedPermissions.isNotEmpty ? _selectedPermissions : null,
         photo: photoBase64, // Base64 encoded image
+        password: _passwordController.text, // Pass the password from the controller
       );
 
       Map<String, dynamic> result;
@@ -307,13 +340,20 @@ class _AddEditEmployeePageState extends State<AddEditEmployeePage> {
                       validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
                     ),
                     const SizedBox(height: 14),
-                    _buildDropdown(
-                      'Département',
-                      _departement,
-                      ['IT', 'Human Resources', 'Marketing', 'Finance', 'Sales'],
-                      (v) => setState(() => _departement = v!),
-                      isDark,
-                    ),
+                    _isDeptsLoading 
+                      ? const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 8.0),
+                          child: LinearProgressIndicator(color: Color(0xFFD4AF37)),
+                        )
+                      : _buildDropdown(
+                          'Département',
+                          _departement,
+                          _availableDepartments.map((d) => d.nom).toList().isEmpty 
+                              ? ['IT'] 
+                              : _availableDepartments.map((d) => d.nom).toList(),
+                          (v) => setState(() => _departement = v!),
+                          isDark,
+                        ),
                     const SizedBox(height: 14),
                     _buildDateField('Date d\'Embauche', _dateEmbauche, false, isDark),
                     const SizedBox(height: 14),

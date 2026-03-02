@@ -15,6 +15,12 @@ import '../lib/routes/upload_routes.dart';
 import '../lib/routes/media_routes.dart';
 import '../lib/routes/enhanced_media_routes.dart';
 import '../lib/routes/voice_routes.dart';
+import '../lib/routes/client_routes.dart';
+import '../lib/routes/department_routes.dart';
+import '../lib/routes/project_routes.dart';
+import '../lib/routes/sprint_routes.dart';
+import '../lib/routes/task_routes.dart';
+import '../lib/routes/finance_routes.dart';
 import '../lib/modules/chat/websocket_server.dart';
 import '../lib/services/data_integrity_service.dart';
 
@@ -38,8 +44,14 @@ void main(List<String> args) async {
     ..mount('/v1/demands', DemandRoutes().router)
     ..mount('/v1/notifications', NotificationRoutes().router)
     ..mount('/v1/employees', EmployeeRoutes().router)
+    ..mount('/v1/departments', DepartmentRoutes().router)
+    ..mount('/v1/projects', ProjectRoutes().router)
+    ..mount('/v1/sprints', SprintRoutes().router)
+    ..mount('/v1/tasks', TaskRoutes().router)
+    ..mount('/v1/clients', ClientRoutes().router)
     ..mount('/v1/email', EmailRoutes().router)
     ..mount('/v1/conversations', ConversationRoutes().router)
+    ..mount('/v1/finance', FinanceRoutes().router)
     ..mount('/v1/uploads', UploadRoutes().router)
     // Redirect legacy /media/voice.wav requests to /voice/voice.wav (must be before /media mount)
     ..get('/media/<filename|.*\\.wav>', (Request req, String filename) {
@@ -54,7 +66,7 @@ void main(List<String> args) async {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Origin, Content-Type, Accept, Authorization',
+    'Access-Control-Allow-Headers': 'Origin, Content-Type, Accept, Authorization, X-User-Id',
     'Access-Control-Allow-Private-Network': 'true', // For WebSocket on localhost
   };
 

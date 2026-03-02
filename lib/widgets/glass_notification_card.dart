@@ -214,6 +214,9 @@ class _GlassNotificationCardState extends State<GlassNotificationCard> with Sing
       case 'demand': return 'SYSTEM DEMAND';
       case 'system': return 'SECURITY ALERT';
       case 'message': return 'DIRECT MESSAGE';
+      case 'deadline_warning': return 'EXPIRATION ALERT';
+      case 'sprint_warning': return 'SPRINT DEADLINE';
+      case 'task_overdue': return 'REMARQUE RETARD';
       default: return 'NOTIFICATION';
     }
   }
@@ -226,6 +229,10 @@ class _GlassNotificationCardState extends State<GlassNotificationCard> with Sing
         return AppTheme.accentGold.withOpacity(0.15);
       case 'system':
         return Colors.blue.withOpacity(0.15);
+      case 'deadline_warning':
+      case 'sprint_warning':
+      case 'task_overdue':
+        return Colors.orangeAccent.withOpacity(0.15);
       default:
         return AppTheme.accentGold.withOpacity(0.1);
     }
@@ -239,6 +246,10 @@ class _GlassNotificationCardState extends State<GlassNotificationCard> with Sing
         return AppTheme.accentGold;
       case 'system':
         return Colors.blueAccent;
+      case 'deadline_warning':
+      case 'task_overdue':
+      case 'sprint_warning':
+        return Colors.orangeAccent;
       default:
         return AppTheme.accentGold;
     }
@@ -252,6 +263,11 @@ class _GlassNotificationCardState extends State<GlassNotificationCard> with Sing
         return Icons.gpp_maybe_rounded;
       case 'message':
         return Icons.forum_rounded;
+      case 'deadline_warning':
+      case 'sprint_warning':
+        return Icons.alarm_rounded;
+      case 'task_overdue':
+        return Icons.timer_off_rounded;
       default:
         return Icons.notifications_active_rounded;
     }

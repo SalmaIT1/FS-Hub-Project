@@ -42,54 +42,16 @@ class _WhatsAppVoiceNoteState extends State<WhatsAppVoiceNote> {
           ],
         ),
         child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              // Play/Pause button
-              GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _isPlaying = !_isPlaying;
-                  });
-                },
-                child: Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: widget.isSentByMe ? const Color(0xFF128C7E) : Colors.grey,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    _isPlaying ? Icons.pause : Icons.play_arrow,
-                    color: Colors.white,
-                    size: 18,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              
-              // Waveform visualization
-              Expanded(
-                child: Container(
-                  height: 30,
-                  child: widget.voice.waveformData.isNotEmpty
-                      ? _buildWaveform()
-                      : _buildPlaceholderWaveform(),
-                ),
-              ),
-              
-              const SizedBox(width: 8),
-              
-              // Duration
-              Text(
-                _formatDuration(widget.voice.durationMs),
-                style: TextStyle(
-                  fontSize: 13,
-                  color: widget.isSentByMe ? const Color(0xFF128C7E) : Colors.grey[700],
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: AudioPlayerWidget(
+            source: widget.voice.uploadUrl,
+            durationMs: widget.voice.durationMs,
+            waveformData: widget.voice.waveformData.isNotEmpty 
+              ? WaveformGenerator.decodeWaveform(widget.voice.waveformData)
+              : null,
+            progressColor: widget.isSentByMe ? const Color(0xFF128C7E) : Colors.blue,
+            onPlay: () => setState(() => _isPlaying = true),
+            onComplete: () => setState(() => _isPlaying = false),
           ),
         ),
       ),

@@ -311,7 +311,7 @@ class ConversationEntity {
   final bool isArchived;
   final DateTime? archivedAt;
   final List<String> typingUserIds; // Real-time typing indicators
-  final bool isReceiverOnline;
+  final bool isOnline; // For direct conversations, shows if receiver is online
 
   ConversationEntity({
     required this.id,
@@ -330,7 +330,7 @@ class ConversationEntity {
     this.isArchived = false,
     this.archivedAt,
     this.typingUserIds = const [],
-    this.isReceiverOnline = false,
+    this.isOnline = false,
   });
 
   factory ConversationEntity.fromServerJson(Map<String, dynamic> json) {
@@ -350,7 +350,7 @@ class ConversationEntity {
       unreadCount: json['unreadCount'] ?? 0,
       isArchived: json['isArchived'] ?? false,
       archivedAt: json['archivedAt'] != null ? _parseDateTime(json['archivedAt']) : null,
-      isReceiverOnline: json['isReceiverOnline'] == 1 || json['isReceiverOnline'] == true,
+      isOnline: json['isOnline'] == true || json['isOnline'] == 1 || json['isReceiverOnline'] == true || json['isReceiverOnline'] == 1,
     );
   }
 
@@ -371,7 +371,7 @@ class ConversationEntity {
     'isArchived': isArchived,
     'archivedAt': archivedAt?.toIso8601String(),
     'typingUserIds': typingUserIds,
-    'isReceiverOnline': isReceiverOnline,
+    'isOnline': isOnline,
   };
 
   ConversationEntity copyWith({
@@ -391,7 +391,7 @@ class ConversationEntity {
     bool? isArchived,
     DateTime? archivedAt,
     List<String>? typingUserIds,
-    bool? isReceiverOnline,
+    bool? isOnline,
   }) {
     return ConversationEntity(
       id: id ?? this.id,
@@ -410,7 +410,7 @@ class ConversationEntity {
       isArchived: isArchived ?? this.isArchived,
       archivedAt: archivedAt ?? this.archivedAt,
       typingUserIds: typingUserIds ?? this.typingUserIds,
-      isReceiverOnline: isReceiverOnline ?? this.isReceiverOnline,
+      isOnline: isOnline ?? this.isOnline,
     );
   }
 }

@@ -6,6 +6,7 @@ import '../domain/chat_entities.dart';
 import '../state/chat_controller.dart';
 import 'avatar_helper.dart';
 import 'group_creation_page.dart';
+import '../../../shared/widgets/luxury/luxury_app_bar.dart';
 
 /// Conversation list screen — premium dark glassmorphism design
 class ConversationListPage extends StatefulWidget {
@@ -91,7 +92,7 @@ class _ConversationListPageState extends State<ConversationListPage>
           }).toList();
 
     return Scaffold(
-      backgroundColor: DesignTokens.baseDark,
+      backgroundColor: DesignTokens.background(context),
       body: SafeArea(
         child: Column(
           children: [
@@ -112,7 +113,7 @@ class _ConversationListPageState extends State<ConversationListPage>
             Expanded(
               child: RefreshIndicator(
                 color: DesignTokens.accentGold,
-                backgroundColor: DesignTokens.surfaceGlass,
+                backgroundColor: DesignTokens.surface(context),
                 onRefresh: () => controller.loadConversations(),
                 child: _buildBody(context, controller, conversations),
               ),
@@ -162,57 +163,80 @@ class _ChatListHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 12, 12),
+    final canPop = Navigator.of(context).canPop();
+    return Container(
+      padding: const EdgeInsets.fromLTRB(8, 12, 12, 12),
+      decoration: BoxDecoration(
+        color: DesignTokens.surface(context),
+        border: Border(
+          bottom: BorderSide(color: DesignTokens.border(context)),
+        ),
+      ),
       child: Row(
         children: [
-          // Title
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Messages',
-                style: DesignTokens.headingM.copyWith(
-                  color: DesignTokens.textLight,
-                  fontWeight: FontWeight.w700,
+          // Back button — shown when navigable
+          if (canPop)
+            IconButton(
+              icon: Icon(
+                Icons.arrow_back_ios_new_rounded,
+                size: 18,
+                color: DesignTokens.primaryText(context),
+              ),
+              onPressed: () => Navigator.of(context).pop(),
+              tooltip: 'Back',
+            )
+          else
+            const SizedBox(width: 12),
+
+          // Title + status
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Messages',
+                  style: DesignTokens.headingMCtx(context).copyWith(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 2),
-              Row(
-                children: [
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isOnline
-                          ? const Color(0xFF4CAF50)
-                          : Colors.orange,
-                      boxShadow: [
-                        BoxShadow(
-                          color: (isOnline
-                                  ? const Color(0xFF4CAF50)
-                                  : Colors.orange)
-                              .withOpacity(0.5),
-                          blurRadius: 6,
-                        ),
-                      ],
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isOnline
+                            ? const Color(0xFF4CAF50)
+                            : Colors.orange,
+                        boxShadow: [
+                          BoxShadow(
+                            color: (isOnline
+                                    ? const Color(0xFF4CAF50)
+                                    : Colors.orange)
+                                .withOpacity(0.45),
+                            blurRadius: 6,
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    isOnline ? 'Online' : 'Offline',
-                    style: DesignTokens.caption.copyWith(
-                      color: isOnline
-                          ? const Color(0xFF4CAF50)
-                          : Colors.orange,
+                    const SizedBox(width: 6),
+                    Text(
+                      isOnline ? 'Online' : 'Offline',
+                      style: DesignTokens.captionCtx(context).copyWith(
+                        color: isOnline
+                            ? const Color(0xFF4CAF50)
+                            : Colors.orange,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
-          const Spacer(),
+
           // New chat button
           _GlassIconButton(
             icon: Icons.edit_outlined,
@@ -234,33 +258,34 @@ class _SearchBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
           decoration: BoxDecoration(
-            color: DesignTokens.surfaceGlass.withOpacity(0.8),
+            color: DesignTokens.surface(context).withOpacity(isDark ? 0.8 : 0.95),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: Colors.white.withOpacity(0.08),
+              color: DesignTokens.border(context),
             ),
           ),
           child: TextField(
             controller: controller,
-            style: DesignTokens.bodyL.copyWith(fontSize: 14),
+            style: DesignTokens.bodyLCtx(context).copyWith(fontSize: 14),
             decoration: InputDecoration(
               hintText: 'Search conversations…',
-              hintStyle: DesignTokens.bodyM,
+              hintStyle: DesignTokens.bodyMCtx(context),
               prefixIcon: Icon(
                 Icons.search_rounded,
-                color: DesignTokens.textSecondary,
+                color: DesignTokens.secondaryText(context),
                 size: 20,
               ),
               suffixIcon: controller.text.isNotEmpty
                   ? IconButton(
                       icon: Icon(Icons.close_rounded,
-                          color: DesignTokens.textSecondary, size: 18),
+                          color: DesignTokens.secondaryText(context), size: 18),
                       onPressed: () => controller.clear(),
                     )
                   : null,
@@ -366,9 +391,7 @@ class _ConversationTileState extends State<_ConversationTile>
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           decoration: BoxDecoration(
-            color: _isHovered
-                ? Colors.white.withOpacity(0.05)
-                : Colors.transparent,
+            color: DesignTokens.tile(context, hovered: _isHovered),
             borderRadius: BorderRadius.circular(16),
           ),
           child: Material(
@@ -418,7 +441,7 @@ class _ConversationTileState extends State<_ConversationTile>
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
-                                        color: DesignTokens.textLight,
+                                        color: DesignTokens.primaryText(context),
                                         fontSize: 15,
                                         fontWeight: hasUnread
                                             ? FontWeight.w700
@@ -431,10 +454,10 @@ class _ConversationTileState extends State<_ConversationTile>
                               const SizedBox(width: 8),
                               Text(
                                 _formatTime(conv.lastMessageAt),
-                                style: DesignTokens.caption.copyWith(
+                                style: DesignTokens.captionCtx(context).copyWith(
                                   color: hasUnread
                                       ? DesignTokens.accentGold
-                                      : DesignTokens.textSecondary,
+                                      : DesignTokens.secondaryText(context),
                                   fontWeight: hasUnread
                                       ? FontWeight.w600
                                       : FontWeight.normal,
@@ -454,7 +477,7 @@ class _ConversationTileState extends State<_ConversationTile>
                                     conv.lastMessage ?? 'No messages yet',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: DesignTokens.bodyM.copyWith(
+                                    style: DesignTokens.bodyMCtx(context).copyWith(
                                       fontStyle: conv.lastMessage == null
                                           ? FontStyle.italic
                                           : FontStyle.normal,
@@ -462,9 +485,9 @@ class _ConversationTileState extends State<_ConversationTile>
                                           ? FontWeight.w500
                                           : FontWeight.normal,
                                       color: hasUnread
-                                          ? DesignTokens.textLight
+                                          ? DesignTokens.primaryText(context)
                                               .withOpacity(0.7)
-                                          : DesignTokens.textSecondary,
+                                          : DesignTokens.secondaryText(context),
                                     ),
                                   ),
                                 ),
@@ -476,7 +499,7 @@ class _ConversationTileState extends State<_ConversationTile>
                                 const SizedBox(width: 8),
                                 Icon(Icons.archive_outlined,
                                     size: 14,
-                                    color: DesignTokens.textSecondary),
+                                    color: DesignTokens.secondaryText(context)),
                               ],
                             ],
                           ),
@@ -521,18 +544,12 @@ class _ConversationAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final controller = context.watch<ChatController>();
     final isGroup = conversation.type == 'group';
-    
-    // Resolve avatar:
+
     String? resolvedAvatar;
     if (!isGroup && conversation.receiverId != null) {
-      // Prioritize employee cache for direct chats as it's known to work perfectly
       resolvedAvatar = controller.getAvatarForUser(conversation.receiverId!);
     }
-    
-    // Fallback to conversation data if cache is empty or it's a group
     resolvedAvatar ??= conversation.avatarUrl;
-    
-
 
     return Stack(
       children: [
@@ -541,7 +558,6 @@ class _ConversationAvatar extends StatelessWidget {
           size: 52,
           isGroup: isGroup,
         ),
-        // Online indicator
         if (!isGroup && conversation.isOnline)
           Positioned(
             right: 1,
@@ -553,7 +569,7 @@ class _ConversationAvatar extends StatelessWidget {
                 color: const Color(0xFF4CAF50),
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: DesignTokens.baseDark,
+                  color: DesignTokens.background(context),
                   width: 2,
                 ),
               ),
@@ -677,7 +693,7 @@ class _GlassIconButton extends StatelessWidget {
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Material(
-            color: Colors.white.withOpacity(0.06),
+            color: DesignTokens.border(context).withOpacity(0.6),
             borderRadius: BorderRadius.circular(14),
             child: InkWell(
               borderRadius: BorderRadius.circular(14),
@@ -689,7 +705,7 @@ class _GlassIconButton extends StatelessWidget {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.1),
+                    color: DesignTokens.border(context),
                   ),
                 ),
                 child: Icon(icon,
@@ -741,8 +757,7 @@ class _EmptyState extends StatelessWidget {
           const SizedBox(height: 20),
           Text(
             hasSearch ? 'No results found' : 'No conversations yet',
-            style: DesignTokens.bodyL.copyWith(
-              color: DesignTokens.textLight,
+            style: DesignTokens.bodyLCtx(context).copyWith(
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -752,7 +767,7 @@ class _EmptyState extends StatelessWidget {
                 ? 'Try a different search term'
                 : 'Start a new conversation\nby tapping the edit icon above',
             textAlign: TextAlign.center,
-            style: DesignTokens.bodyM,
+            style: DesignTokens.bodyMCtx(context),
           ),
         ],
       ),

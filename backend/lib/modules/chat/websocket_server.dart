@@ -126,6 +126,9 @@ class WebSocketServer {
       'timestamp': DateTime.now().millisecondsSinceEpoch,
     });
 
+    // Update presence in DB and broadcast
+    _updateUserPresence(userId, true);
+
     // Handle messages
     _attachListeners(connectionId, userId, webSocket);
   }
@@ -275,9 +278,63 @@ class WebSocketServer {
     }
   }
 
-  void _handlePresence(String connectionId, String userId, Map<String, dynamic> presenceData) {
+  void _handlePresence(String connectionId, String userId, Map<String, dynamic> presenceData) async {
     // Handle presence updates (online/away/busy)
-    // This would update user presence in database and broadcast to connections
+    final state = presenceData['state'] ?? 'online';
+    await _updateUserPresence(userId, state == 'online', explicitState: state);
+  }
+
+  Future<void> _updateUserPresence(String userId, bool isOnline, {String? explicitState}) async {
+    try {
+      final conn = DBConnection.getConnection();
+      final state = explicitState ?? (isOnline ? 'online' : 'offline');
+      
+      // 1. Update users table
+      await conn.execute(
+        'UPDATE users SET is_online = :isOnline, last_seen = NOW() WHERE id = :userId',
+        {'isOnline': isOnline ? 1 : 0, 'userId': userId}
+      );
+
+      // 2. Find all unique users who share any conversation with this user
+      final membersRes = await conn.execute('''
+        SELECT DISTINCT cm2.user_id 
+        FROM conversation_members cm1
+        JOIN conversation_members cm2 ON cm1.conversation_id = cm2.conversation_id
+        WHERE cm1.user_id = :userId 
+        AND cm2.user_id != :userId 
+        AND cm1.left_at IS NULL
+        AND cm2.left_at IS NULL
+      ''', {'userId': userId});
+
+      final event = {
+        'type': 'presence',
+        'payload': {
+          'userId': userId,
+          'state': state,
+          'lastSeen': DateTime.now().millisecondsSinceEpoch,
+        },
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      };
+
+      // 3. Broadcast to all mutual members who are currently online
+      int reached = 0;
+      for (final row in membersRes.rows) {
+        final otherUserId = row.colByName('user_id')?.toString();
+        if (otherUserId != null) {
+          final connections = _userToConnections[otherUserId];
+          if (connections != null) {
+            for (final connId in connections) {
+              _sendToConnection(connId, event);
+              reached++;
+            }
+          }
+        }
+      }
+      
+      print('[WS-PRESENCE] userId=$userId is $state. Broadcast to $reached connections.');
+    } catch (e) {
+      print('[WS-PRESENCE-ERROR] Failed to update presence for $userId: $e');
+    }
   }
 
   void _handleFileUpload(String connectionId, String userId, Map<String, dynamic> uploadData) {
@@ -291,33 +348,28 @@ class WebSocketServer {
     String? excludeUserId,
   }) async {
     try {
-      final roomKey = 'conv_$conversationId';
-      final roomConnections = _conversationRooms[roomKey] ?? {};
-
-      print('[WS-BROADCAST] Starting broadcast for conversation=$conversationId');
-      print('[WS-BROADCAST] Message type=${message['type']} messageId=${message['payload']?['message']?['id']}');
-      print('[WS-BROADCAST] Subscribers in room=$roomKey: ${roomConnections.length}');
-      print('[WS-BROADCAST] Connection mapping: ${_userConnections.entries.map((e) => "${e.key}→userId${e.value}").join(", ")}');
+      final conn = DBConnection.getConnection();
+      
+      // 1. Find all members of this conversation
+      final membersRes = await conn.execute(
+        'SELECT user_id FROM conversation_members WHERE conversation_id = :conversationId AND left_at IS NULL',
+        {'conversationId': conversationId}
+      );
 
       int sentCount = 0;
-      for (final connectionId in roomConnections) {
-        final userId = _userConnections[connectionId]?.toString() ?? '?';
-        
-        // Skip excluded user
-        if (excludeUserId != null && userId == excludeUserId.toString()) {
-          print('[WS-BROADCAST] Skipping sender (userId=$userId, excludeUserId=$excludeUserId)');
-          continue;
-        }
-        
-        if (_connections.containsKey(connectionId)) {
-          print('[WS-BROADCAST] Delivering to userId=$userId via connectionId=$connectionId');
-          _sendToConnection(connectionId, message);
-          sentCount++;
-        } else {
-          print('[WS-BROADCAST] WARNING: Room has connectionId=$connectionId but connection not active');
+      for (final row in membersRes.rows) {
+        final memberId = row.colByName('user_id')?.toString();
+        if (memberId == null || memberId == excludeUserId) continue;
+
+        final connections = _userToConnections[memberId];
+        if (connections != null) {
+          for (final connId in connections) {
+            _sendToConnection(connId, message);
+            sentCount++;
+          }
         }
       }
-      print('[WS-BROADCAST] Broadcast complete: sent to $sentCount subscribers');
+      print('[WS-BROADCAST] Sent ${message['type']} to $sentCount connections in conversation $conversationId');
     } catch (e) {
       print('[WS-BROADCAST-ERROR] Error broadcasting to conversation: $e');
     }
@@ -369,11 +421,17 @@ class WebSocketServer {
     }
     
     // Remove from all conversation rooms
-    for (final roomConnections in _conversationRooms.values) {
-      roomConnections.remove(connectionId);
+    for (final connections in _conversationRooms.values) {
+      connections.remove(connectionId);
     }
     
-    print('[WS-DISCONNECT] Cleanup complete. Remaining users: ${_userConnections.values.toSet()}');
+    // If this was the last connection for this user, mark as offline
+    final remainingConnections = _userToConnections[userId]?.length ?? 0;
+    if (userId.isNotEmpty && remainingConnections == 0) {
+      _updateUserPresence(userId, false);
+    }
+    
+    print('[WS-DISCONNECT] Cleanup complete for userId=$userId. Remaining users: ${_userToConnections.keys.toSet()}');
   }
 
   void _handleJoinConversation(String connectionId, String userId, Map<String, dynamic> data) {

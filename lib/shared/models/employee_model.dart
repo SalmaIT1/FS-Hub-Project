@@ -22,6 +22,7 @@ class Employee {
   final String? avatarUrl; // For display (URL or base64)
   final String? photo; // For storage (base64 string)
   final bool isOnline;
+  final String? password; // Only used for creation/update, not fetched from backend
 
   Employee({
     this.id,
@@ -45,6 +46,7 @@ class Employee {
     this.avatarUrl,
     this.photo,
     this.isOnline = false,
+    this.password,
   });
 
   String get fullName => '$prenom $nom';
@@ -121,6 +123,7 @@ class Employee {
       'avatarUrl': avatarUrl,
       'photo': photo,
       'isOnline': isOnline,
+      'password': password,
     };
   }
 

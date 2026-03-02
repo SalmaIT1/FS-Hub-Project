@@ -58,7 +58,7 @@ class _GlassLoginPageState extends State<GlassLoginPage> {
             radius: 1.2,
             colors: isDark 
                 ? [const Color(0xFF1A1A1A), Colors.black]
-                : [const Color(0xFFF5F5F7), const Color(0xFFE8E8EA)],
+                : [const Color(0xFFFFFFFF), const Color(0xFFDEE2E6)],
           ),
         ),
         child: Center(
@@ -74,9 +74,16 @@ class _GlassLoginPageState extends State<GlassLoginPage> {
                     child: Container(
                       padding: const EdgeInsets.all(32),
                       decoration: BoxDecoration(
-                        color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03),
+                        color: isDark ? Colors.white.withOpacity(0.05) : Colors.white.withOpacity(0.6),
                         borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05)),
+                        border: Border.all(color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.1)),
+                        boxShadow: isDark ? [] : [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 20,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
                       ),
                       child: Form(
                         key: _formKey,
@@ -96,9 +103,10 @@ class _GlassLoginPageState extends State<GlassLoginPage> {
                             Text(
                               settings.translate('signin_continue'),
                               style: TextStyle(
-                                color: isDark ? Colors.white.withOpacity(0.4) : Colors.black.withOpacity(0.4),
+                                color: isDark ? Colors.white.withOpacity(0.4) : const Color(0xFF4A5568),
                                 fontSize: 14,
-                               ),
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                             const SizedBox(height: 32),
                             if (_errorMessage != null)
@@ -166,34 +174,6 @@ class _GlassLoginPageState extends State<GlassLoginPage> {
                               isLoading: _isLoading,
                             ),
                             const SizedBox(height: 24),
-                            Row(
-                              children: [
-                                const Expanded(child: Divider(color: Colors.white10)),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                                  child: Text(settings.translate('or'), style: const TextStyle(color: Colors.white24, fontSize: 10)),
-                                ),
-                                const Expanded(child: Divider(color: Colors.white10)),
-                              ],
-                            ),
-                            const SizedBox(height: 24),
-                            Center(
-                              child: OutlinedButton(
-                                onPressed: () {},
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: const Color(0xFFD4AF37),
-                                  side: BorderSide(color: const Color(0xFFD4AF37).withOpacity(0.5)),
-                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                ),
-                                child: Text(
-                                  settings.translate('signin_sso'),
-                                  style: const TextStyle(fontSize: 13),
-                                ),
-                              ),
-                            ),
                           ],
                         ),
                       ),

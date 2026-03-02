@@ -45,6 +45,7 @@ dependencies:
   
   # UI Components
   glassmorphism: ^3.0.0
+  fl_chart: ^0.66.0
   
   # File handling
   file_picker: ^8.0.0+1
@@ -60,11 +61,14 @@ dependencies:
   # State management
   provider: ^6.1.1
   just_audio: ^0.9.36
+  audioplayers: ^5.2.1
   url_launcher: ^6.1.10
   open_filex: ^4.3.0
   
   # Audio recording
-  record: ^5.0.4
+  record: ^6.0.0
+  # Window management
+  window_manager: ^0.4.3
 
 dev_dependencies:
   flutter_test:
@@ -92,7 +96,10 @@ flutter:
     - assets/audio/
     - .env
 
-flutter_icons:
+flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/images/signature.jpeg"
+  windows:
+    generate: true
+    image_path: "assets/images/logo.png"
+  image_path: "assets/images/logo.png"

@@ -3,7 +3,8 @@ import 'package:http/http.dart' as http;
 import '../../features/auth/data/services/auth_service.dart';
 
 class ApiService {
-  static const String _baseUrl = 'http://localhost:8080/v1';
+  static const String baseUrl = 'http://localhost:8080';
+  static const String _apiBaseUrl = 'http://localhost:8080/v1';
 
   /// Make an authenticated API request
   static Future<http.Response> makeRequest({
@@ -17,6 +18,15 @@ class ApiService {
       method,
       body: body,
     );
+  }
+
+  /// Get auth headers for requests
+  static Future<Map<String, String>> getAuthHeaders() async {
+    final token = await AuthService.getAccessToken();
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    };
   }
 
   /// GET request

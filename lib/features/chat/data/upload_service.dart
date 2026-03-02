@@ -4,7 +4,8 @@ import 'dart:typed_data';
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
-import 'dart:html' as html;
+import '../../../core/platform/html_stub.dart'
+    if (dart.library.html) '../../../core/platform/html_web.dart' as html;
 
 /// Upload progress event
 class UploadProgress {
@@ -169,7 +170,7 @@ class UploadService {
       
       Uint8List bytes;
       
-      if (audioFile.path.startsWith('blob:')) {
+      if (kIsWeb && audioFile.path.startsWith('blob:')) {
         // Web: Fetch blob data using dart:html
         print('[UPLOAD] Web blob detected, fetching data...');
         try {

@@ -7,6 +7,7 @@ import '../../uploads/services/attachment_manager.dart';
 import 'message_bubble.dart';
 import 'composer_bar.dart';
 import '../../../core/state/settings_controller.dart';
+import '../../../shared/widgets/luxury/luxury_app_bar.dart';
 
 class ChatThreadPage extends StatefulWidget {
   final String conversationId;
@@ -131,43 +132,50 @@ class _ChatThreadPageState extends State<ChatThreadPage> {
     print('[BUILD] Chat thread has ${messages.length} messages');
 
     return Scaffold(
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(widget.conversation?.name ?? settings.translate('chat')),
-            if (widget.conversation?.type == 'direct')
-              Row(
-                children: [
-                   Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: widget.conversation?.isReceiverOnline == true ? Colors.green : Colors.grey,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    widget.conversation?.isReceiverOnline == true ? settings.translate('online_badge') : settings.translate('offline_badge'),
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.normal,
-                      color: widget.conversation?.isReceiverOnline == true ? Colors.green : Colors.grey,
-                    ),
-                  ),
-                ],
-              ),
-          ],
-        ),
+      appBar: LuxuryAppBar(
+        title: widget.conversation?.name ?? settings.translate('chat'),
+        subtitle: widget.conversation?.type == 'direct'
+            ? (widget.conversation?.isOnline == true
+                ? settings.translate('online_badge')
+                : settings.translate('offline_badge'))
+            : null,
+        showBackButton: true,
+        onBackPress: () {
+          if (Navigator.canPop(context)) {
+            Navigator.pop(context);
+          } else {
+            Navigator.pushReplacementNamed(context, '/home');
+          }
+        },
+        isPremium: true,
         actions: [
           if (!isOnline)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Chip(
-                label: Text(settings.translate('offline_badge')),
-                avatar: const Icon(Icons.cloud_off),
-                backgroundColor: Colors.orange[100],
+              padding: const EdgeInsets.only(right: 8),
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.orange.withOpacity(0.4)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.cloud_off, size: 14, color: Colors.orange),
+                      const SizedBox(width: 4),
+                      Text(
+                        settings.translate('offline_badge'),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.orange,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
         ],

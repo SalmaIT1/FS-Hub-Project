@@ -5,7 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'dart:html' as html;
+import '../../../core/platform/html_stub.dart'
+    if (dart.library.html) '../../../core/platform/html_web.dart' as html;
 
 class RecordingResult {
   final String filePath;

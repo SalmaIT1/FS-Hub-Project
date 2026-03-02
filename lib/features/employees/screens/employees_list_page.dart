@@ -70,6 +70,7 @@ class _EmployeesListPageState extends State<EmployeesListPage> with SingleTicker
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
+        final settings = Provider.of<SettingsController>(context, listen: false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(settings.translate('error_loading_employees') + ': $e')),
         );
@@ -90,14 +91,12 @@ class _EmployeesListPageState extends State<EmployeesListPage> with SingleTicker
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final settings = context.watch<SettingsController>();
+    final settings = Provider.of<SettingsController>(context, listen: true);
 
     return Scaffold(
       appBar: LuxuryAppBar(
         title: settings.translate('team_directory'),
         subtitle: settings.translate('team_subtitle'),
-        showBackButton: Navigator.canPop(context),
-        onBackPress: () => Navigator.pop(context),
         isPremium: true,
       ),
       body: Container(

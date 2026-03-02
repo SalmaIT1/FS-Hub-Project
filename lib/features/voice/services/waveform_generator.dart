@@ -126,11 +126,27 @@ class WaveformGenerator {
   static List<double> decodeWaveform(String base64Data) {
     if (base64Data.isEmpty) return [];
     try {
+      // Check if the data looks like valid base64
+      if (!_isValidBase64(base64Data)) {
+        print('[WaveformGenerator] Invalid base64 format detected');
+        return [];
+      }
+      
       final bytes = base64Decode(base64Data);
       return bytes.map<double>((b) => b / 255.0).toList();
     } catch (e) {
       print('[WaveformGenerator] Error decoding waveform: $e');
       return [];
+    }
+  }
+  
+  /// Check if string looks like valid base64
+  static bool _isValidBase64(String str) {
+    try {
+      base64Decode(str);
+      return true;
+    } catch (e) {
+      return false;
     }
   }
   

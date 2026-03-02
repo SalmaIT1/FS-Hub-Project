@@ -115,6 +115,7 @@ class AuthService {
     String endpoint,
     String method, {
     dynamic body,
+    Map<String, String>? headers,
   }) async {
     String? token = await getAccessToken();
     
@@ -127,34 +128,35 @@ class AuthService {
       );
     }
 
-    // Try to make request with current token
-    final headers = {
+    // Prepare headers
+    final requestHeaders = {
       'Authorization': 'Bearer $token',
       'Content-Type': 'application/json',
+      ...?headers, // Merge custom headers
     };
 
     http.Response response;
     
     switch (method.toUpperCase()) {
       case 'GET':
-        response = await http.get(Uri.parse('$_baseUrl$endpoint'), headers: headers);
+        response = await http.get(Uri.parse('$_baseUrl$endpoint'), headers: requestHeaders);
         break;
       case 'POST':
         response = await http.post(
           Uri.parse('$_baseUrl$endpoint'),
-          headers: headers,
+          headers: requestHeaders,
           body: body != null ? jsonEncode(body) : null,
         );
         break;
       case 'PUT':
         response = await http.put(
           Uri.parse('$_baseUrl$endpoint'),
-          headers: headers,
+          headers: requestHeaders,
           body: body != null ? jsonEncode(body) : null,
         );
         break;
       case 'DELETE':
-        response = await http.delete(Uri.parse('$_baseUrl$endpoint'), headers: headers);
+        response = await http.delete(Uri.parse('$_baseUrl$endpoint'), headers: requestHeaders);
         break;
       default:
         throw Exception('Unsupported HTTP method: $method');

@@ -1,11 +1,11 @@
 import 'dart:ui';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../domain/chat_entities.dart';
-import '../state/chat_controller.dart';
+import '../../../chat/domain/chat_entities.dart';
+import '../../../chat/state/chat_controller.dart';
 import 'chat_thread_page.dart';
 import '../../../shared/widgets/luxury/luxury_app_bar.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../shared/widgets/luxury/luxury_search_inline.dart';
 import '../../../core/state/settings_controller.dart';
 
 /// Conversation list screen
@@ -42,11 +42,14 @@ class _ConversationListPageState extends State<ConversationListPage> with Single
 
     // Initialize controller (connects WebSocket) and load conversations
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
       final controller = context.read<ChatController>();
       await controller.init();
       if (mounted) {
         await controller.loadConversations();
-        _listController.forward();
+        if (mounted) {
+          _listController.forward();
+        }
       }
     });
   }
@@ -95,6 +98,7 @@ class _ConversationListPageState extends State<ConversationListPage> with Single
         title: settings.translate('messages'),
         subtitle: isOnline ? settings.translate('sync_active') : settings.translate('connecting_node'),
         isPremium: true,
+        showBackButton: Navigator.canPop(context),
         actions: [
           IconButton(
             icon: Container(
@@ -136,7 +140,7 @@ class _ConversationListPageState extends State<ConversationListPage> with Single
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
                   child: LuxurySearchInline(
                     hintText: settings.translate('search_conversations'),
-                    onChanged: (val) => setState(() => _searchQuery = val),
+                    onQueryChanged: (val) => setState(() => _searchQuery = val),
                   ),
                 ),
               ),
@@ -341,7 +345,7 @@ class _ConversationTile extends StatelessWidget {
               ],
             ),
             border: Border.all(
-              color: conversation.type == 'direct' && conversation.isReceiverOnline
+              color: conversation.type == 'direct' && conversation.isOnline
                   ? const Color(0xFF4CAF50).withOpacity(0.5)
                   : AppTheme.accentGold.withOpacity(0.2),
               width: 1.5,
@@ -361,7 +365,7 @@ class _ConversationTile extends StatelessWidget {
             ),
           ),
         ),
-        if (conversation.type == 'direct' && conversation.isReceiverOnline)
+        if (conversation.type == 'direct' && conversation.isOnline)
           Positioned(
             right: 2,
             bottom: 2,
@@ -622,9 +626,8 @@ class _NewConversationDialogState extends State<_NewConversationDialog> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: LuxurySearchInline(
-                    hintText: settings.translate('lookup_personnel'),
-                    onChanged: (val) => setState(() {}),
-                    controller: _searchController,
+                    hintText: settings.translate('search_users'),
+                    onQueryChanged: (val) => setState(() {}),
                   ),
                 ),
                 

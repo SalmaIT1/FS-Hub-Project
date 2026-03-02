@@ -31,3 +31,15 @@ CREATE TABLE uploads (
   scanned BOOLEAN DEFAULT FALSE,
   allowed BOOLEAN DEFAULT FALSE
 );
+
+-- Clients
+CREATE TABLE clients (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    nom VARCHAR(150),
+    prenom VARCHAR(150),
+    raison_sociale VARCHAR(200),
+    email VARCHAR(150),
+    telephone VARCHAR(20),
+    type ENUM('Entreprise','Particulier'),
+    score_credit INT DEFAULT 0
+);

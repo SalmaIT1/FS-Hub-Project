@@ -50,7 +50,7 @@ class DemandService {
   }
 
   // Get all demands with optional filtering
-  static Future<Map<String, dynamic>> getAllDemands({String? type, String? status}) async {
+  static Future<Map<String, dynamic>> getAllDemands({String? type, String? status, String? requesterId, String? userRole}) async {
     try {
       final conn = DBConnection.getConnection();
       
@@ -67,6 +67,14 @@ class DemandService {
       
       final params = <String, dynamic>{};
       final conditions = <String>[];
+
+      // If user is not Admin, they can only see their own demands
+      if (userRole != 'Admin' && requesterId != null) {
+        conditions.add('d.requester_id = :requesterId');
+        params['requesterId'] = requesterId;
+      }
+      // If Admin, we don't add the requester_id condition so they see all demands.
+      // If we wanted to allow Admin to filter by a specific requester, we could add that logic here.
 
       if (type != null) {
         conditions.add('d.type = :type');
@@ -213,6 +221,70 @@ class DemandService {
       return {'success': true, 'message': 'Demand updated successfully'};
     } catch (e) {
       print('Error updating demand: $e');
+      return {'success': false, 'message': 'Failed to update demand'};
+    }
+  }
+
+  // Delete a demand
+  static Future<Map<String, dynamic>> deleteDemand(String id, String userId, String? role) async {
+    try {
+      final conn = DBConnection.getConnection();
+
+      // Check if user is admin or the requester
+      final demandRes = await conn.execute('SELECT requester_id, status FROM demands WHERE id = :id', {'id': id});
+      if (demandRes.rows.isEmpty) {
+        return {'success': false, 'message': 'Demand not found'};
+      }
+
+      final requesterId = demandRes.rows.first.colByName('requester_id');
+      final status = demandRes.rows.first.colByName('status');
+
+      if (role != 'Admin' && requesterId != userId) {
+        return {'success': false, 'message': 'You can only delete your own demands'};
+      }
+
+      // Optional: Prevent deleting if already in progress or resolved (unless admin)
+      if (role != 'Admin' && status != 'pending') {
+        return {'success': false, 'message': 'Cannot delete a demand that is already being processed'};
+      }
+
+      await conn.execute('DELETE FROM demands WHERE id = :id', {'id': id});
+      
+      // Log audit event
+      await logAuditEvent(userId, 'DELETE_DEMAND', 'Deleted demand $id');
+
+      return {'success': true, 'message': 'Demand deleted successfully'};
+    } catch (e) {
+      print('Error deleting demand: $e');
+      return {'success': false, 'message': 'Failed to delete demand'};
+    }
+  }
+
+  // Update demand with security checks
+  static Future<Map<String, dynamic>> updateDemandSecurely(String id, Map<String, dynamic> data, String userId, String? role) async {
+    try {
+      final conn = DBConnection.getConnection();
+      
+      final demandRes = await conn.execute('SELECT requester_id, status FROM demands WHERE id = :id', {'id': id});
+      if (demandRes.rows.isEmpty) {
+        return {'success': false, 'message': 'Demand not found'};
+      }
+
+      final requesterId = demandRes.rows.first.colByName('requester_id');
+      final status = demandRes.rows.first.colByName('status');
+
+      if (role != 'Admin' && requesterId != userId) {
+        return {'success': false, 'message': 'Permission denied'};
+      }
+
+      // If non-admin is trying to update a non-pending demand
+      if (role != 'Admin' && status != 'pending') {
+        return {'success': false, 'message': 'Only pending demands can be edited'};
+      }
+
+      return await updateDemand(id, data);
+    } catch (e) {
+      print('Error updating demand securely: $e');
       return {'success': false, 'message': 'Failed to update demand'};
     }
   }
@@ -465,25 +537,29 @@ class DemandService {
   }
   
   // Update demand status with authorization check
-  static Future<Map<String, dynamic>> updateDemandStatus(String id, Map<String, dynamic> data, String? currentUserId) async {
+  static Future<Map<String, dynamic>> updateDemandStatus(String id, Map<String, dynamic> data, String? currentUserId, [String? userRole]) async {
     try {
       // First, verify the current user has permission to update demand status
       if (currentUserId != null) {
-        final conn = DBConnection.getConnection();
-        
-        // Check if the user is an admin
-        final userResult = await conn.execute(
-          'SELECT role FROM users WHERE id = :userId',
-          {'userId': currentUserId},
-        );
-        
-        if (userResult.rows.isNotEmpty) {
-          final userRole = userResult.rows.first.colByName('role');
-          if (userRole != 'Admin') {
-            return {'success': false, 'message': 'Only administrators can update demand status'};
+        String? role = userRole;
+
+        if (role == null) {
+          final conn = DBConnection.getConnection();
+          // Check if the user is an admin
+          final userResult = await conn.execute(
+            'SELECT role FROM users WHERE id = :userId',
+            {'userId': currentUserId},
+          );
+          
+          if (userResult.rows.isNotEmpty) {
+            role = userResult.rows.first.colByName('role');
+          } else {
+            return {'success': false, 'message': 'User not found'};
           }
-        } else {
-          return {'success': false, 'message': 'User not found'};
+        }
+
+        if (role != 'Admin') {
+          return {'success': false, 'message': 'Only administrators can update demand status'};
         }
       }
       

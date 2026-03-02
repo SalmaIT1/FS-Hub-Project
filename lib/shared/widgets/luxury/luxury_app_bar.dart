@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 import '../../../features/auth/data/services/auth_service.dart';
 import '../../../features/employees/services/employee_service.dart';
+import '../../../chat/state/chat_controller.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/state/settings_controller.dart';
 import '../notification_badge.dart';
@@ -207,94 +208,102 @@ class _LuxuryAppBarState extends State<LuxuryAppBar> with TickerProviderStateMix
                   Expanded(
                     child: Row(
                       children: [
+                        if (widget.showBackButton) ...[
+                          _buildLeading(context, isDark, isPremium: true),
+                          const SizedBox(width: 8),
+                        ],
                         // Brand block (logo and app name)
                         Expanded(
                           flex: 3,
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 48,
-                                height: 48,
-                                padding: const EdgeInsets.all(4),
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                    colors: [
-                                      const Color(0xFFC9A24D).withValues(alpha: 0.15),
-                                      const Color(0xFFC9A24D).withValues(alpha: 0.05),
-                                    ],
-                                  ),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: const Color(0xFFC9A24D).withValues(alpha: 0.3),
-                                    width: 1.0,
-                                  ),
-                                ),
-                                child: widget.leading ?? Container(
-                                  width: 32,
-                                  height: 32,
+                          child: GestureDetector(
+                            onTap: () => Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => route.isFirst),
+                            behavior: HitTestBehavior.opaque,
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 48,
+                                  height: 48,
+                                  padding: const EdgeInsets.all(4),
                                   decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(8),
-                                    color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.04),
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [
+                                        const Color(0xFFC9A24D).withValues(alpha: 0.15),
+                                        const Color(0xFFC9A24D).withValues(alpha: 0.05),
+                                      ],
+                                    ),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: const Color(0xFFC9A24D).withValues(alpha: 0.3),
+                                      width: 1.0,
+                                    ),
                                   ),
-                                  child: Image.asset(
-                                    'assets/images/logo.png',
-                                    fit: BoxFit.contain,
+                                  child: widget.leading ?? Container(
+                                    width: 32,
+                                    height: 32,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(8),
+                                      color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.04),
+                                    ),
+                                    child: Image.asset(
+                                      'assets/images/logo.png',
+                                      fit: BoxFit.contain,
+                                    ),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Flexible(
-                                      child: Text(
-                                        widget.title,
-                                        style: TextStyle(
-                                          color: isDark ? const Color(0xFFF4F4F4).withValues(alpha: 1.0) : const Color(0xFF0A0A0A).withValues(alpha: 1.0),
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.w800,
-                                          height: 1.2,
-                                          letterSpacing: 0.8,
-                                        ),
-                                      ),
-                                    ),
-                                    if (widget.subtitle != null)
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
                                       Flexible(
                                         child: Text(
-                                          widget.subtitle!,
+                                          widget.title,
                                           style: TextStyle(
-                                            color: isDark ? const Color(0xFFC9A24D).withValues(alpha: 0.8) : const Color(0xFF666666).withValues(alpha: 0.8),
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w400,
-                                            height: 1.3,
-                                            letterSpacing: 0.3,
+                                            color: isDark ? const Color(0xFFF4F4F4).withValues(alpha: 1.0) : const Color(0xFF0A0A0A).withValues(alpha: 1.0),
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.w800,
+                                            height: 1.2,
+                                            letterSpacing: 0.8,
                                           ),
                                         ),
                                       ),
-                                  ],
-                                ),
-                              ),
-                              // Subtle brand underline accent
-                              Container(
-                                width: 2,
-                                height: 24,
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                    colors: [
-                                      const Color(0xFFC9A24D).withValues(alpha: 0.0),
-                                      const Color(0xFFC9A24D).withValues(alpha: 0.5),
-                                      const Color(0xFFC9A24D).withValues(alpha: 0.0),
+                                      if (widget.subtitle != null)
+                                        Flexible(
+                                          child: Text(
+                                            widget.subtitle!,
+                                            style: TextStyle(
+                                              color: isDark ? const Color(0xFFC9A24D).withValues(alpha: 0.8) : const Color(0xFF666666).withValues(alpha: 0.8),
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w400,
+                                              height: 1.3,
+                                              letterSpacing: 0.3,
+                                            ),
+                                          ),
+                                        ),
                                     ],
                                   ),
                                 ),
-                              ),
-                            ],
+                                // Subtle brand underline accent
+                                Container(
+                                  width: 2,
+                                  height: 24,
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: [
+                                        const Color(0xFFC9A24D).withValues(alpha: 0.0),
+                                        const Color(0xFFC9A24D).withValues(alpha: 0.5),
+                                        const Color(0xFFC9A24D).withValues(alpha: 0.0),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                         const SizedBox(width: 4),
@@ -392,7 +401,12 @@ class _LuxuryAppBarState extends State<LuxuryAppBar> with TickerProviderStateMix
     if (widget.showBackButton) {
       return LuxuryAppBarAction(
         icon: CupertinoIcons.back,
-        onPressed: widget.onBackPress ?? () => Navigator.maybePop(context),
+        onPressed: widget.onBackPress ?? () async {
+          bool canPop = await Navigator.maybePop(context);
+          if (!canPop && context.mounted) {
+            Navigator.pushNamedAndRemoveUntil(context, '/chat', (route) => route.isFirst);
+          }
+        },
         isDark: isDark,
         isPremium: isPremium,
       );
@@ -403,34 +417,38 @@ class _LuxuryAppBarState extends State<LuxuryAppBar> with TickerProviderStateMix
 
   Widget _buildTitleSection(bool isDark) {
     return Expanded(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            widget.title,
-            style: TextStyle(
-              color: isDark ? const Color(0xFFF4F4F4).withValues(alpha: 1.0) : const Color(0xFF0A0A0A).withValues(alpha: 1.0),
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              height: 1.2,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          if (widget.subtitle != null)
+      child: GestureDetector(
+        onTap: () => Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => route.isFirst),
+        behavior: HitTestBehavior.opaque,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Text(
-              widget.subtitle!,
+              widget.title,
               style: TextStyle(
-                color: isDark ? const Color(0xFFC9A24D).withValues(alpha: 1.0) : const Color(0xFF888888).withValues(alpha: 1.0),
-                fontSize: 11,
-                fontWeight: FontWeight.w400,
-                height: 1.1,
+                color: isDark ? const Color(0xFFF4F4F4).withValues(alpha: 1.0) : const Color(0xFF0A0A0A).withValues(alpha: 1.0),
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                height: 1.2,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-        ],
+            if (widget.subtitle != null)
+              Text(
+                widget.subtitle!,
+                style: TextStyle(
+                  color: isDark ? const Color(0xFFC9A24D).withValues(alpha: 1.0) : const Color(0xFF888888).withValues(alpha: 1.0),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w400,
+                  height: 1.1,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -506,6 +524,12 @@ class _LuxuryAppBarState extends State<LuxuryAppBar> with TickerProviderStateMix
         } else if (value == 'settings') {
           Navigator.pushNamed(context, '/settings');
         } else if (value == 'logout') {
+          // Disconnect chat first to ensure online status is updated immediately
+          try {
+            await context.read<ChatController>().logout();
+          } catch (e) {
+            print('Error during chat logout: $e');
+          }
           await AuthService.logout();
           if (context.mounted) Navigator.pushReplacementNamed(context, '/login');
         }

@@ -126,15 +126,15 @@ class FileAttachmentBubble extends StatelessWidget {
     final name = attachment.filename.isNotEmpty ? attachment.filename : 'file';
     // If this is audio, render WhatsApp-style player instead of download tile
     if (attachment.mimeType.startsWith('audio/')) {
-      return WhatsAppVoiceNote(
+      return AdaptiveVoiceNote(
         voice: VoiceNoteEntity(
           id: attachment.id,
           uploadUrl: attachment.uploadUrl,
-          durationMs: attachment.size > 0 ? attachment.size * 10 : 5000, // Estimate duration
+          durationMs: attachment.size > 0 ? (attachment.size * 10).clamp(1000, 3600000) : 5000, 
           recordedAt: DateTime.now(),
-          waveformData: '', // Empty waveform for now
+          waveformData: '',
         ),
-        isSentByMe: false, // You can pass this from parent widget
+        isSentByMe: false,
       );
     }
 

@@ -1,8 +1,10 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../shared/models/demand_model.dart';
 import 'package:fs_hub/core/localization/translations.dart';
 import '../../core/state/settings_controller.dart';
+import '../../core/theme/app_theme.dart';
 
 class DemandCard extends StatefulWidget {
   final Demand demand;
@@ -100,7 +102,7 @@ class _DemandCardState extends State<DemandCard> with SingleTickerProviderStateM
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final statusColor = _getStatusColor(widget.demand.status);
-    final settings = context.watch<SettingsController>();
+    final settings = Provider.of<SettingsController>(context, listen: true);
     final languageCode = settings.languageCode;
     
     return MouseRegion(
@@ -190,18 +192,29 @@ class _DemandCardState extends State<DemandCard> with SingleTickerProviderStateM
                                     ),
                                   ),
                                   const SizedBox(height: 2),
-                                  Text(
-                                    'Ticket #${(widget.demand.id != null && widget.demand.id!.length >= 8) ? widget.demand.id!.substring(0, 8) : widget.demand.id ?? Translations.getText('unknown', languageCode)}',
-                                    style: TextStyle(
-                                      color: isDark ? Colors.white38 : Colors.black38,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w500,
+                                    Text(
+                                      'Ticket #${(widget.demand.id != null && widget.demand.id!.length >= 8) ? widget.demand.id!.substring(0, 8) : widget.demand.id ?? Translations.getText('unknown', languageCode)}',
+                                      style: TextStyle(
+                                        color: isDark ? Colors.white38 : Colors.black38,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w500,
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                    if (widget.demand.requesterName.isNotEmpty) ...[
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'By: ${widget.demand.requesterName}',
+                                        style: TextStyle(
+                                          color: AppTheme.accentGold.withOpacity(0.7),
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
                               ),
-                            ),
-                            _buildStatusIndicator(statusColor),
+                            _buildStatusIndicator(statusColor, languageCode),
                           ],
                         ),
                         const SizedBox(height: 16),
@@ -252,7 +265,7 @@ class _DemandCardState extends State<DemandCard> with SingleTickerProviderStateM
     );
   }
 
-  Widget _buildStatusIndicator(Color statusColor) {
+  Widget _buildStatusIndicator(Color statusColor, String languageCode) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(

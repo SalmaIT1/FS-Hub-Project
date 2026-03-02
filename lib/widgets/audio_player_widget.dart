@@ -4,6 +4,7 @@ import 'dart:io' as io;
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:audioplayers/audioplayers.dart' as ap;
 
 /// Real audio player widget for voice notes
 /// 
@@ -50,7 +51,9 @@ class AudioPlayerWidget extends StatefulWidget {
 }
 
 class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
-  late AudioPlayer _audioPlayer;
+  AudioPlayer? _audioPlayer;
+  ap.AudioPlayer? _fallbackPlayer;
+  bool _useFallback = false;
   bool _isPlaying = false;
   Duration _currentDuration = Duration.zero;
   Duration _totalDuration = Duration.zero;
@@ -63,118 +66,180 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
   @override
   void initState() {
     super.initState();
-    _audioPlayer = AudioPlayer();
-    _setupAudioPlayer();
+    _initializeAudioPlayer();
+  }
+
+  Future<void> _initializeAudioPlayer() async {
+    try {
+      if (mounted) {
+        setState(() {
+          _initialized = false;
+          _error = null;
+          _useFallback = false;
+        });
+      }
+
+      // Special handling for Windows: If it's a local file, wait a bit for any file locks 
+      // (e.g. from the recorder) to be released.
+      if (!kIsWeb && !widget.source.startsWith('http') && !widget.source.startsWith('blob:')) {
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+
+      // Try just_audio first
+      print('[AudioPlayerWidget] Initializing with just_audio: ${widget.source}');
+      _audioPlayer = AudioPlayer();
+      
+      // We wrap the setup in a longer timeout for Windows engine startup
+      await _setupAudioPlayer().timeout(
+        const Duration(seconds: 15),
+        onTimeout: () => throw TimeoutException('Primary player setup timed out'),
+      );
+      
+      print('[AudioPlayerWidget] just_audio setup successful');
+    } catch (e) {
+      print('[AudioPlayerWidget] Primary player failed, trying fallback: $e');
+      
+      // Clean up failed player
+      try {
+        await _audioPlayer?.dispose();
+      } catch (_) {}
+      _audioPlayer = null;
+      _useFallback = true;
+      
+      try {
+        if (!mounted) return;
+        print('[AudioPlayerWidget] Initializing fallback player...');
+        _fallbackPlayer = ap.AudioPlayer();
+        await _setupFallbackPlayer().timeout(
+          const Duration(seconds: 15),
+          onTimeout: () => throw TimeoutException('Fallback player setup timed out'),
+        );
+        print('[AudioPlayerWidget] Fallback player setup successful');
+      } catch (e2) {
+        print('[AudioPlayerWidget] Both players failed: $e2');
+        if (mounted) {
+          setState(() {
+            _error = e2 is TimeoutException 
+              ? 'Loading timed out. Please check your connection or file.'
+              : 'Failed to load audio: $e2';
+            _initialized = true;
+          });
+        }
+      }
+    }
   }
 
   @override
   void didUpdateWidget(covariant AudioPlayerWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.source != widget.source) {
-      print('[AudioPlayerWidget] Source changed, re-initializing: ${widget.source}');
+      print('[AudioPlayerWidget] Source changed: ${widget.source}');
       _initialized = false;
       _error = null;
-      _setupAudioPlayer();
+      _initializeAudioPlayer();
     }
   }
 
-  Future<void> _setupAudioPlayer() async {
-    try {
-      // Clean up previous subscriptions if re-initializing
-      await _positionSubscription?.cancel();
-      await _stateSubscription?.cancel();
-      await _durationSubscription?.cancel();
+  Future<void> _setupFallbackPlayer() async {
+    if (_fallbackPlayer == null) return;
 
-      // Listen to position changes
-      _positionSubscription = _audioPlayer.positionStream.listen((position) {
-        if (mounted) {
-          setState(() => _currentDuration = position);
-        }
-      });
-
-      // Listen to player state changes
-      _stateSubscription = _audioPlayer.playerStateStream.listen((state) {
-        if (mounted) {
-          setState(() => _isPlaying = state.playing);
-          if (state.processingState == ProcessingState.completed && _isPlaying) {
-            widget.onComplete?.call();
-          }
-        }
-      });
-
-      // Listen to duration changes
-      _durationSubscription = _audioPlayer.durationStream.listen((duration) {
-        if (mounted && duration != null) {
-          setState(() => _totalDuration = duration);
-        }
-      });
-
-      
-      
-      // Set audio source
-      if (widget.source.startsWith('blob:')) {
-        // Web blob URL - use setUrl directly
-        print('[AudioPlayerWidget] Loading from blob URL: ${widget.source}');
-        try {
-          await _audioPlayer.setUrl(widget.source);
-          print('[AudioPlayerWidget] setUrl successful');
-          if (mounted) {
-            setState(() => _initialized = true);
-          }
-        } catch (e) {
-          print('[AudioPlayerWidget] Error setting blob URL: $e');
-          // Try alternative approach - reload and retry
-          try {
-            // Stop and restart the player
-            await _audioPlayer.stop();
-            await _audioPlayer.setUrl(widget.source);
-            print('[AudioPlayerWidget] reload successful');
-            if (mounted) {
-              setState(() => _initialized = true);
-            }
-          } catch (e2) {
-            print('[AudioPlayerWidget] All approaches failed: $e2');
-            if (mounted) {
-              setState(() {
-                _error = 'Failed to load audio: $e';
-                _initialized = true;
-              });
-            }
-          }
-        }
-      } else if (widget.source.startsWith('http')) {
-        // HTTP URL - use setUrl directly
-        print('[AudioPlayerWidget] Loading from URL: ${widget.source}');
-        await _audioPlayer.setUrl(widget.source);
-      } else {
-        // Local file
-        print('[AudioPlayerWidget] Loading from file: ${widget.source}');
-        final file = io.File(widget.source);
-        if (!kIsWeb && !await file.exists()) {
-          throw Exception('Audio file does not exist: ${widget.source}');
-        }
-        if (!kIsWeb) {
-          final fileSize = await file.length();
-          print('[AudioPlayerWidget] File size: $fileSize bytes');
-          if (fileSize == 0) {
-            throw Exception('Audio file is empty (0 bytes): ${widget.source}');
-          }
-        }
-        await _audioPlayer.setFilePath(widget.source);
+    // Set up source for audioplayers
+    if (widget.source.startsWith('http') || widget.source.startsWith('blob:') || widget.source.startsWith('data:')) {
+      await _fallbackPlayer!.setSourceUrl(widget.source);
+    } else {
+      final file = io.File(widget.source);
+      if (!kIsWeb && !await file.exists()) {
+        throw Exception('Audio file does not exist: ${widget.source}');
       }
+      await _fallbackPlayer!.setSourceDeviceFile(widget.source);
+    }
 
-      print('[AudioPlayerWidget] Source set successfully');
-      if (mounted) {
-        setState(() => _initialized = true);
-      }
-    } catch (e) {
-      print('[AudioPlayerWidget] Setup error: $e');
-      if (mounted) {
+    // Mark as initialized IMMEDIATELY once source is set
+    // Metadata like duration can load in background
+    if (mounted) {
+      setState(() => _initialized = true);
+    }
+
+    // Try to get duration in background
+    _fallbackPlayer!.getDuration().then((duration) {
+      if (duration != null && mounted) {
         setState(() {
-          _error = 'Failed to load audio: $e';
-          _initialized = true;
+          _totalDuration = Duration(milliseconds: duration.inMilliseconds);
         });
       }
+    }).catchError((e) {
+      print('[AudioPlayerWidget] Background duration fetch error: $e');
+    });
+
+    // Listen to position changes
+    _fallbackPlayer!.onPositionChanged.listen((position) {
+      if (mounted) {
+        setState(() => _currentDuration = position);
+      }
+    });
+
+    // Listen to player state changes
+    _fallbackPlayer!.onPlayerStateChanged.listen((state) {
+      if (mounted) {
+        setState(() => _isPlaying = state == ap.PlayerState.playing);
+        if (state == ap.PlayerState.completed) {
+          widget.onComplete?.call();
+        }
+      }
+    });
+  }
+
+  Future<void> _setupAudioPlayer() async {
+    if (_audioPlayer == null) return;
+    
+    // Clean up previous subscriptions if re-initializing
+    await _positionSubscription?.cancel();
+    await _stateSubscription?.cancel();
+    await _durationSubscription?.cancel();
+
+    // Listen to position changes
+    _positionSubscription = _audioPlayer!.positionStream.listen((position) {
+      if (mounted) {
+        setState(() => _currentDuration = position);
+      }
+    });
+
+    // Listen to player state changes
+    _stateSubscription = _audioPlayer!.playerStateStream.listen((state) {
+      if (mounted) {
+        setState(() => _isPlaying = state.playing);
+        if (state.processingState == ProcessingState.completed && _isPlaying) {
+          widget.onComplete?.call();
+        }
+      }
+    });
+
+    // Listen to duration changes
+    _durationSubscription = _audioPlayer!.durationStream.listen((duration) {
+      if (duration != null && mounted) {
+        setState(() => _totalDuration = duration);
+      }
+    });
+
+    // Set audio source
+    if (widget.source.startsWith('blob:')) {
+      print('[AudioPlayerWidget] Loading from blob URL: ${widget.source}');
+      await _audioPlayer!.setUrl(widget.source);
+    } else if (widget.source.startsWith('http')) {
+      print('[AudioPlayerWidget] Loading from URL: ${widget.source}');
+      await _audioPlayer!.setUrl(widget.source);
+    } else {
+      print('[AudioPlayerWidget] Loading from file: ${widget.source}');
+      final file = io.File(widget.source);
+      if (!kIsWeb && !await file.exists()) {
+        throw Exception('Audio file does not exist: ${widget.source}');
+      }
+      await _audioPlayer!.setFilePath(widget.source);
+    }
+
+    print('[AudioPlayerWidget] Source set successfully');
+    if (mounted) {
+      setState(() => _initialized = true);
     }
   }
 
@@ -183,7 +248,12 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
     _positionSubscription?.cancel();
     _stateSubscription?.cancel();
     _durationSubscription?.cancel();
-    _audioPlayer.dispose();
+    try {
+      _audioPlayer?.dispose();
+      _fallbackPlayer?.dispose();
+    } catch (e) {
+      print('[AudioPlayerWidget] Error during disposal: $e');
+    }
     super.dispose();
   }
 
@@ -191,11 +261,22 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
     if (widget.disabled || _error != null) return;
 
     try {
-      if (_isPlaying) {
-        await _audioPlayer.pause();
+      if (_useFallback) {
+        if (_fallbackPlayer == null) return;
+        if (_isPlaying) {
+          await _fallbackPlayer!.pause();
+        } else {
+          widget.onPlay?.call();
+          await _fallbackPlayer!.resume();
+        }
       } else {
-        widget.onPlay?.call();
-        await _audioPlayer.play();
+        if (_audioPlayer == null) return;
+        if (_isPlaying) {
+          await _audioPlayer!.pause();
+        } else {
+          widget.onPlay?.call();
+          await _audioPlayer!.play();
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -207,7 +288,11 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
   Future<void> _seek(double fraction) async {
     final position = Duration(milliseconds: (_totalDuration.inMilliseconds * fraction).toInt());
     try {
-      await _audioPlayer.seek(position);
+      if (_useFallback) {
+        await _fallbackPlayer?.seek(position);
+      } else {
+        await _audioPlayer?.seek(position);
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _error = 'Seek error: $e');
@@ -227,18 +312,34 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
       return Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.red[100],
-          borderRadius: BorderRadius.circular(8),
+          color: Colors.red[50],
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.red[200]!),
         ),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.error, color: Colors.red[700], size: 20),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                _error!,
-                style: TextStyle(color: Colors.red[700], fontSize: 12),
-                maxLines: 2,
+            Row(
+              children: [
+                Icon(Icons.error_outline_rounded, color: Colors.red[700], size: 24),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    _error!,
+                    style: TextStyle(color: Colors.red[900], fontSize: 13, fontWeight: FontWeight.w500),
+                    maxLines: 2,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: _initializeAudioPlayer,
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('Retry'),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.red[700],
+                padding: const EdgeInsets.symmetric(horizontal: 16),
               ),
             ),
           ],
@@ -248,49 +349,77 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
 
     if (!_initialized) {
       return Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
         decoration: BoxDecoration(
-          color: Colors.grey[200],
-          borderRadius: BorderRadius.circular(8),
+          color: Colors.black.withOpacity(0.04), // Subtle background
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.black.withOpacity(0.1)),
         ),
-        child: const SizedBox(
-          height: 40,
-          child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFC9A24D)),
+            ),
+            const SizedBox(width: 16),
+            Text(
+              'Initializing player...',
+              style: TextStyle(fontSize: 13, color: Colors.grey[600], fontStyle: FontStyle.italic),
+            ),
+          ],
         ),
       );
     }
 
     return Container(
-      padding: const EdgeInsets.all(4),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: Colors.grey[300]!),
+        color: Colors.white.withOpacity(0.06), // Very subtle glass
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Play button + duration
+          // Play button + Seek control
           Row(
-            mainAxisSize: MainAxisSize.min,
             children: [
               GestureDetector(
                 onTap: widget.disabled ? null : _togglePlayPause,
                 child: Container(
-                  padding: const EdgeInsets.all(4),
+                  width: 40,
+                  height: 40,
                   decoration: BoxDecoration(
-                    color: widget.disabled ? Colors.grey[300] : widget.progressColor,
+                    color: widget.disabled 
+                        ? Colors.grey[800] 
+                        : const Color(0xFFC9A24D),
                     shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFC9A24D).withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: Icon(
-                    _isPlaying ? Icons.pause : Icons.play_arrow,
-                    color: widget.disabled ? Colors.grey[600] : Colors.black87,
-                    size: 14,
+                    _isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                    color: Colors.white, // White icon for premium feel
+                    size: 26,
                   ),
                 ),
               ),
-              const SizedBox(width: 6),
-              Flexible(
+              const SizedBox(width: 14),
+              Expanded(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -300,19 +429,29 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
                       _buildWaveformBar()
                     else
                       _buildProgressBar(),
-                    const SizedBox(height: 1),
-                    // Time display
+                    
+                    const SizedBox(height: 6),
+                    // Time and Progress indicator
                     Row(
-                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
                           _formatDuration(_currentDuration),
-                          style: const TextStyle(fontSize: 10, color: Colors.grey),
+                          style: TextStyle(
+                            fontSize: 11, 
+                            color: Colors.grey[400],
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.5,
+                          ),
                         ),
-                        const Text(' / ', style: TextStyle(fontSize: 10, color: Colors.grey)),
                         Text(
                           _formatDuration(_totalDuration),
-                          style: const TextStyle(fontSize: 10, color: Colors.grey),
+                          style: TextStyle(
+                            fontSize: 11, 
+                            color: Colors.grey[400],
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.5,
+                          ),
                         ),
                       ],
                     ),

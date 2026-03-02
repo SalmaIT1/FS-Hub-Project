@@ -36,68 +36,91 @@ class AppTheme {
 
   static ThemeData _buildTheme(Brightness brightness) {
     final isDark = brightness == Brightness.dark;
+    final primaryColor = isDark ? accentGold : const Color(0xFFB8860B); // Darker gold for light mode contrast
+    
     return ThemeData(
       useMaterial3: true,
       brightness: brightness,
-      scaffoldBackgroundColor: isDark ? Colors.black : const Color(0xFFF5F5F7),
+      scaffoldBackgroundColor: isDark ? Colors.black : const Color(0xFFF8F9FB), // Crisp but not stark
       fontFamily: 'NotoColorEmoji',
       colorScheme: ColorScheme.fromSeed(
-        seedColor: accentGold,
+        seedColor: primaryColor,
         brightness: brightness,
-        primary: accentGold,
+        primary: primaryColor,
+        secondary: isDark ? const Color(0xFFD4AF37) : const Color(0xFF8B4513), 
         surface: isDark ? darkCharcoal : Colors.white,
-        background: isDark ? Colors.black : const Color(0xFFF5F5F7),
+        onSurface: isDark ? Colors.white : const Color(0xFF101828), // Deeper contrast
+        background: isDark ? Colors.black : const Color(0xFFEDF2F7), // More depth
       ),
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
-        iconTheme: IconThemeData(color: isDark ? Colors.white : Colors.black),
+        iconTheme: IconThemeData(color: isDark ? Colors.white : const Color(0xFF101828)),
         titleTextStyle: TextStyle(
-          color: isDark ? Colors.white : Colors.black,
-          fontSize: 18,
-          fontWeight: FontWeight.w600,
+          color: isDark ? Colors.white : const Color(0xFF101828),
+          fontSize: 20,
+          fontWeight: FontWeight.w700,
           letterSpacing: -0.5,
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03),
+        fillColor: isDark ? Colors.white.withOpacity(0.05) : Colors.white, // Pure white for light mode fields
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05)),
+          borderSide: BorderSide(color: isDark ? Colors.white.withOpacity(0.1) : const Color(0xFFE2E8F0)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05)),
+          borderSide: BorderSide(color: isDark ? Colors.white.withOpacity(0.1) : const Color(0xFFE2E8F0)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: accentGold, width: 1),
+          borderSide: BorderSide(color: primaryColor, width: 2.0), // Thicker focus
         ),
-        labelStyle: TextStyle(color: isDark ? Colors.white60 : Colors.black54, fontSize: 14),
-        hintStyle: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 14),
+        labelStyle: TextStyle(
+          color: isDark ? Colors.white60 : const Color(0xFF475467), 
+          fontSize: 14,
+          fontWeight: FontWeight.w600
+        ),
+        hintStyle: TextStyle(
+          color: isDark ? Colors.white24 : const Color(0xFF98A2B3), 
+          fontSize: 14
+        ),
       ),
       textTheme: TextTheme(
         displaySmall: TextStyle(
-          color: isDark ? Colors.white : Colors.black,
-          fontWeight: FontWeight.w700,
+          color: isDark ? Colors.white : const Color(0xFF101828),
+          fontWeight: FontWeight.w800,
           letterSpacing: -1.0,
         ),
         headlineMedium: TextStyle(
-          color: isDark ? Colors.white : Colors.black,
-          fontWeight: FontWeight.w600,
+          color: isDark ? Colors.white : const Color(0xFF101828),
+          fontWeight: FontWeight.w700,
           letterSpacing: -0.5,
         ),
         titleMedium: TextStyle(
-          color: isDark ? Colors.white : Colors.black,
+          color: isDark ? Colors.white : const Color(0xFF101828),
           fontWeight: FontWeight.w600,
-          letterSpacing: -0.5,
+          letterSpacing: -0.3,
         ),
         bodyMedium: TextStyle(
-          color: isDark ? Colors.white70 : Colors.black87,
-          fontSize: 14,
+          color: isDark ? Colors.white70 : const Color(0xFF1D2939), // Richer dark
+          fontSize: 15,
+          height: 1.5,
+          fontWeight: FontWeight.w400,
         ),
+        bodySmall: TextStyle(
+          color: isDark ? Colors.white54 : const Color(0xFF475467),
+          fontSize: 13,
+        ),
+      ),
+      cardTheme: CardThemeData(
+        color: isDark ? darkCharcoal : Colors.white,
+        elevation: isDark ? 0 : 2,
+        shadowColor: Colors.black.withOpacity(0.1),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
       primaryTextTheme: const TextTheme(
         bodyMedium: TextStyle(fontSize: 14),
