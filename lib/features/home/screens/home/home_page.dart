@@ -10,6 +10,7 @@ import '../../../../navigation/chat_router.dart';
 
 import 'package:provider/provider.dart';
 import '../../../../core/state/settings_controller.dart';
+import '../../widgets/digital_clock.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -158,6 +159,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                       icon: Icons.hub_outlined,
                     ),
                     const SizedBox(height: 18),
+                    DigitalClockCard(isDark: isDark, isFr: isFr),
+                    const SizedBox(height: 24),
                     _PrimaryGrid(
                       isDark: isDark,
                       isFr: isFr,
