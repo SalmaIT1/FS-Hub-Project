@@ -58,6 +58,7 @@ class MessageStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  @override
   void dispose() {
     _updated.close();
     super.dispose();

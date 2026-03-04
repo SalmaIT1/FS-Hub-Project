@@ -4,9 +4,11 @@ import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 import '../../../features/auth/data/services/auth_service.dart';
 import '../../../features/employees/services/employee_service.dart';
-import '../../../chat/state/chat_controller.dart';
+import '../../../features/notifications/services/notification_service.dart';
+import '../../../features/chat/presentation/providers/chat_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/state/settings_controller.dart';
+import '../../../features/chat/presentation/widgets/avatar_helper.dart';
 import '../notification_badge.dart';
 
 class LuxuryAppBar extends StatefulWidget implements PreferredSizeWidget {
@@ -20,6 +22,9 @@ class LuxuryAppBar extends StatefulWidget implements PreferredSizeWidget {
   final bool floating;
   final ScrollController? scrollController;
   final bool isPremium; // New premium flag
+  final String? avatarUrl;
+  final String? initials;
+  final bool isGroup;
 
   const LuxuryAppBar({
     super.key,
@@ -33,6 +38,9 @@ class LuxuryAppBar extends StatefulWidget implements PreferredSizeWidget {
     this.floating = false,
     this.scrollController,
     this.isPremium = false, // Default to enhanced premium style
+    this.avatarUrl,
+    this.initials,
+    this.isGroup = false,
   });
 
   @override
@@ -75,10 +83,10 @@ class _LuxuryAppBarState extends State<LuxuryAppBar> with TickerProviderStateMix
       final currentUser = await AuthService.getCurrentUser();
       if (currentUser != null) {
         final userId = currentUser['id'];
-        final notificationsResult = await EmployeeService.getUserNotifications(userId);
+        final notificationsResult = await NotificationService.getUserNotifications(userId);
         if (notificationsResult['success']) {
           final List<dynamic> notifications = notificationsResult['data'];
-          final unreadCount = notifications.where((n) => !n['isRead']).length;
+          final unreadCount = notifications.where((n) => n.isRead == false).length;
           
           if (mounted) {
             setState(() {
@@ -239,18 +247,25 @@ class _LuxuryAppBarState extends State<LuxuryAppBar> with TickerProviderStateMix
                                       width: 1.0,
                                     ),
                                   ),
-                                  child: widget.leading ?? Container(
-                                    width: 32,
-                                    height: 32,
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(8),
-                                      color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.04),
-                                    ),
-                                    child: Image.asset(
-                                      'assets/images/logo.png',
-                                      fit: BoxFit.contain,
-                                    ),
-                                  ),
+                                  child: (widget.avatarUrl != null || widget.initials != null)
+                                      ? AvatarHelper.buildAvatar(
+                                          widget.avatarUrl,
+                                          size: 40,
+                                          isGroup: widget.isGroup,
+                                          initials: widget.initials,
+                                        )
+                                      : (widget.leading ?? Container(
+                                          width: 32,
+                                          height: 32,
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(8),
+                                            color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.04),
+                                          ),
+                                          child: Image.asset(
+                                            'assets/images/logo.png',
+                                            fit: BoxFit.contain,
+                                          ),
+                                        )),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
@@ -404,7 +419,7 @@ class _LuxuryAppBarState extends State<LuxuryAppBar> with TickerProviderStateMix
         onPressed: widget.onBackPress ?? () async {
           bool canPop = await Navigator.maybePop(context);
           if (!canPop && context.mounted) {
-            Navigator.pushNamedAndRemoveUntil(context, '/chat', (route) => route.isFirst);
+            Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => route.isFirst);
           }
         },
         isDark: isDark,
@@ -550,7 +565,7 @@ class _LuxuryAppBarState extends State<LuxuryAppBar> with TickerProviderStateMix
       for (var action in widget.actions!) {
         // Look for notification badge based on type
         if (action.runtimeType.toString().contains('NotificationBadge')) {
-          controls.add(Container(
+          controls.add(SizedBox(
             width: 48,
             height: 48,
             child: action,
@@ -561,7 +576,7 @@ class _LuxuryAppBarState extends State<LuxuryAppBar> with TickerProviderStateMix
       }
     }
 
-    controls.add(Container(
+    controls.add(SizedBox(
       width: 48,
       height: 48,
       child: userMenu,

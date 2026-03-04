@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 class ErrorBoundary extends StatefulWidget {
   final Widget child;
-  ErrorBoundary({required this.child});
+  const ErrorBoundary({super.key, required this.child});
 
   @override
   _ErrorBoundaryState createState() => _ErrorBoundaryState();

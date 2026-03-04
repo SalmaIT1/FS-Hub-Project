@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../core/state/settings_controller.dart';
 import '../shared/widgets/luxury/luxury_app_bar.dart';
 import '../core/theme/app_theme.dart';
-import '../theme/design_tokens.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -56,7 +55,7 @@ class SettingsPage extends StatelessWidget {
             ),
             const SizedBox(height: 32),
             _buildSectionHeader(
-              settings.translate('notifications') + ' & ' + settings.translate('sounds'),
+              '${settings.translate('notifications')} & ${settings.translate('sounds')}',
               isDark,
             ),
             const SizedBox(height: 12),

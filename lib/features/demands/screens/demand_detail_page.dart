@@ -10,9 +10,9 @@ class DemandDetailPage extends StatefulWidget {
   final Demand demand;
 
   const DemandDetailPage({
-    Key? key,
+    super.key,
     required this.demand,
-  }) : super(key: key);
+  });
 
   @override
   State<DemandDetailPage> createState() => _DemandDetailPageState();
@@ -133,7 +133,7 @@ class _DemandDetailPageState extends State<DemandDetailPage> with TickerProvider
 
     if (confirmed == true) {
       setState(() => _isLoading = true);
-      final result = await DemandService.deleteDemand(_demand.id!);
+      final result = await DemandService.deleteDemand(_demand.id);
       if (mounted) {
         setState(() => _isLoading = false);
         if (result['success']) {
@@ -159,14 +159,14 @@ class _DemandDetailPageState extends State<DemandDetailPage> with TickerProvider
       
       final updateData = {
         'status': status,
-        if (currentUserId != null) 'handledBy': currentUserId,
+        'handledBy': ?currentUserId,
         'resolutionNotes': resolutionNotes,
       };
       
-      final result = await DemandService.updateDemand(_demand.id!, updateData);
+      final result = await DemandService.updateDemand(_demand.id, updateData);
 
       if (result['success']) {
-        final refreshedResult = await DemandService.getDemandById(_demand.id!);
+        final refreshedResult = await DemandService.getDemandById(_demand.id);
         if (refreshedResult['success'] && mounted) {
           setState(() {
             _demand = refreshedResult['data'];
@@ -196,7 +196,7 @@ class _DemandDetailPageState extends State<DemandDetailPage> with TickerProvider
     return Scaffold(
       appBar: LuxuryAppBar(
         title: 'Ticket Details',
-        subtitle: 'Reference #${(_demand.id != null && _demand.id!.length >= 8) ? _demand.id!.substring(0, 8) : _demand.id ?? 'Unknown'}',
+        subtitle: 'Reference #${(_demand.id.length >= 8) ? _demand.id.substring(0, 8) : _demand.id ?? 'Unknown'}',
         showBackButton: true,
         onBackPress: () => Navigator.pop(context),
         isPremium: true,

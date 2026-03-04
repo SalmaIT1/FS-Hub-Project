@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io' as io;
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
@@ -124,7 +123,7 @@ class RealAudioRecorder {
         print('[RealAudioRecorder.stop] PATH: $path');
         print('[RealAudioRecorder.stop] EXISTS: ${await file!.exists()}');
         
-        if (!await file!.exists()) {
+        if (!await file.exists()) {
           print('[RealAudioRecorder.stop] Recorded file does not exist');
           _state = RecordingState.initial;
           return null;

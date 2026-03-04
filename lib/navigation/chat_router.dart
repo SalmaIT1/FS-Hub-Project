@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:fs_hub/features/chat/ui/conversation_list_page.dart' as chat_ui;
-import 'package:fs_hub/features/chat/ui/chat_thread_page.dart' as chat_ui;
-import 'package:fs_hub/chat/domain/chat_entities.dart';
+import 'package:fs_hub/features/chat/presentation/pages/conversation_list_page.dart' as chat_ui;
+import 'package:fs_hub/features/chat/presentation/pages/chat_thread_page.dart' as chat_ui;
+import 'package:fs_hub/features/chat/domain/entities/chat_entities.dart';
 
 class ChatRouter {
   static PageRouteBuilder _makeRoute(Widget child) {

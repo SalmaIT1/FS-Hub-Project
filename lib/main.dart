@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:fs_hub/features/auth/screens/login_screen.dart';
-import 'package:fs_hub/features/auth/screens/splash_screen.dart';
+import 'package:fs_hub/features/auth/presentation/pages/login_page.dart';
+import 'package:fs_hub/features/auth/presentation/pages/splash_page.dart';
 import 'package:fs_hub/features/home/screens/home/home_page.dart';
 import 'package:fs_hub/features/employees/screens/employee_detail_page.dart';
 import 'package:fs_hub/features/demands/screens/demand_detail_page.dart';
@@ -20,21 +20,21 @@ import 'package:fs_hub/features/projects/screens/project_detail_page.dart';
 import 'package:fs_hub/features/projects/screens/my_tasks_page.dart';
 import 'package:fs_hub/features/finance/screens/finance_dashboard_page.dart';
 import 'package:fs_hub/features/finance/screens/invoices_list_page.dart';
-import 'package:fs_hub/features/auth/data/services/auth_service.dart';
+import 'package:fs_hub/features/auth/data/datasources/auth_remote_datasource.dart';
 import 'package:fs_hub/core/theme/app_theme.dart';
 import 'package:fs_hub/core/routes/app_routes.dart';
 import 'package:fs_hub/shared/widgets/layout/main_layout.dart';
 
 import 'package:fs_hub/core/state/settings_controller.dart';
 import 'package:fs_hub/pages/settings_page.dart';
-import 'package:fs_hub/chat/data/chat_rest_client.dart';
-import 'package:fs_hub/chat/data/chat_socket_client.dart';
-import 'package:fs_hub/chat/data/upload_service.dart';
-import 'package:fs_hub/chat/data/chat_repository.dart';
-import 'package:fs_hub/chat/state/chat_controller.dart';
-import 'package:fs_hub/features/chat/ui/conversation_list_page.dart' as chat_ui;
-import 'package:fs_hub/features/chat/ui/chat_thread_page.dart' as chat_ui;
-import 'package:fs_hub/chat/domain/chat_entities.dart';
+import 'package:fs_hub/features/chat/data/datasources/chat_remote_datasource.dart';
+import 'package:fs_hub/features/chat/data/datasources/chat_socket_datasource.dart';
+import 'package:fs_hub/features/chat/data/datasources/upload_datasource.dart';
+import 'package:fs_hub/features/chat/data/repositories/chat_repository_impl.dart';
+import 'package:fs_hub/features/chat/presentation/providers/chat_provider.dart';
+import 'package:fs_hub/features/chat/presentation/pages/conversation_list_page.dart' as chat_ui;
+import 'package:fs_hub/features/chat/presentation/pages/chat_thread_page.dart' as chat_ui;
+import 'package:fs_hub/features/chat/domain/entities/chat_entities.dart';
 import 'package:fs_hub/core/localization/translations.dart';
 import 'package:window_manager/window_manager.dart';
 import 'dart:io' show Platform;
@@ -88,7 +88,7 @@ class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   Future<String> getToken() async {
-    final token = await AuthService.getAccessToken();
+    final token = await AuthRemoteDatasource.getAccessToken();
     if (token == null || token.isEmpty) {
       throw Exception('No authentication token available');
     }
@@ -106,21 +106,21 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider<SettingsController>(
           create: (_) => SettingsController(),
         ),
-        Provider<ChatRestClient>(
-          create: (_) => ChatRestClient(baseUrl: apiBaseUrl, tokenProvider: () => getToken()),
+        Provider<ChatRemoteDatasource>(
+          create: (_) => ChatRemoteDatasource(baseUrl: apiBaseUrl, tokenProvider: () => getToken()),
         ),
-        Provider<ChatSocketClient>(
-          create: (_) => ChatSocketClient(wsUrl: wsBaseUrl, tokenProvider: () => getToken()),
+        Provider<ChatSocketDatasource>(
+          create: (_) => ChatSocketDatasource(wsUrl: wsBaseUrl, tokenProvider: () => getToken()),
         ),
-        Provider<UploadService>(
-          create: (_) => UploadService(baseUrl: apiBaseUrl, tokenProvider: () => getToken()),
+        Provider<UploadDatasource>(
+          create: (_) => UploadDatasource(baseUrl: apiBaseUrl, tokenProvider: () => getToken()),
         ),
-        ProxyProvider3<ChatRestClient, ChatSocketClient, UploadService, ChatRepository>(
-          update: (_, rest, socket, uploads, __) => ChatRepository(rest: rest, socket: socket, uploads: uploads),
+        ProxyProvider3<ChatRemoteDatasource, ChatSocketDatasource, UploadDatasource, ChatRepositoryImpl>(
+          update: (_, rest, socket, uploads, __) => ChatRepositoryImpl(rest: rest, socket: socket, uploads: uploads),
         ),
-        ChangeNotifierProxyProvider<ChatRepository, ChatController>(
+        ChangeNotifierProxyProvider<ChatRepositoryImpl, ChatController>(
           create: (context) => ChatController(
-            repository: Provider.of<ChatRepository>(context, listen: false),
+            repository: Provider.of<ChatRepositoryImpl>(context, listen: false),
           ),
           update: (_, repo, controller) => controller ?? ChatController(repository: repo),
         ),
@@ -178,17 +178,7 @@ class MyApp extends StatelessWidget {
                 );
               } else if (settings.name == AppRoutes.createDemand) {
                 return MaterialPageRoute(
-                  builder: (context) => Scaffold(
-                    appBar: AppBar(
-                      title: Text(Translations.getText('create_demand', 'en')),
-                      automaticallyImplyLeading: true,
-                      leading: IconButton(
-                        icon: const Icon(Icons.arrow_back),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                    ),
-                    body: Center(child: Text(Translations.getText('reset_password_page_subtitle', 'en'))),
-                  ),
+                  builder: (context) => MainLayout(initialIndex: 2),
                 );
               } else if (settings.name == AppRoutes.demandDetail) {
                 final args = settings.arguments as Map<String, dynamic>?;
@@ -248,6 +238,17 @@ class MyApp extends StatelessWidget {
               }
               return null;
             },
+            onUnknownRoute: (settings) => MaterialPageRoute(
+              builder: (context) => Scaffold(
+                appBar: AppBar(title: const Text('Page Not Found')),
+                body: Center(
+                  child: Text(
+                    'No route defined for "${settings.name}"',
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                ),
+              ),
+            ),
           );
         },
       ),
@@ -255,89 +256,4 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class AuthWrapper extends StatefulWidget {
-  const AuthWrapper({super.key});
 
-  @override
-  State<AuthWrapper> createState() => _AuthWrapperState();
-}
-
-class _AuthWrapperState extends State<AuthWrapper> {
-  @override
-  void initState() {
-    super.initState();
-    _checkAuthStatus();
-  }
-
-  Future<void> _checkAuthStatus() async {
-    await Future.delayed(const Duration(seconds: 3)); // 3 seconds splash screen delay
-
-    final isLoggedIn = await AuthService.isLoggedIn();
-
-    if (mounted) {
-      if (isLoggedIn) {
-        Navigator.pushReplacementNamed(context, AppRoutes.home);
-      } else {
-        Navigator.pushReplacementNamed(context, AppRoutes.login);
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: isDark 
-              ? [const Color(0xFF1A1A1A), Colors.black]
-              : [const Color(0xFFF5F7FA), Colors.white],
-          ),
-        ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Signature image
-              Image.asset(
-                'assets/images/signature.jpeg',
-                height: 200,
-                width: 200,
-                fit: BoxFit.contain,
-              ),
-              const SizedBox(height: 30),
-              // Loading indicator
-              const CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFD4AF37)),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class ResetPasswordPage extends StatelessWidget {
-  const ResetPasswordPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(Translations.getText('reset_password_page', 'en')),
-        automaticallyImplyLeading: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: Center(
-        child: Text(Translations.getText('reset_password_page_subtitle', 'en')),
-      ),
-    );
-  }
-}

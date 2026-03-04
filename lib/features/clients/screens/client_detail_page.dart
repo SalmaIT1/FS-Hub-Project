@@ -12,9 +12,9 @@ class ClientDetailPage extends StatefulWidget {
   final Client client;
 
   const ClientDetailPage({
-    Key? key,
+    super.key,
     required this.client,
-  }) : super(key: key);
+  });
 
   @override
   State<ClientDetailPage> createState() => _ClientDetailPageState();

@@ -19,7 +19,7 @@ class ClientService {
       if (page != null) queryParams['page'] = page.toString();
       if (limit != null) queryParams['limit'] = limit.toString();
 
-      final uri = Uri.parse('$_baseUrl').replace(queryParameters: queryParams);
+      final uri = Uri.parse(_baseUrl).replace(queryParameters: queryParams);
       final response = await http.get(
         uri,
         headers: await ApiService.getAuthHeaders(),

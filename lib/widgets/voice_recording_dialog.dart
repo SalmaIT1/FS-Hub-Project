@@ -15,11 +15,11 @@ class VoiceRecordingPreviewDialog extends StatefulWidget {
   final VoidCallback onDiscard;
   
   const VoiceRecordingPreviewDialog({
-    Key? key,
+    super.key,
     required this.recording,
     required this.onSend,
     required this.onDiscard,
-  }) : super(key: key);
+  });
 
   @override
   State<VoiceRecordingPreviewDialog> createState() => _VoiceRecordingPreviewDialogState();
@@ -181,11 +181,11 @@ class RecordingIndicator extends StatefulWidget {
   final bool cancelMode;
   
   const RecordingIndicator({
-    Key? key,
+    super.key,
     required this.durationStream,
     required this.isRecordingStream,
     this.cancelMode = false,
-  }) : super(key: key);
+  });
 
   @override
   State<RecordingIndicator> createState() => _RecordingIndicatorState();

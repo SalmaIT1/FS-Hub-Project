@@ -87,8 +87,8 @@ class Project {
       dateFinPrevue: dateFinPrevue ?? this.dateFinPrevue,
       priorite: priorite ?? this.priorite,
       statut: statut ?? this.statut,
-      createdAt: this.createdAt,
-      updatedAt: this.updatedAt,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
     );
   }
 }

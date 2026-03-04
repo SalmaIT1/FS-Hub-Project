@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import '../models/message_model.dart';
+import '../../../core/utils/url_utils.dart';
+import '../../shared/widgets/authenticated_image.dart';
 
 class MediaMessageBubble extends StatelessWidget {
   final Message message;
   final bool isMe;
 
-  MediaMessageBubble({required this.message, this.isMe = false});
+  const MediaMessageBubble({super.key, required this.message, this.isMe = false});
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +24,10 @@ class MediaMessageBubble extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (message.meta != null && message.meta!['thumb'] != null)
-                Image.network(message.meta!['thumb'], fit: BoxFit.cover),
+                AuthenticatedImage(
+                  url: UrlUtils.ensureAbsoluteUrl(message.meta!['thumb']), 
+                  fit: BoxFit.cover
+                ),
               Padding(
                 padding: EdgeInsets.all(10),
                 child: Text(message.content, style: TextStyle(color: Colors.white70, fontSize: 13)),

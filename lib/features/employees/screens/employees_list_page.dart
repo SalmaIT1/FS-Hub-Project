@@ -72,7 +72,7 @@ class _EmployeesListPageState extends State<EmployeesListPage> with SingleTicker
         setState(() => _isLoading = false);
         final settings = Provider.of<SettingsController>(context, listen: false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(settings.translate('error_loading_employees') + ': $e')),
+          SnackBar(content: Text('${settings.translate('error_loading_employees')}: $e')),
         );
       }
     }

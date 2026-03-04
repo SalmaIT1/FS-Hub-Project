@@ -35,7 +35,7 @@ class AudioPlayerWidget extends StatefulWidget {
   final bool disabled;
   
   const AudioPlayerWidget({
-    Key? key,
+    super.key,
     required this.source,
     this.durationMs,
     this.onPlay,
@@ -43,7 +43,7 @@ class AudioPlayerWidget extends StatefulWidget {
     this.waveformData,
     this.progressColor = const Color(0xFFFFD700),
     this.disabled = false,
-  }) : super(key: key);
+  });
 
   @override
   State<AudioPlayerWidget> createState() => _AudioPlayerWidgetState();

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 class UploadProgressOverlay extends StatelessWidget {
   final double progress; // 0.0 - 1.0
   final String label;
-  UploadProgressOverlay({required this.progress, required this.label});
+  const UploadProgressOverlay({super.key, required this.progress, required this.label});
 
   @override
   Widget build(BuildContext context) {

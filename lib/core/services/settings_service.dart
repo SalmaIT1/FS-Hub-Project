@@ -1,8 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter/material.dart';
 
 class SettingsService {
-  static const String _languageKey = 'app_language';
+  static const String _languageKey = 'language_code';
   static const String _notificationsKey = 'notifications_enabled';
   static const String _soundEffectsKey = 'sound_effects_enabled';
 
@@ -11,9 +10,9 @@ class SettingsService {
     return prefs.getString(_languageKey) ?? 'en';
   }
 
-  static Future<void> setLanguage(String languageCode) async {
+  static Future<void> setLanguage(String code) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_languageKey, languageCode);
+    await prefs.setString(_languageKey, code);
   }
 
   static Future<bool> areNotificationsEnabled() async {

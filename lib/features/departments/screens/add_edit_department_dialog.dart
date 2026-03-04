@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../../../shared/models/department_model.dart';
 import '../services/department_service.dart';
 import '../../../core/theme/app_theme.dart';

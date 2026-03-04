@@ -8,10 +8,10 @@ class NotificationDrawer extends StatefulWidget {
   final String userRole;
 
   const NotificationDrawer({
-    Key? key,
+    super.key,
     required this.userId,
     required this.userRole,
-  }) : super(key: key);
+  });
 
   @override
   State<NotificationDrawer> createState() => _NotificationDrawerState();

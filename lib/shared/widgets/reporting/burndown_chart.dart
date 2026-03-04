@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:fs_hub/core/theme/app_theme.dart';
-import 'dart:ui';
 
 class BurndownChart extends StatelessWidget {
   final List<dynamic> data;

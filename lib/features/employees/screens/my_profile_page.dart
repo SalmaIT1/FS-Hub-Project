@@ -9,6 +9,7 @@ import '../../../core/routes/app_routes.dart';
 
 import 'package:provider/provider.dart';
 import '../../../core/state/settings_controller.dart';
+import '../../../shared/widgets/authenticated_image.dart';
 
 class MyProfilePage extends StatefulWidget {
   const MyProfilePage({super.key});
@@ -226,29 +227,24 @@ class _MyProfilePageState extends State<MyProfilePage> {
   Widget _buildImageWidget(String avatarUrl, bool isDark) {
     // Check if the URL is already a complete data URL
     if (avatarUrl.startsWith('data:')) {
-      return Image.network(
-        avatarUrl,
+      return AuthenticatedImage(
+        url: avatarUrl,
         fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) {
-          return _buildAvatarPlaceholder(isDark);
-        },
+        errorWidget: _buildAvatarPlaceholder(isDark),
       );
-    } else if (avatarUrl.length > 100) { // Likely a base64 string if it's long
-      return Image.network(
-        'data:image/jpeg;base64,$avatarUrl',
+    } else if (avatarUrl.length > 100 && !avatarUrl.startsWith('http')) { 
+      // Likely a base64 string if it's long and not a URL
+      return AuthenticatedImage(
+        url: 'data:image/jpeg;base64,$avatarUrl',
         fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) {
-          return _buildAvatarPlaceholder(isDark);
-        },
+        errorWidget: _buildAvatarPlaceholder(isDark),
       );
     } else {
       // This is a regular URL
-      return Image.network(
-        avatarUrl,
+      return AuthenticatedImage(
+        url: avatarUrl,
         fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) {
-          return _buildAvatarPlaceholder(isDark);
-        },
+        errorWidget: _buildAvatarPlaceholder(isDark),
       );
     }
   }

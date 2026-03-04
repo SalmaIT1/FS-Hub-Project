@@ -202,7 +202,7 @@ class _ProjectsListPageState extends State<ProjectsListPage> with SingleTickerPr
                     _buildInfoItem(Icons.priority_high_rounded, project.priorite),
                     const Spacer(),
                     Text(
-                      '${NumberFormat.currency(symbol: '€', decimalDigits: 2).format(project.budget)}',
+                      NumberFormat.currency(symbol: '€', decimalDigits: 2).format(project.budget),
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         color: AppTheme.accentGold,
@@ -510,7 +510,7 @@ class _AddEditProjectDialogState extends State<AddEditProjectDialog> {
                   ),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<int>(
-                    value: _selectedClientId,
+                    initialValue: _selectedClientId,
                     decoration: const InputDecoration(labelText: 'Client'),
                     items: _clients.map((c) => DropdownMenuItem(
                       value: c.id,
@@ -544,7 +544,7 @@ class _AddEditProjectDialogState extends State<AddEditProjectDialog> {
                     children: [
                       Expanded(
                         child: DropdownButtonFormField<String>(
-                          value: _selectedPriorite,
+                          initialValue: _selectedPriorite,
                           decoration: const InputDecoration(labelText: 'Priority'),
                           items: ['Faible', 'Moyenne', 'Haute', 'Critique'].map((p) => DropdownMenuItem(
                             value: p,
@@ -556,7 +556,7 @@ class _AddEditProjectDialogState extends State<AddEditProjectDialog> {
                       const SizedBox(width: 16),
                       Expanded(
                         child: DropdownButtonFormField<String>(
-                          value: _selectedStatut,
+                          initialValue: _selectedStatut,
                           decoration: const InputDecoration(labelText: 'Status'),
                           items: ['Planifié', 'En cours', 'Terminé', 'En retard'].map((s) => DropdownMenuItem(
                             value: s,

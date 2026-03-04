@@ -10,11 +10,11 @@ class AdaptiveVoiceNote extends StatefulWidget {
   final Color? bubbleColor;
 
   const AdaptiveVoiceNote({
-    Key? key,
+    super.key,
     required this.voice,
     this.isSentByMe = false,
     this.bubbleColor,
-  }) : super(key: key);
+  });
 
   @override
   State<AdaptiveVoiceNote> createState() => _AdaptiveVoiceNoteState();

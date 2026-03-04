@@ -301,7 +301,7 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<int>(
-                value: _selectedSprintId,
+                initialValue: _selectedSprintId,
                 decoration: const InputDecoration(labelText: 'Sprint'),
                 items: widget.activeSprints.map((s) => DropdownMenuItem(
                   value: s.id,

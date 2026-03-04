@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../shared/models/employee_model.dart';
 import '../../../core/routes/app_routes.dart';
 import '../../../shared/widgets/luxury/luxury_app_bar.dart';
+import '../../../shared/widgets/authenticated_image.dart';
 
 class EmployeeDetailPage extends StatelessWidget {
   final Employee employee;
@@ -321,52 +322,37 @@ class EmployeeDetailPage extends StatelessWidget {
   }
 
   Widget _buildImageWidget(String avatarUrl, bool isDark) {
-    final prefixLength = avatarUrl.length < 20 ? avatarUrl.length : 20;
-    print('DEBUG DETAIL: avatarUrl starts with: ${avatarUrl.substring(0, prefixLength)}');
-    print('DEBUG DETAIL: Contains base64,: ${avatarUrl.contains("base64,")}');
-    print('DEBUG DETAIL: Starts with data:: ${avatarUrl.startsWith("data:")}');
-    
     // Check if the URL is already a complete data URL
     if (avatarUrl.startsWith('data:')) {
       // This is already a complete data URL
-      return Image.network(
-        avatarUrl,
+      return AuthenticatedImage(
+        url: avatarUrl,
         fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) {
-          print('DEBUG DETAIL: Image.network data URL error: $error');
-          return _buildAvatarPlaceholder(isDark);
-        },
+        errorWidget: _buildAvatarPlaceholder(isDark),
       );
-    } else if (avatarUrl.length > 100) { // Likely a base64 string if it's long
-      // Assume it's a base64 string and convert to data URL
+    } else if (avatarUrl.length > 100 && !avatarUrl.startsWith('http')) { 
+      // Likely a base64 string if it's long and not a URL
       try {
         // Validate that it's a proper base64 string
-        base64Decode(avatarUrl);
+        base64Decode(avatarUrl.replaceAll(RegExp(r'\s+'), ''));
         
         // Create a data URL with base64 image data
         String dataUrl = 'data:image/jpeg;base64,$avatarUrl';
         
-        return Image.network(
-          dataUrl,
+        return AuthenticatedImage(
+          url: dataUrl,
           fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) {
-            print('DEBUG DETAIL: Image.network base64 error: $error');
-            return _buildAvatarPlaceholder(isDark);
-          },
+          errorWidget: _buildAvatarPlaceholder(isDark),
         );
       } catch (e) {
-        print('DEBUG DETAIL: Error validating base64: $e');
-        
         return _buildAvatarPlaceholder(isDark);
       }
     } else {
       // This is a regular URL
-      return Image.network(
-        avatarUrl,
+      return AuthenticatedImage(
+        url: avatarUrl,
         fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) {
-          return _buildAvatarPlaceholder(isDark);
-        },
+        errorWidget: _buildAvatarPlaceholder(isDark),
       );
     }
   }

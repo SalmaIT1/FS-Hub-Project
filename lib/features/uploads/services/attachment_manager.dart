@@ -167,7 +167,7 @@ class AttachmentManager {
         } catch (e) {
           print('[AttachmentManager] Failed to fetch blob: $e');
         }
-      } else if (!kIsWeb && audioPath.length > 0) {
+      } else if (!kIsWeb && audioPath.isNotEmpty) {
         fileSize = await File(audioPath).length();
       }
     } catch (e) {
@@ -280,7 +280,7 @@ class AttachmentManager {
     
     return {
       'uploadIds': uploadIds,
-      if (voiceMetadata != null) 'voiceMetadata': voiceMetadata,
+      'voiceMetadata': voiceMetadata,
     };
   }
 

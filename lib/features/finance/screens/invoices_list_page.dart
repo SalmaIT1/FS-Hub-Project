@@ -6,7 +6,6 @@ import 'package:fs_hub/features/finance/services/finance_service.dart';
 import 'package:fs_hub/core/theme/app_theme.dart';
 import 'package:fs_hub/core/state/settings_controller.dart';
 import 'package:fs_hub/shared/widgets/luxury/luxury_app_bar.dart';
-import 'package:fs_hub/shared/widgets/glass_card.dart';
 import 'package:fs_hub/features/projects/services/project_service.dart';
 import 'package:fs_hub/shared/models/project_model.dart';
 import 'package:fs_hub/features/clients/models/client_model.dart';
@@ -268,7 +267,7 @@ class _AddInvoiceDialogState extends State<_AddInvoiceDialog> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                    DropdownButtonFormField<int>(
-                    value: _selectedProjectId,
+                    initialValue: _selectedProjectId,
                     decoration: const InputDecoration(labelText: 'Project (Optional)'),
                     items: [
                       const DropdownMenuItem<int>(value: null, child: Text('No Project')),
@@ -278,7 +277,7 @@ class _AddInvoiceDialogState extends State<_AddInvoiceDialog> {
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<int>(
-                    value: _selectedClientId,
+                    initialValue: _selectedClientId,
                     decoration: const InputDecoration(labelText: 'Client (Optional)'),
                     items: [
                       const DropdownMenuItem<int>(value: null, child: Text('No Client')),
@@ -555,7 +554,7 @@ class _InvoiceDetailsSheetState extends State<_InvoiceDetailsSheet> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: mode,
+              initialValue: mode,
               decoration: const InputDecoration(labelText: 'Method'),
               items: ['Virement', 'Espèces', 'Carte', 'Chèque'].map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(),
               onChanged: (v) => mode = v!,

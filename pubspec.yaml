@@ -61,6 +61,7 @@ dependencies:
   # State management
   provider: ^6.1.1
   just_audio: ^0.9.36
+  just_audio_windows: any
   audioplayers: ^5.2.1
   url_launcher: ^6.1.10
   open_filex: ^4.3.0

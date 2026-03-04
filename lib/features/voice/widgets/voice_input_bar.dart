@@ -13,7 +13,7 @@ typedef OnSend = void Function(String text, List<Map<String, dynamic>> attachmen
 
 class ChatInputBar extends StatefulWidget {
   final OnSend onSend;
-  ChatInputBar({required this.onSend});
+  const ChatInputBar({super.key, required this.onSend});
 
   @override
   _ChatInputBarState createState() => _ChatInputBarState();

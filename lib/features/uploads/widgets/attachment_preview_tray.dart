@@ -1,10 +1,5 @@
 import 'dart:io';
-import 'dart:async';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:provider/provider.dart';
 import '../../chat/data/upload_service.dart';
 import '../../chat/state/chat_controller.dart';
 
@@ -105,11 +100,11 @@ class AttachmentPreviewTray extends StatefulWidget {
   final Function(String)? onRetryUpload;
 
   const AttachmentPreviewTray({
-    Key? key,
+    super.key,
     required this.attachments,
     required this.onRemoveAttachment,
     this.onRetryUpload,
-  }) : super(key: key);
+  });
 
   @override
   State<AttachmentPreviewTray> createState() => _AttachmentPreviewTrayState();
@@ -414,13 +409,12 @@ class _AttachmentTile extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (icon != null)
-            Icon(
-              icon,
-              size: 10,
-              color: textColor,
-            ),
-          if (icon != null) const SizedBox(width: 2),
+          Icon(
+            icon,
+            size: 10,
+            color: textColor,
+          ),
+          const SizedBox(width: 2),
           Text(
             text,
             style: TextStyle(
@@ -437,6 +431,6 @@ class _AttachmentTile extends StatelessWidget {
   String _formatDuration(int seconds) {
     final minutes = seconds ~/ 60;
     final remainingSeconds = seconds % 60;
-    return '${minutes}:${remainingSeconds.toString().padLeft(2, '0')}';
+    return '$minutes:${remainingSeconds.toString().padLeft(2, '0')}';
   }
 }

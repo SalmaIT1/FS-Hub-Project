@@ -5,8 +5,8 @@ import 'package:uuid/uuid.dart';
 import 'package:http/http.dart' as http;
 import '../../../shared/models/message_model.dart';
 import './message_queue.dart';
-import '../../../core/services/rest_fallback_client.dart';
-import '../../../core/services/websocket_client.dart';
+import '../../../core/network/http_client.dart';
+import '../../../core/network/websocket_client.dart';
 import './message_store.dart';
 
 class MessageService {

@@ -1,10 +1,10 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../shared/models/demand_model.dart';
+import 'package:fs_hub/shared/models/demand_model.dart';
 import 'package:fs_hub/core/localization/translations.dart';
-import '../../core/state/settings_controller.dart';
-import '../../core/theme/app_theme.dart';
+import 'package:fs_hub/core/theme/app_theme.dart';
+import 'package:fs_hub/core/state/settings_controller.dart';
 
 class DemandCard extends StatefulWidget {
   final Demand demand;
@@ -193,14 +193,14 @@ class _DemandCardState extends State<DemandCard> with SingleTickerProviderStateM
                                   ),
                                   const SizedBox(height: 2),
                                     Text(
-                                      'Ticket #${(widget.demand.id != null && widget.demand.id!.length >= 8) ? widget.demand.id!.substring(0, 8) : widget.demand.id ?? Translations.getText('unknown', languageCode)}',
+                                      'Ticket #${(widget.demand.id?.toString().length ?? 0) >= 8 ? widget.demand.id?.toString().substring(0, 8) : widget.demand.id ?? Translations.getText('unknown', languageCode)}',
                                       style: TextStyle(
                                         color: isDark ? Colors.white38 : Colors.black38,
                                         fontSize: 11,
                                         fontWeight: FontWeight.w500,
                                       ),
                                     ),
-                                    if (widget.demand.requesterName.isNotEmpty) ...[
+                                    if (widget.demand.requesterName?.isNotEmpty == true) ...[
                                       const SizedBox(height: 2),
                                       Text(
                                         'By: ${widget.demand.requesterName}',
@@ -219,7 +219,7 @@ class _DemandCardState extends State<DemandCard> with SingleTickerProviderStateM
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          widget.demand.description,
+                          widget.demand.description ?? '',
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -237,7 +237,7 @@ class _DemandCardState extends State<DemandCard> with SingleTickerProviderStateM
                                 Icon(Icons.access_time_rounded, size: 14, color: AppTheme.accentGold.withOpacity(0.6)),
                                 const SizedBox(width: 6),
                                 Text(
-                                  _formatDate(widget.demand.createdAt, languageCode),
+                                  _formatDate(widget.demand.createdAt ?? '', languageCode),
                                   style: TextStyle(
                                     color: isDark ? Colors.white38 : Colors.black45,
                                     fontSize: 12,
@@ -274,7 +274,7 @@ class _DemandCardState extends State<DemandCard> with SingleTickerProviderStateM
         border: Border.all(color: statusColor.withOpacity(0.3)),
       ),
       child: Text(
-        _getStatusDisplayName(widget.demand.status, languageCode),
+        _getStatusDisplayName(widget.demand.status ?? '', languageCode),
         style: TextStyle(
           color: statusColor,
           fontSize: 10,

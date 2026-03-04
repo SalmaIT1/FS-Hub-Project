@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:audioplayers/audioplayers.dart' as ap;
+import 'package:fs_hub/features/auth/data/datasources/auth_remote_datasource.dart';
+import 'package:fs_hub/core/utils/url_utils.dart';
 
 /// Real audio player widget for voice notes
 /// 
@@ -36,7 +38,7 @@ class AudioPlayerWidget extends StatefulWidget {
   final bool disabled;
   
   const AudioPlayerWidget({
-    Key? key,
+    super.key,
     required this.source,
     this.durationMs,
     this.onPlay,
@@ -44,7 +46,7 @@ class AudioPlayerWidget extends StatefulWidget {
     this.waveformData,
     this.progressColor = const Color(0xFFFFD700),
     this.disabled = false,
-  }) : super(key: key);
+  });
 
   @override
   State<AudioPlayerWidget> createState() => _AudioPlayerWidgetState();
@@ -86,7 +88,6 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
       }
 
       // Try just_audio first
-      print('[AudioPlayerWidget] Initializing with just_audio: ${widget.source}');
       _audioPlayer = AudioPlayer();
       
       // We wrap the setup in a longer timeout for Windows engine startup
@@ -95,7 +96,6 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
         onTimeout: () => throw TimeoutException('Primary player setup timed out'),
       );
       
-      print('[AudioPlayerWidget] just_audio setup successful');
     } catch (e) {
       print('[AudioPlayerWidget] Primary player failed, trying fallback: $e');
       
@@ -108,13 +108,11 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
       
       try {
         if (!mounted) return;
-        print('[AudioPlayerWidget] Initializing fallback player...');
         _fallbackPlayer = ap.AudioPlayer();
         await _setupFallbackPlayer().timeout(
           const Duration(seconds: 15),
           onTimeout: () => throw TimeoutException('Fallback player setup timed out'),
         );
-        print('[AudioPlayerWidget] Fallback player setup successful');
       } catch (e2) {
         print('[AudioPlayerWidget] Both players failed: $e2');
         if (mounted) {
@@ -133,7 +131,6 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
   void didUpdateWidget(covariant AudioPlayerWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.source != widget.source) {
-      print('[AudioPlayerWidget] Source changed: ${widget.source}');
       _initialized = false;
       _error = null;
       _initializeAudioPlayer();
@@ -145,7 +142,9 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
 
     // Set up source for audioplayers
     if (widget.source.startsWith('http') || widget.source.startsWith('blob:') || widget.source.startsWith('data:')) {
-      await _fallbackPlayer!.setSourceUrl(widget.source);
+      final token = await AuthRemoteDatasource.getAccessToken();
+      final authenticatedUrl = UrlUtils.appendToken(widget.source, token);
+      await _fallbackPlayer!.setSource(ap.UrlSource(authenticatedUrl));
     } else {
       final file = io.File(widget.source);
       if (!kIsWeb && !await file.exists()) {
@@ -223,13 +222,19 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
 
     // Set audio source
     if (widget.source.startsWith('blob:')) {
-      print('[AudioPlayerWidget] Loading from blob URL: ${widget.source}');
       await _audioPlayer!.setUrl(widget.source);
     } else if (widget.source.startsWith('http')) {
-      print('[AudioPlayerWidget] Loading from URL: ${widget.source}');
-      await _audioPlayer!.setUrl(widget.source);
+      final token = await AuthRemoteDatasource.getAccessToken();
+      final authenticatedUrl = UrlUtils.appendToken(widget.source, token);
+      
+      if (kIsWeb) {
+        // Headers are not supported on Web for audio tags, use the token-appended URL
+        await _audioPlayer!.setUrl(authenticatedUrl);
+      } else {
+        final headers = token != null ? {'Authorization': 'Bearer $token'} : <String, String>{};
+        await _audioPlayer!.setUrl(authenticatedUrl, headers: headers);
+      }
     } else {
-      print('[AudioPlayerWidget] Loading from file: ${widget.source}');
       final file = io.File(widget.source);
       if (!kIsWeb && !await file.exists()) {
         throw Exception('Audio file does not exist: ${widget.source}');
@@ -237,7 +242,6 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
       await _audioPlayer!.setFilePath(widget.source);
     }
 
-    print('[AudioPlayerWidget] Source set successfully');
     if (mounted) {
       setState(() => _initialized = true);
     }
@@ -312,9 +316,15 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
       return Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.red[50],
+          color: Theme.of(context).brightness == Brightness.dark 
+              ? Colors.red.withOpacity(0.1) 
+              : Colors.red[50],
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.red[200]!),
+          border: Border.all(
+            color: Theme.of(context).brightness == Brightness.dark 
+                ? Colors.red.withOpacity(0.3) 
+                : Colors.red[200]!
+          ),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -351,9 +361,15 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.04), // Subtle background
+          color: Theme.of(context).brightness == Brightness.dark
+              ? Colors.white.withOpacity(0.05)
+              : Colors.black.withOpacity(0.04), 
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.black.withOpacity(0.1)),
+          border: Border.all(
+            color: Theme.of(context).brightness == Brightness.dark
+                ? Colors.white.withOpacity(0.1)
+                : Colors.black.withOpacity(0.1),
+          ),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -366,7 +382,13 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
             const SizedBox(width: 16),
             Text(
               'Initializing player...',
-              style: TextStyle(fontSize: 13, color: Colors.grey[600], fontStyle: FontStyle.italic),
+              style: TextStyle(
+                fontSize: 13, 
+                color: Theme.of(context).brightness == Brightness.dark 
+                    ? Colors.white60 
+                    : Colors.grey[600], 
+                fontStyle: FontStyle.italic
+              ),
             ),
           ],
         ),
@@ -376,9 +398,15 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.06), // Very subtle glass
+        color: Theme.of(context).brightness == Brightness.dark
+            ? Colors.white.withOpacity(0.08)
+            : Colors.white.withOpacity(0.06), 
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        border: Border.all(
+          color: Theme.of(context).brightness == Brightness.dark
+              ? Colors.white.withOpacity(0.15)
+              : Colors.white.withOpacity(0.08),
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -477,7 +505,9 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
       child: Container(
         height: 4,
         decoration: BoxDecoration(
-          color: Colors.grey[300],
+          color: Theme.of(context).brightness == Brightness.dark
+              ? Colors.white.withOpacity(0.1)
+              : Colors.grey[300],
           borderRadius: BorderRadius.circular(2),
         ),
         child: FractionallySizedBox(
@@ -509,7 +539,9 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
       child: Container(
         height: 20,
         decoration: BoxDecoration(
-          color: Colors.grey[300],
+          color: Theme.of(context).brightness == Brightness.dark
+              ? Colors.white.withOpacity(0.1)
+              : Colors.grey[300],
           borderRadius: BorderRadius.circular(2),
         ),
         child: Stack(
@@ -520,8 +552,12 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
               child: CustomPaint(
                 painter: WaveformPainter(
                   waveform: waveform,
-                  color: Colors.grey[600]!,
-                  backgroundColor: Colors.grey[300]!,
+                  color: Theme.of(context).brightness == Brightness.dark 
+                      ? Colors.white60 
+                      : Colors.grey[600]!,
+                  backgroundColor: Theme.of(context).brightness == Brightness.dark 
+                      ? Colors.white10 
+                      : Colors.grey[300]!,
                 ),
                 size: Size.infinite,
               ),

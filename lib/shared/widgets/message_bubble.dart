@@ -6,7 +6,7 @@ class MessageBubble extends StatelessWidget {
   final bool isMe;
   final bool compact; // true when grouped with previous message
 
-  MessageBubble({required this.message, this.isMe = false, this.compact = false});
+  const MessageBubble({super.key, required this.message, this.isMe = false, this.compact = false});
 
   @override
   Widget build(BuildContext context) {

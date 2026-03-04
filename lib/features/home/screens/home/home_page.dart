@@ -4,6 +4,7 @@ import '../../../../shared/widgets/luxury/luxury_app_bar.dart';
 import '../../../auth/data/services/auth_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../employees/services/employee_service.dart';
+import '../../../notifications/services/notification_service.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../navigation/chat_router.dart';
 
@@ -72,11 +73,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
       final currentUser = await AuthService.getCurrentUser();
       if (currentUser != null) {
-        final result = await EmployeeService.getUserNotifications(currentUser['id']);
+        final result = await NotificationService.getUserNotifications(currentUser['id']);
         if (result['success']) {
           final List<dynamic> notifs = result['data'];
           if (mounted) {
-            setState(() => _notificationCount = notifs.where((n) => !n['isRead']).length);
+            setState(() => _notificationCount = notifs.where((n) => (n is Map && n['isRead'] == false) || (n.isRead == false)).length);
           }
         }
       }

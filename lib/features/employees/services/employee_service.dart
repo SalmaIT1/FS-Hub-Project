@@ -281,7 +281,7 @@ class EmployeeService {
     try {
       final employees = await getAllEmployees();
       return employees.firstWhere(
-        (emp) => emp.email != null && emp.email!.toLowerCase() == email.toLowerCase(),
+        (emp) => emp.email.toLowerCase() == email.toLowerCase(),
         orElse: () => throw Exception('Employee not found'),
       );
     } catch (e) {

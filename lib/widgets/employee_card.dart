@@ -2,9 +2,12 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../shared/models/employee_model.dart';
+import '../shared/widgets/authenticated_image.dart';
 import '../core/theme/app_theme.dart';
 import '../core/localization/translations.dart';
 import '../core/state/settings_controller.dart';
+import '../core/utils/url_utils.dart';
+import '../features/chat/presentation/widgets/avatar_helper.dart';
 
 class EmployeeCard extends StatefulWidget {
   final Employee employee;
@@ -138,7 +141,40 @@ class _EmployeeCardState extends State<EmployeeCard> with SingleTickerProviderSt
                         padding: const EdgeInsets.all(16),
                         child: Row(
                           children: [
-                            _buildAvatar(isDark),
+                            Stack(
+                              children: [
+                                AvatarHelper.buildAvatar(
+                                  widget.employee.avatarUrl,
+                                  size: 64,
+                                  initials: (widget.employee.prenom.isNotEmpty ? widget.employee.prenom[0] : '') + 
+                                           (widget.employee.nom.isNotEmpty ? widget.employee.nom[0] : ''),
+                                ),
+                                if (widget.employee.isOnline)
+                                  Positioned(
+                                    bottom: 2,
+                                    right: 2,
+                                    child: Container(
+                                      width: 14,
+                                      height: 14,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF4CAF50),
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: isDark ? const Color(0xFF1A1A1A) : Colors.white,
+                                          width: 2,
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: const Color(0xFF4CAF50).withOpacity(0.4),
+                                            blurRadius: 4,
+                                            spreadRadius: 1,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
                             const SizedBox(width: 16),
                             Expanded(
                               child: Column(
@@ -210,111 +246,7 @@ class _EmployeeCardState extends State<EmployeeCard> with SingleTickerProviderSt
       ),
     );
   }
-  Widget _buildAvatar(bool isDark) {
-    return Stack(
-      children: [
-        Container(
-          width: 64,
-          height: 64,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                AppTheme.accentGold.withOpacity(0.2),
-                AppTheme.accentGold.withOpacity(0.05),
-              ],
-            ),
-            border: Border.all(
-              color: widget.employee.isOnline 
-                  ? const Color(0xFF4CAF50).withOpacity(0.5) 
-                  : AppTheme.accentGold.withOpacity(0.3),
-              width: 2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: widget.employee.isOnline 
-                    ? const Color(0xFF4CAF50).withOpacity(0.2) 
-                    : Colors.black.withOpacity(0.1),
-                blurRadius: 8,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: ClipOval(
-            child: widget.employee.avatarUrl != null
-                ? _buildImageWidget(widget.employee.avatarUrl!, isDark)
-                : _buildAvatarPlaceholder(isDark),
-          ),
-        ),
-        if (widget.employee.isOnline)
-          Positioned(
-            bottom: 2,
-            right: 2,
-            child: Container(
-              width: 14,
-              height: 14,
-              decoration: BoxDecoration(
-                color: const Color(0xFF4CAF50),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: isDark ? const Color(0xFF1A1A1A) : Colors.white,
-                  width: 2,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF4CAF50).withOpacity(0.4),
-                    blurRadius: 4,
-                    spreadRadius: 1,
-                  ),
-                ],
-              ),
-            ),
-          ),
-      ],
-    );
-  }
 
-Widget _buildImageWidget(String avatarUrl, bool isDark) {
-  if (avatarUrl.startsWith('data:')) {
-    return Image.network(
-      avatarUrl,
-      fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) => _buildAvatarPlaceholder(isDark),
-    );
-  } else if (avatarUrl.length > 100) {
-    return Image.network(
-      'data:image/jpeg;base64,$avatarUrl',
-      fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) => _buildAvatarPlaceholder(isDark),
-    );
-  } else {
-    return Image.network(
-      avatarUrl,
-      fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) => _buildAvatarPlaceholder(isDark),
-    );
-  }
-}
-
-  Widget _buildAvatarPlaceholder(bool isDark) {
-    String initials = '';
-    if (widget.employee.prenom.isNotEmpty) initials += widget.employee.prenom[0];
-    if (widget.employee.nom.isNotEmpty) initials += widget.employee.nom[0];
-    if (initials.isEmpty) initials = '?';
-    
-    return Center(
-      child: Text(
-        initials.toUpperCase(),
-        style: const TextStyle(
-          color: AppTheme.accentGold,
-          fontSize: 20,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-  }
 
   Widget _buildStatusBadge() {
     final statusColor = _getStatusColor();

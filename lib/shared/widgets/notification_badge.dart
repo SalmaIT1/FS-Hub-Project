@@ -7,18 +7,18 @@ class NotificationBadge extends StatelessWidget {
   final Color? textColor;
 
   const NotificationBadge({
-    Key? key,
+    super.key,
     required this.notificationCount,
     this.onTap,
     this.badgeColor,
     this.textColor,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      child: SizedBox(
         width: 48,
         height: 48,
         child: Stack(

@@ -1,4 +1,3 @@
-import 'employee_model.dart';
 
 class ProjectMember {
   final String? id; // membership_id

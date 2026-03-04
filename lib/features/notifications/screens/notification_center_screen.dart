@@ -4,6 +4,8 @@ import '../../../shared/widgets/luxury/luxury_app_bar.dart';
 import '../../../widgets/glass_notification_card.dart';
 import '../../employees/services/employee_service.dart';
 import '../../auth/data/services/auth_service.dart';
+import '../services/notification_service.dart';
+import '../../../shared/models/notification_model.dart' as AppNotification;
 import '../../../core/theme/app_theme.dart';
 
 class NotificationCenterPage extends StatefulWidget {
@@ -58,10 +60,11 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> with Ti
     if (mounted) setState(() => _isLoading = true);
 
     try {
-      final result = await EmployeeService.getUserNotifications(_userId!);
+      final result = await NotificationService.getUserNotifications(_userId!);
       if (result['success'] && mounted) {
         setState(() {
-          notifications = List<Map<String, dynamic>>.from(result['data']);
+          final List<dynamic> notifData = result['data'];
+          notifications = notifData.map((n) => (n is AppNotification.Notification) ? n.toJson() : n as Map<String, dynamic>).toList();
           _applyFilter();
           _isLoading = false;
           _prepareAnimations();

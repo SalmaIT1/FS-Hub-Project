@@ -9,10 +9,10 @@ class WhatsAppVoiceNote extends StatefulWidget {
   final bool isSentByMe;
 
   const WhatsAppVoiceNote({
-    Key? key,
+    super.key,
     required this.voice,
     this.isSentByMe = false,
-  }) : super(key: key);
+  });
 
   @override
   State<WhatsAppVoiceNote> createState() => _WhatsAppVoiceNoteState();
@@ -70,7 +70,7 @@ class _WhatsAppVoiceNoteState extends State<WhatsAppVoiceNote> {
               
               // Waveform visualization
               Expanded(
-                child: Container(
+                child: SizedBox(
                   height: 30,
                   child: widget.voice.waveformData.isNotEmpty
                       ? _buildWaveform()
@@ -114,7 +114,7 @@ class _WhatsAppVoiceNoteState extends State<WhatsAppVoiceNote> {
   }
 
   Widget _buildPlaceholderWaveform() {
-    return Container(
+    return SizedBox(
       height: 30,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,

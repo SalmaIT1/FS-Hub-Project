@@ -1,5 +1,4 @@
-import 'package:dotenv/dotenv.dart' as dotenv;
-import '../lib/database/db_connection.dart';
+import 'package:fs_hub_backend/shared/database/connection.dart';
 
 Future<void> main(List<String> args) async {
   try {

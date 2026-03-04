@@ -1,150 +1,101 @@
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
-import '../../features/auth/data/services/auth_service.dart';
 
 class ApiService {
   static const String baseUrl = 'http://localhost:8080';
-  static const String _apiBaseUrl = 'http://localhost:8080/v1';
+  static const String apiVersion = '/v1';
 
-  /// Make an authenticated API request
-  static Future<http.Response> makeRequest({
-    required String endpoint,
-    required String method,
-    Map<String, dynamic>? body,
-    Map<String, String>? headers,
-  }) async {
-    return await AuthService.authenticatedRequest(
-      endpoint,
-      method,
-      body: body,
-    );
+  static Future<String?> _getToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('access_token');
   }
 
-  /// Get auth headers for requests
+  static Map<String, String> _headers({String? token}) => {
+    'Content-Type': 'application/json',
+    if (token != null) 'Authorization': 'Bearer $token',
+  };
+
   static Future<Map<String, String>> getAuthHeaders() async {
-    final token = await AuthService.getAccessToken();
-    return {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer $token',
-    };
+    final token = await _getToken();
+    return _headers(token: token);
   }
 
-  /// GET request
-  static Future<Map<String, dynamic>> get(String endpoint) async {
+  static Future<Map<String, dynamic>> get(String endpoint, {Map<String, String>? headers}) async {
     try {
-      final response = await makeRequest(
-        endpoint: endpoint,
-        method: 'GET',
+      final token = await _getToken();
+      final response = await http.get(
+        Uri.parse('$baseUrl$apiVersion$endpoint'),
+        headers: {..._headers(token: token), ...?headers},
       );
 
-      if (response.statusCode == 200) {
-        return {
-          'success': true,
-          'data': jsonDecode(response.body),
-        };
-      } else {
-        return {
-          'success': false,
-          'message': 'Request failed with status: ${response.statusCode}',
-          'data': jsonDecode(response.body),
-        };
-      }
+      return _handleResponse(response);
     } catch (e) {
-      return {
-        'success': false,
-        'message': 'Network error: $e',
-      };
+      return {'success': false, 'error': e.toString()};
     }
   }
 
-  /// POST request
-  static Future<Map<String, dynamic>> post(
-    String endpoint, {
-    required Map<String, dynamic> data,
-  }) async {
+  static Future<Map<String, dynamic>> post(String endpoint, {Map<String, dynamic>? body, Map<String, dynamic>? data, Map<String, String>? headers}) async {
     try {
-      final response = await makeRequest(
-        endpoint: endpoint,
-        method: 'POST',
-        body: data,
+      final token = await _getToken();
+      final response = await http.post(
+        Uri.parse('$baseUrl$apiVersion$endpoint'),
+        headers: {..._headers(token: token), ...?headers},
+        body: jsonEncode(data ?? body),
       );
 
-      if (response.statusCode == 200) {
-        return {
-          'success': true,
-          'data': jsonDecode(response.body),
-        };
-      } else {
-        return {
-          'success': false,
-          'message': 'Request failed with status: ${response.statusCode}',
-          'data': jsonDecode(response.body),
-        };
-      }
+      return _handleResponse(response);
     } catch (e) {
-      return {
-        'success': false,
-        'message': 'Network error: $e',
-      };
+      return {'success': false, 'error': e.toString()};
     }
   }
 
-  /// PUT request
-  static Future<Map<String, dynamic>> put(
-    String endpoint, {
-    required Map<String, dynamic> data,
-  }) async {
+  static Future<Map<String, dynamic>> put(String endpoint, {Map<String, dynamic>? body, Map<String, dynamic>? data, Map<String, String>? headers}) async {
     try {
-      final response = await makeRequest(
-        endpoint: endpoint,
-        method: 'PUT',
-        body: data,
+      final token = await _getToken();
+      final response = await http.put(
+        Uri.parse('$baseUrl$apiVersion$endpoint'),
+        headers: {..._headers(token: token), ...?headers},
+        body: jsonEncode(data ?? body),
       );
 
-      if (response.statusCode == 200) {
-        return {
-          'success': true,
-          'data': jsonDecode(response.body),
-        };
-      } else {
-        return {
-          'success': false,
-          'message': 'Request failed with status: ${response.statusCode}',
-          'data': jsonDecode(response.body),
-        };
-      }
+      return _handleResponse(response);
     } catch (e) {
-      return {
-        'success': false,
-        'message': 'Network error: $e',
-      };
+      return {'success': false, 'error': e.toString()};
     }
   }
 
-  /// DELETE request
-  static Future<Map<String, dynamic>> delete(String endpoint) async {
+  static Future<Map<String, dynamic>> delete(String endpoint, {Map<String, String>? headers}) async {
     try {
-      final response = await makeRequest(
-        endpoint: endpoint,
-        method: 'DELETE',
+      final token = await _getToken();
+      final response = await http.delete(
+        Uri.parse('$baseUrl$apiVersion$endpoint'),
+        headers: {..._headers(token: token), ...?headers},
       );
 
-      if (response.statusCode == 200) {
-        return {
-          'success': true,
-          'data': jsonDecode(response.body),
-        };
+      return _handleResponse(response);
+    } catch (e) {
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  static Map<String, dynamic> _handleResponse(http.Response response) {
+    try {
+      final data = jsonDecode(response.body);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return {'success': true, 'data': data};
       } else {
         return {
           'success': false,
-          'message': 'Request failed with status: ${response.statusCode}',
-          'data': jsonDecode(response.body),
+          'error': (data as Map<String, dynamic>?)?['message'] ?? 'Request failed',
+          'statusCode': response.statusCode,
         };
       }
     } catch (e) {
       return {
         'success': false,
-        'message': 'Network error: $e',
+        'error': 'Failed to parse response',
+        'statusCode': response.statusCode,
       };
     }
   }

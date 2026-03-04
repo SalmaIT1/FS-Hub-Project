@@ -14,6 +14,7 @@ services:
       - DB_NAME=fs_hub_db
       - DB_USER=root
       - DB_PASSWORD=admin
+      - JWT_SECRET=3a5393b577f563814863eb5c206fee61
     depends_on:
       database:
         condition: service_healthy
@@ -50,7 +51,7 @@ services:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./database_setup.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./database/database_setup.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - fshub-network
     healthcheck:

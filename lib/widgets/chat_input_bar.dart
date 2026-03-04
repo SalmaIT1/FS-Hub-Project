@@ -16,7 +16,7 @@ typedef OnSend = void Function(String text, List<Map<String, dynamic>> attachmen
 
 class ChatInputBar extends StatefulWidget {
   final OnSend onSend;
-  ChatInputBar({required this.onSend});
+  const ChatInputBar({super.key, required this.onSend});
 
   @override
   _ChatInputBarState createState() => _ChatInputBarState();
@@ -215,7 +215,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
       
     } catch (e) {
       
-      _showError(Translations.getText('failed_to_start_recording', languageCode) + ': $e');
+      _showError('${Translations.getText('failed_to_start_recording', languageCode)}: $e');
       setState(() => _recording = false);
     }
   }
@@ -372,7 +372,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
       }
     } catch (e) {
       print('[ChatInputBar._sendVoiceNote] Error: $e');
-      _showError(Translations.getText('failed_to_send_voice_note', languageCode) + ': $e');
+      _showError('${Translations.getText('failed_to_send_voice_note', languageCode)}: $e');
     }
   }
 
@@ -464,7 +464,7 @@ class _VoicePreviewDialogState extends State<_VoicePreviewDialog> {
     } catch (e) {
       print('[VoicePreview] Setup error: $e');
       if (mounted) {
-        setState(() => _error = Translations.getText('failed_to_load_audio', languageCode) + ': $e');
+        setState(() => _error = '${Translations.getText('failed_to_load_audio', languageCode)}: $e');
       }
     }
   }
@@ -485,7 +485,7 @@ class _VoicePreviewDialogState extends State<_VoicePreviewDialog> {
     } catch (e) {
       print('[VoicePreview] Play error: $e');
       if (mounted) {
-        setState(() => _error = Translations.getText('playback_error', languageCode) + ': $e');
+        setState(() => _error = '${Translations.getText('playback_error', languageCode)}: $e');
       }
     }
   }

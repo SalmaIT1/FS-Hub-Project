@@ -1,3 +1,15 @@
+/// Message state enum for tracking message status
+enum MessageState {
+  draft,
+  queued,
+  uploading,
+  sending,
+  sent,
+  delivered,
+  read,
+  failed,
+}
+
 class ChatMessage {
   final String id;
   final String conversationId;
@@ -14,6 +26,8 @@ class ChatMessage {
   final List<String> reactions;
   final bool isEdited;
   final bool isRead;
+  final String? clientMessageId;
+  final MessageState state;
 
   ChatMessage({
     required this.id,
@@ -31,10 +45,15 @@ class ChatMessage {
     this.reactions = const [],
     this.isEdited = false,
     this.isRead = false,
+    this.clientMessageId,
+    this.state = MessageState.sent,
   });
 
   bool get hasAttachments => attachments.isNotEmpty;
   bool get hasVoiceMessage => voiceMessage != null;
+  
+  // Alias for voiceMessage
+  VoiceMessage? get voiceNote => voiceMessage;
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
     return ChatMessage(
@@ -59,6 +78,11 @@ class ChatMessage {
           .toList() ?? [],
       isEdited: json['isEdited'] as bool? ?? false,
       isRead: json['isRead'] as bool? ?? false,
+      clientMessageId: json['clientMessageId'] as String?,
+      state: MessageState.values.firstWhere(
+        (e) => e.name == (json['state'] as String? ?? 'sent'),
+        orElse: () => MessageState.sent,
+      ),
     );
   }
 
@@ -79,6 +103,8 @@ class ChatMessage {
       'reactions': reactions,
       'isEdited': isEdited,
       'isRead': isRead,
+      'clientMessageId': clientMessageId,
+      'state': state.name,
     };
   }
 }

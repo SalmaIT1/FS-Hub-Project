@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 class MediaPickerSheet extends StatelessWidget {
   final void Function(String type) onPick;
-  MediaPickerSheet({required this.onPick});
+  const MediaPickerSheet({super.key, required this.onPick});
 
   @override
   Widget build(BuildContext context) {

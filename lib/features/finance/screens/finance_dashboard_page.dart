@@ -4,7 +4,6 @@ import 'package:fs_hub/core/theme/app_theme.dart';
 import 'package:fs_hub/core/state/settings_controller.dart';
 import 'package:fs_hub/shared/widgets/luxury/luxury_app_bar.dart';
 import 'package:fs_hub/features/finance/services/finance_service.dart';
-import 'package:intl/intl.dart';
 
 class FinanceDashboardPage extends StatefulWidget {
   const FinanceDashboardPage({super.key});

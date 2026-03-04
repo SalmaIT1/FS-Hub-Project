@@ -11,7 +11,6 @@ import 'package:fs_hub/core/theme/app_theme.dart';
 import 'package:fs_hub/core/state/settings_controller.dart';
 import 'package:fs_hub/features/projects/screens/sprints_list_page.dart' show AddEditSprintDialog;
 import 'package:fs_hub/shared/models/project_member_model.dart';
-import 'package:fs_hub/shared/models/employee_model.dart';
 import 'package:fs_hub/features/projects/services/task_service.dart';
 import 'package:fs_hub/shared/widgets/reporting/burndown_chart.dart';
 
@@ -634,16 +633,20 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> with SingleTicker
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppTheme.accentGold.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.accentGold.withOpacity(0.3)),
-              ),
-              child: Text(
-                activeSprint?.id == sprintToShow.id ? 'Active: ${sprintToShow.nom}' : 'Sprint: ${sprintToShow.nom}',
-                style: const TextStyle(color: AppTheme.accentGold, fontWeight: FontWeight.bold, fontSize: 12),
+            Flexible(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppTheme.accentGold.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppTheme.accentGold.withOpacity(0.3)),
+                ),
+                child: Text(
+                  activeSprint?.id == sprintToShow.id ? 'Active: ${sprintToShow.nom}' : 'Sprint: ${sprintToShow.nom}',
+                  style: const TextStyle(color: AppTheme.accentGold, fontWeight: FontWeight.bold, fontSize: 12),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
               ),
             ),
             if (_sprints.length > 1)
@@ -771,7 +774,7 @@ class _AddMemberDialogState extends State<AddMemberDialog> {
                   ),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
-                    value: _selectedEmployeeId,
+                    initialValue: _selectedEmployeeId,
                     decoration: const InputDecoration(labelText: 'Select Employee'),
                     items: _availableEmployees.map((e) => DropdownMenuItem(
                       value: e.employeeId,
