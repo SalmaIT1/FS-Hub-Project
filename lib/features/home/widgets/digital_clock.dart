@@ -70,21 +70,24 @@ class _DigitalClockCardState extends State<DigitalClockCard> {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           // The Digital Clock (Calculator-style Mono Font)
-          Text(
-            timeString,
-            style: TextStyle(
-              fontFamily: 'Courier', // Monospaced digital feel without external fonts
-              fontSize: 56,
-              height: 1.0,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 6.0,
-              color: widget.isDark ? const Color(0xFFC9A24D) : const Color(0xFF96731E),
-              shadows: [
-                Shadow(
-                  color: const Color(0xFFC9A24D).withOpacity(widget.isDark ? 0.6 : 0.3),
-                  blurRadius: 18,
-                )
-              ],
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              timeString,
+              style: TextStyle(
+                fontFamily: 'Courier', // Monospaced digital feel without external fonts
+                fontSize: 56,
+                height: 1.0,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 6.0,
+                color: widget.isDark ? const Color(0xFFC9A24D) : const Color(0xFF96731E),
+                shadows: [
+                  Shadow(
+                    color: const Color(0xFFC9A24D).withOpacity(widget.isDark ? 0.6 : 0.3),
+                    blurRadius: 18,
+                  )
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 16),

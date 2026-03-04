@@ -141,13 +141,49 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                   children: [
                     const SizedBox(height: 28),
 
-                    // ── HERO BANNER ──────────────────────────────
-                    _HeroBanner(
-                      isDark: isDark,
-                      isFr: isFr,
-                      name: _greetingName,
-                      pendingCount: _pendingDemandsCount,
-                      notifCount: _notificationCount,
+                    // ── HERO BANNER & TIME ──────────────────────────────
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        if (constraints.maxWidth > 1000) {
+                          return IntrinsicHeight(
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Expanded(
+                                  flex: 5,
+                                  child: _HeroBanner(
+                                    isDark: isDark,
+                                    isFr: isFr,
+                                    name: _greetingName,
+                                    pendingCount: _pendingDemandsCount,
+                                    notifCount: _notificationCount,
+                                  ),
+                                ),
+                                const SizedBox(width: 20),
+                                Expanded(
+                                  flex: 4,
+                                  child: DigitalClockCard(isDark: isDark, isFr: isFr),
+                                ),
+                              ],
+                            ),
+                          );
+                        } else {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _HeroBanner(
+                                isDark: isDark,
+                                isFr: isFr,
+                                name: _greetingName,
+                                pendingCount: _pendingDemandsCount,
+                                notifCount: _notificationCount,
+                              ),
+                              const SizedBox(height: 20),
+                              DigitalClockCard(isDark: isDark, isFr: isFr),
+                            ],
+                          );
+                        }
+                      },
                     ),
 
                     const SizedBox(height: 40),
@@ -159,8 +195,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                       icon: Icons.hub_outlined,
                     ),
                     const SizedBox(height: 18),
-                    DigitalClockCard(isDark: isDark, isFr: isFr),
-                    const SizedBox(height: 24),
                     _PrimaryGrid(
                       isDark: isDark,
                       isFr: isFr,
