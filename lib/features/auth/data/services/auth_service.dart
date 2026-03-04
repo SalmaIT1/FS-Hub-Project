@@ -71,7 +71,12 @@ class AuthService {
   static Future<String> getGreetingName() async {
     final user = await getCurrentUser();
     if (user != null) {
-      return user['name'] as String? ?? user['email'] as String? ?? 'User';
+      final prenom = user['prenom'] as String?;
+      final nom = user['nom'] as String?;
+      if (prenom != null || nom != null) {
+        return '${prenom ?? ''} ${nom ?? ''}'.trim();
+      }
+      return user['username'] as String? ?? user['email'] as String? ?? 'User';
     }
     return 'User';
   }
