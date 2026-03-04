@@ -23,6 +23,7 @@ import 'package:fs_hub/features/finance/screens/invoices_list_page.dart';
 import 'package:fs_hub/features/auth/data/datasources/auth_remote_datasource.dart';
 import 'package:fs_hub/core/theme/app_theme.dart';
 import 'package:fs_hub/core/routes/app_routes.dart';
+import 'package:fs_hub/shared/widgets/layout/custom_title_bar.dart';
 import 'package:fs_hub/shared/widgets/layout/main_layout.dart';
 
 import 'package:fs_hub/core/state/settings_controller.dart';
@@ -52,7 +53,7 @@ void main() async {
       backgroundColor: Colors.transparent,
       skipTaskbar: false,
       title: 'FS Hub',
-      titleBarStyle: TitleBarStyle.normal,
+      titleBarStyle: TitleBarStyle.hidden,
     );
     windowManager.waitUntilReadyToShow(windowOptions, () async {
       // Set window icon — relative to the executable for native but for debug we set it here
@@ -249,6 +250,10 @@ class MyApp extends StatelessWidget {
                 ),
               ),
             ),
+            builder: (context, child) {
+              if (kIsWeb || !Platform.isWindows) return child!;
+              return CustomTitleBar(child: child!);
+            },
           );
         },
       ),
