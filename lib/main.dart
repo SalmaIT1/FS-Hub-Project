@@ -40,9 +40,12 @@ import 'package:fs_hub/core/localization/translations.dart';
 import 'package:window_manager/window_manager.dart';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:intl/date_symbol_data_local.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('fr', null);
+  await initializeDateFormatting('en', null);
   await AppTheme.init();
   
   if (!kIsWeb && Platform.isWindows) {
