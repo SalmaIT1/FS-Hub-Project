@@ -129,7 +129,7 @@ class _DemandsListPageState extends State<DemandsListPage> with SingleTickerProv
                   : _demands.isEmpty
                       ? SliverFillRemaining(child: _buildEmptyState(isDark, settings))
                       : SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 160),
                           sliver: SliverList(
                             delegate: SliverChildBuilderDelegate(
                               (context, index) {

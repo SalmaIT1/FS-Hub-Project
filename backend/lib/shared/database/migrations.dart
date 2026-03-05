@@ -141,8 +141,10 @@ class Migrations {
     // FD. Revoked Tokens
     await _ensureTable(conn, dbName, 'revoked_tokens', '''
       CREATE TABLE revoked_tokens (
-          token VARCHAR(1024) PRIMARY KEY,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          token_hash VARCHAR(64) NOT NULL UNIQUE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_hash (token_hash)
       )
     ''');
 

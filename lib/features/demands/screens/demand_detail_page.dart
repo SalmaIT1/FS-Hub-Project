@@ -5,6 +5,7 @@ import '../services/demand_service.dart';
 import '../../auth/data/services/auth_service.dart';
 import '../../../shared/widgets/luxury/luxury_app_bar.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/widgets/luxury/luxury_status_dialog.dart';
 
 class DemandDetailPage extends StatefulWidget {
   final Demand demand;
@@ -164,28 +165,44 @@ class _DemandDetailPageState extends State<DemandDetailPage> with TickerProvider
       };
       
       final result = await DemandService.updateDemand(_demand.id, updateData);
-
-      if (result['success']) {
-        final refreshedResult = await DemandService.getDemandById(_demand.id);
-        if (refreshedResult['success'] && mounted) {
-          setState(() {
-            _demand = refreshedResult['data'];
-            _selectedStatus = null;
-            _resolutionNotesController.clear();
-            _isLoading = false;
-          });
-          
-          Navigator.pop(context, true);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Status updated to ${_getStatusDisplayName(status)}'),
-              backgroundColor: const Color(0xFF4CAF50),
-            ),
+      if (mounted) {
+        if (result['success']) {
+          final refreshedResult = await DemandService.getDemandById(_demand.id);
+          if (refreshedResult['success'] && mounted) {
+            setState(() {
+              _demand = refreshedResult['data'];
+              _selectedStatus = null;
+              _resolutionNotesController.clear();
+              _isLoading = false;
+            });
+            
+            LuxuryStatusDialog.show(
+              context,
+              isSuccess: true,
+              title: 'Protocol Transition',
+              message: 'Demand status transitioned to ${_getStatusDisplayName(status)} successfully.',
+            );
+          }
+        } else {
+          setState(() => _isLoading = false);
+          LuxuryStatusDialog.show(
+            context,
+            isSuccess: false,
+            title: 'Transition Failed',
+            message: result['message'] ?? 'Interference in central processing unit.',
           );
         }
       }
     } catch (e) {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+        LuxuryStatusDialog.show(
+          context,
+          isSuccess: false,
+          title: 'System Breach',
+          message: e.toString(),
+        );
+      }
     }
   }
 

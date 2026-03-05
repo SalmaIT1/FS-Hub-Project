@@ -4,6 +4,7 @@ import '../../core/state/settings_controller.dart';
 import '../../shared/widgets/luxury/luxury_app_bar.dart';
 import '../../core/theme/app_theme.dart';
 import '../../features/auth/data/services/auth_service.dart';
+import '../../shared/widgets/luxury/luxury_status_dialog.dart';
 
 class AccountSecurityPage extends StatefulWidget {
   const AccountSecurityPage({super.key});
@@ -86,21 +87,30 @@ class _AccountSecurityPageState extends State<AccountSecurityPage> {
                             if (res['success']) {
                               if (context.mounted) {
                                 Navigator.pop(context);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Password updated successfully')),
+                                LuxuryStatusDialog.show(
+                                  context,
+                                  isSuccess: true,
+                                  title: 'Credential Update',
+                                  message: 'Authentication parameters have been successfully rehashed and synchronized.',
                                 );
                               }
                             } else {
                               if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text(res['message'] ?? 'Failed to update password')),
+                                LuxuryStatusDialog.show(
+                                  context,
+                                  isSuccess: false,
+                                  title: 'Rehash Failure',
+                                  message: res['message'] ?? 'Authenticator rejected the new credential parameters.',
                                 );
                               }
                             }
                           } catch (e) {
                             if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('An error occurred. Please manually check connection.')),
+                              LuxuryStatusDialog.show(
+                                context,
+                                isSuccess: false,
+                                title: 'Sync Interrupted',
+                                message: 'An unexpected error occurred during credential synchronization.',
                               );
                             }
                           } finally {
@@ -178,8 +188,11 @@ class _AccountSecurityPageState extends State<AccountSecurityPage> {
                   onChanged: (val) {
                     setState(() => _twoFactorEnabled = val);
                     if (val) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Verification code sent to email.')),
+                      LuxuryStatusDialog.show(
+                        context,
+                        isSuccess: true,
+                        title: 'Bio-Encryption Active',
+                        message: 'A verification cipher has been transmitted to your primary communication node.',
                       );
                     }
                   },

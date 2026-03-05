@@ -5,7 +5,10 @@ import '../../data/services/auth_service.dart';
 import '../../../core/state/settings_controller.dart';
 import '../../../core/routes/app_routes.dart';
 import '../../../shared/widgets/glass_widgets.dart';
-import '../../../shared/widgets/luxury/luxury_scaffold.dart';
+import '../../../shared/widgets/luxury/luxury_app_bar.dart';
+import '../../../shared/widgets/luxury/luxury_status_dialog.dart';
+import '../../employees/services/employee_service.dart';
+import '../../../features/notifications/services/email_service.dart';
 
 class ResetPasswordPage extends StatefulWidget {
   const ResetPasswordPage({super.key});
@@ -59,22 +62,36 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
 
       final result = await EmployeeService.createDemand(demandData);
       
-      setState(() {
-        _isLoading = false;
+      if (mounted) {
+        setState(() => _isLoading = false);
         if (result['success']) {
+          LuxuryStatusDialog.show(
+            context,
+            isSuccess: true,
+            title: 'Request Transmitted',
+            message: 'Your password reset protocol has been initiated. An administrator will review the request.',
+          );
           _message = settings.translate('reset_request_submitted');
           _isError = false;
         } else {
-          // Check if it's a backend connection issue
-          if (result['message']?.contains('connection') == true || 
-              result['message']?.contains('MySQL') == true) {
-            _message = settings.translate('server_technical_difficulties');
-          } else {
-            _message = result['message'] ?? settings.translate('failed_submit_reset');
+          String errorMsg = result['message'] ?? settings.translate('failed_submit_reset');
+          if (errorMsg.contains('connection') || errorMsg.contains('MySQL')) {
+            errorMsg = settings.translate('server_technical_difficulties');
           }
-          _isError = true;
+          
+          LuxuryStatusDialog.show(
+            context,
+            isSuccess: false,
+            title: 'Protocol Error',
+            message: errorMsg,
+          );
+          
+          setState(() {
+            _message = errorMsg;
+            _isError = true;
+          });
         }
-      });
+      }
 
       // Send notification to admin
       if (result['success']) {

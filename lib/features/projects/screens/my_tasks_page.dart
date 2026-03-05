@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:ui';
 import 'package:fs_hub/core/theme/app_theme.dart';
 import 'package:fs_hub/shared/models/task_model.dart';
 import 'package:fs_hub/features/projects/services/task_service.dart';
@@ -8,6 +9,7 @@ import 'package:fs_hub/shared/models/sprint_model.dart';
 import 'package:fs_hub/features/projects/services/sprint_service.dart';
 import 'package:fs_hub/features/projects/services/project_service.dart';
 import 'package:fs_hub/shared/models/project_model.dart';
+import 'package:fs_hub/shared/widgets/luxury/luxury_status_dialog.dart';
 
 class MyTasksPage extends StatefulWidget {
   const MyTasksPage({super.key});
@@ -242,8 +244,36 @@ class _MyTasksPageState extends State<MyTasksPage> {
                   estimationHeures: task.estimationHeures,
                   heuresReelles: task.heuresReelles,
                 );
-                await TaskService.updateTask(updated);
-                _loadTasks();
+                try {
+                  final res = await TaskService.updateTask(updated);
+                  if (mounted) {
+                    if (res['success'] == true) {
+                      LuxuryStatusDialog.show(
+                        context,
+                        isSuccess: true,
+                        title: 'Status Updated',
+                        message: 'Task "$s" status finalized successfully.',
+                      );
+                      _loadTasks();
+                    } else {
+                      LuxuryStatusDialog.show(
+                        context,
+                        isSuccess: false,
+                        title: 'Update Failed',
+                        message: res['error'] ?? 'Neural link interference detected.',
+                      );
+                    }
+                  }
+                } catch (e) {
+                   if (mounted) {
+                    LuxuryStatusDialog.show(
+                      context,
+                      isSuccess: false,
+                      title: 'Critical Error',
+                      message: e.toString(),
+                    );
+                  }
+                }
               },
             )),
             const SizedBox(height: 20),
@@ -292,54 +322,215 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Nouvelle Tâche'),
-      content: SingleChildScrollView(
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              DropdownButtonFormField<int>(
-                initialValue: _selectedSprintId,
-                decoration: const InputDecoration(labelText: 'Sprint'),
-                items: widget.activeSprints.map((s) => DropdownMenuItem(
-                  value: s.id,
-                  child: Text(s.nom),
-                )).toList(),
-                onChanged: (v) => setState(() => _selectedSprintId = v),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      child: Container(
+        width: double.infinity,
+        constraints: const BoxConstraints(maxWidth: 400),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF151515).withOpacity(0.95) : Colors.white.withOpacity(0.95),
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: AppTheme.accentGold.withOpacity(0.2)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 30,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(28),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppTheme.accentGold.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.add_task_rounded, color: AppTheme.accentGold, size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        const Text(
+                          'NOUVELLE TÂCHE',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 2.0,
+                            color: AppTheme.accentGold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    
+                    _buildLabel('SPRINT ACTIF'),
+                    _buildDropdownField(isDark),
+                    
+                    const SizedBox(height: 20),
+                    
+                    _buildLabel('DÉSIGNATION'),
+                    _buildTextField(_titleController, 'Titre de la mission', isDark, Icons.title_rounded, (v) => v?.isEmpty ?? true ? 'Requis' : null),
+                    
+                    const SizedBox(height: 20),
+                    
+                    _buildLabel('DESCRIPTION'),
+                    _buildTextField(_descController, 'Détails tactiques...', isDark, Icons.description_rounded, null, maxLines: 3),
+                    
+                    const SizedBox(height: 20),
+                    
+                    _buildLabel('EFFORT ESTIMÉ (HEURES)'),
+                    _buildTextField(_estController, '1', isDark, Icons.timer_rounded, (v) => int.tryParse(v ?? '') == null ? 'Nombre requis' : null, keyboardType: TextInputType.number),
+                    
+                    const SizedBox(height: 32),
+                    
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            ),
+                            child: Text(
+                              'ANNULER',
+                              style: TextStyle(
+                                color: isDark ? Colors.white38 : Colors.black38,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1.0,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: _isSaving ? null : _save,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [AppTheme.accentGold, Color(0xFF8B6914)],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(14),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppTheme.accentGold.withOpacity(0.2),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ],
+                              ),
+                              child: Center(
+                                child: _isSaving 
+                                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                  : const Text(
+                                      'DÉPLOYER',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 1.0,
+                                      ),
+                                    ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _titleController,
-                decoration: const InputDecoration(labelText: 'Titre de la tâche'),
-                validator: (v) => v?.isEmpty ?? true ? 'Requis' : null,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _descController,
-                decoration: const InputDecoration(labelText: 'Description'),
-                maxLines: 2,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _estController,
-                decoration: const InputDecoration(labelText: 'Estimation (heures)'),
-                keyboardType: TextInputType.number,
-                validator: (v) => int.tryParse(v ?? '') == null ? 'Nombre requis' : null,
-              ),
-            ],
+            ),
           ),
         ),
       ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler')),
-        ElevatedButton(
-          onPressed: _isSaving ? null : _save,
-          style: ElevatedButton.styleFrom(backgroundColor: AppTheme.accentGold, foregroundColor: Colors.white),
-          child: _isSaving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Créer'),
+    );
+  }
+
+  Widget _buildLabel(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 8),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1.5,
+          color: Colors.grey,
         ),
-      ],
+      ),
+    );
+  }
+
+  Widget _buildDropdownField(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.accentGold.withOpacity(0.1)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButtonFormField<int>(
+          isExpanded: true,
+          dropdownColor: isDark ? const Color(0xFF1A1A1A) : Colors.white,
+          value: _selectedSprintId,
+          items: widget.activeSprints.map((s) => DropdownMenuItem(
+            value: s.id,
+            child: Text(s.nom, style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 14), overflow: TextOverflow.ellipsis),
+          )).toList(),
+          onChanged: (v) => setState(() => _selectedSprintId = v),
+          decoration: const InputDecoration(border: InputBorder.none),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextField(TextEditingController controller, String hint, bool isDark, IconData icon, String? Function(String?)? validator, {int maxLines = 1, TextInputType keyboardType = TextInputType.text}) {
+    return TextFormField(
+      controller: controller,
+      maxLines: maxLines,
+      keyboardType: keyboardType,
+      validator: validator,
+      style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 14),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(color: isDark ? Colors.white24 : Colors.black26),
+        prefixIcon: Icon(icon, color: AppTheme.accentGold.withOpacity(0.5), size: 18),
+        filled: true,
+        fillColor: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.04),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: AppTheme.accentGold.withOpacity(0.1)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: AppTheme.accentGold.withOpacity(0.1)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: AppTheme.accentGold, width: 1.5),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
     );
   }
 
@@ -362,14 +553,32 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
       final res = await TaskService.createTask(task);
       if (mounted) {
         if (res['success'] == true) {
+          LuxuryStatusDialog.show(
+            context,
+            isSuccess: true,
+            title: 'Task Orchestrated',
+            message: 'Your new task has been registered into the pipeline.',
+          );
           widget.onSave();
           Navigator.pop(context);
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['error'] ?? 'Erreur lors de la création')));
+          LuxuryStatusDialog.show(
+            context,
+            isSuccess: false,
+            title: 'Creation Failed',
+            message: res['error'] ?? 'Execution error in neural processor.',
+          );
         }
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: $e')));
+      if (mounted) {
+        LuxuryStatusDialog.show(
+          context,
+          isSuccess: false,
+          title: 'System Error',
+          message: e.toString(),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }

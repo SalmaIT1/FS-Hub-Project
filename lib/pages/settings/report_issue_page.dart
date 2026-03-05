@@ -5,6 +5,7 @@ import '../../shared/widgets/luxury/luxury_app_bar.dart';
 import '../../core/theme/app_theme.dart';
 import '../../features/auth/data/services/auth_service.dart';
 import '../../features/demands/services/demand_service.dart';
+import '../../shared/widgets/luxury/luxury_status_dialog.dart';
 
 class ReportIssuePage extends StatefulWidget {
   const ReportIssuePage({super.key});
@@ -38,20 +39,30 @@ class _ReportIssuePageState extends State<ReportIssuePage> {
 
       if (mounted) {
         if (result['success']) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Issue reported successfully. Admin will review it.')),
+          LuxuryStatusDialog.show(
+            context,
+            isSuccess: true,
+            title: 'Issue Transmitted',
+            message: 'Your report has been encrypted and sent to administration.',
           );
-          Navigator.pop(context);
+          _titleController.clear();
+          _descController.clear();
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(result['message'] ?? 'Failed to submit issue')),
+          LuxuryStatusDialog.show(
+            context,
+            isSuccess: false,
+            title: 'Transmission Error',
+            message: result['message'] ?? 'Quantum link failure during submission.',
           );
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+        LuxuryStatusDialog.show(
+          context,
+          isSuccess: false,
+          title: 'System Fault',
+          message: e.toString(),
         );
       }
     } finally {

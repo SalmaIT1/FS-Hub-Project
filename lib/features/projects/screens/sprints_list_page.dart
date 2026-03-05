@@ -8,6 +8,7 @@ import '../services/sprint_service.dart';
 import '../../../shared/widgets/luxury/luxury_app_bar.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/state/settings_controller.dart';
+import '../../../shared/widgets/luxury/luxury_status_dialog.dart';
 
 class SprintsListPage extends StatefulWidget {
   final Project project;
@@ -284,7 +285,14 @@ class _SprintsListPageState extends State<SprintsListPage> with SingleTickerProv
               Navigator.pop(context);
               final result = await SprintService.deleteSprint(sprint.id!);
               if (result['success']) _loadSprints();
-              if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result['message'])));
+              if (mounted) {
+                LuxuryStatusDialog.show(
+                  context,
+                  isSuccess: result['success'],
+                  title: result['success'] ? 'Sprint Purged' : 'Registry Conflict',
+                  message: result['message'] ?? 'The iteration cycle has been removed from the project timeline.',
+                );
+              }
             },
             child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
@@ -407,8 +415,20 @@ class _AddEditSprintDialogState extends State<AddEditSprintDialog> {
       if (result['success']) {
         widget.onSave();
         Navigator.pop(context);
+        LuxuryStatusDialog.show(
+          context,
+          isSuccess: true,
+          title: widget.sprint == null ? 'Sprint Synchronized' : 'Cycle Updated',
+          message: result['message'] ?? 'The iteration parameters have been committed to the neural project map.',
+        );
+      } else {
+        LuxuryStatusDialog.show(
+          context,
+          isSuccess: false,
+          title: 'Initialization Fault',
+          message: result['message'] ?? 'Unable to establish the requested iteration cycle.',
+        );
       }
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result['message'])));
       setState(() => _isSaving = false);
     }
   }

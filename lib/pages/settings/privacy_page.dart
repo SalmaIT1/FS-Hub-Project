@@ -4,6 +4,7 @@ import '../../core/state/settings_controller.dart';
 import '../../shared/widgets/luxury/luxury_app_bar.dart';
 import '../../core/theme/app_theme.dart';
 import '../../features/auth/data/services/auth_service.dart';
+import '../../shared/widgets/luxury/luxury_status_dialog.dart';
 
 class PrivacyPage extends StatefulWidget {
   const PrivacyPage({super.key});
@@ -141,8 +142,11 @@ class _PrivacyPageState extends State<PrivacyPage> {
                         title: 'Request My Data',
                         icon: Icons.download_outlined,
                         onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('A request has been sent to the IT admin team.')),
+                          LuxuryStatusDialog.show(
+                            context,
+                            isSuccess: true,
+                            title: 'Data Archeology Initiated',
+                            message: 'A formal request for personal data archives has been transmitted to the IT High Command.',
                           );
                         },
                         isDark: isDark,

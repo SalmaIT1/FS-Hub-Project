@@ -13,6 +13,7 @@ import 'package:fs_hub/features/projects/screens/sprints_list_page.dart' show Ad
 import 'package:fs_hub/shared/models/project_member_model.dart';
 import 'package:fs_hub/features/projects/services/task_service.dart';
 import 'package:fs_hub/shared/widgets/reporting/burndown_chart.dart';
+import 'package:fs_hub/shared/widgets/luxury/luxury_status_dialog.dart';
 
 class ProjectDetailPage extends StatefulWidget {
   final Project project;
@@ -578,9 +579,19 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> with SingleTicker
               final res = await ProjectService.removeProjectMember(_project.id!, member.employeeId);
               if (res['success']) {
                 _loadData();
-              }
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'])));
+                LuxuryStatusDialog.show(
+                  context,
+                  isSuccess: true,
+                  title: 'Personnel Reassigned',
+                  message: res['message'],
+                );
+              } else {
+                LuxuryStatusDialog.show(
+                  context,
+                  isSuccess: false,
+                  title: 'Reassignment Fault',
+                  message: res['message'],
+                );
               }
             },
             child: const Text('Remove', style: TextStyle(color: Colors.red)),
@@ -706,8 +717,25 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> with SingleTicker
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
-              await SprintService.deleteSprint(sprint.id!);
-              _loadData();
+              final res = await SprintService.deleteSprint(sprint.id!);
+              if (mounted) {
+                if (res['success']) {
+                  _loadData();
+                  LuxuryStatusDialog.show(
+                    context,
+                    isSuccess: true,
+                    title: 'Sprint Purged',
+                    message: 'Chronological segment has been removed from the timeline.',
+                  );
+                } else {
+                  LuxuryStatusDialog.show(
+                    context,
+                    isSuccess: false,
+                    title: 'Purge Failure',
+                    message: res['message'] ?? 'Critical dependency prevented chronological removal.',
+                  );
+                }
+              }
             },
             child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
@@ -814,8 +842,20 @@ class _AddMemberDialogState extends State<AddMemberDialog> {
       if (res['success']) {
         widget.onSave();
         Navigator.pop(context);
+        LuxuryStatusDialog.show(
+          context,
+          isSuccess: true,
+          title: 'Unit Deployed',
+          message: 'Member has been successfully integrated into the project squad.',
+        );
+      } else {
+        LuxuryStatusDialog.show(
+          context,
+          isSuccess: false,
+          title: 'Deployment Failure',
+          message: res['message'] ?? 'Unit mismatch detected by core validator.',
+        );
       }
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'])));
     }
   }
 }

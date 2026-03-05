@@ -106,7 +106,7 @@ class UploadRoutes {
           }
 
           // Create record pending
-          uploadId = await MediaService.insertMedia({
+          final newId = await MediaService.insertMedia({
             'original_filename': filename,
             'stored_filename': 'pending',
             'file_path': 'pending',
@@ -116,6 +116,7 @@ class UploadRoutes {
             'is_public': false,
             'expires_at': DateTime.now().add(const Duration(days: 365)).toIso8601String(),
           });
+          uploadId = newId.toString();
 
           final uploadDir = Directory('uploads');
           if (!await uploadDir.exists()) await uploadDir.create(recursive: true);

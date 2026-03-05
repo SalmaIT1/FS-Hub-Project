@@ -10,6 +10,7 @@ import '../../../core/routes/app_routes.dart';
 import 'package:provider/provider.dart';
 import '../../../core/state/settings_controller.dart';
 import '../../../shared/widgets/authenticated_image.dart';
+import '../../../shared/widgets/luxury/luxury_status_dialog.dart';
 
 class MyProfilePage extends StatefulWidget {
   const MyProfilePage({super.key});
@@ -49,8 +50,11 @@ class _MyProfilePageState extends State<MyProfilePage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading profile: $e')),
+        LuxuryStatusDialog.show(
+          context,
+          isSuccess: false,
+          title: 'Identity Synchronization Failure',
+          message: 'Unable to decrypt biological and professional profile data from the core mainframe.',
         );
       }
     } finally {
@@ -187,7 +191,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
                                 ],
                                 isDark,
                               ),
-                              const SizedBox(height: 100), // Space for FAB/Bottom Nav
+                              const SizedBox(height: 160), // Space for FAB/Bottom Nav
                             ],
                           ),
                         ),

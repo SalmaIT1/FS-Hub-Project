@@ -11,6 +11,7 @@ import '../../../../shared/widgets/luxury/luxury_app_bar.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/url_utils.dart';
 import '../../../../shared/widgets/authenticated_image.dart';
+import '../../../../shared/widgets/luxury/luxury_status_dialog.dart';
 
 /// Conversation list screen
 /// 
@@ -160,7 +161,7 @@ class _ConversationListPageState extends State<ConversationListPage> with Single
                 )
               else
                 SliverPadding(
-                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
+                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 160),
                   sliver: SliverList(
                     delegate: SliverChildBuilderDelegate(
                       (context, index) {
@@ -351,13 +352,23 @@ class _ConversationTile extends StatelessWidget {
                     try {
                       final controller = context.read<ChatController>();
                       await controller.deleteConversation(conversation.id);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(settings.translate('conversation_deleted'))),
-                      );
+                      if (context.mounted) {
+                        LuxuryStatusDialog.show(
+                          context,
+                          isSuccess: true,
+                          title: 'Channel Terminated',
+                          message: 'Encrypted communication channel has been completely purged from the local node.',
+                        );
+                      }
                     } catch (e) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Error: $e')),
-                      );
+                      if (context.mounted) {
+                        LuxuryStatusDialog.show(
+                          context,
+                          isSuccess: false,
+                          title: 'Purge Interrupted',
+                          message: e.toString(),
+                        );
+                      }
                     }
                   }
                 },

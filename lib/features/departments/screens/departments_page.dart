@@ -5,6 +5,7 @@ import '../services/department_service.dart';
 import '../../../shared/widgets/luxury/luxury_app_bar.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/state/settings_controller.dart';
+import '../../../shared/widgets/luxury/luxury_status_dialog.dart';
 import 'add_edit_department_dialog.dart';
 
 class DepartmentsPage extends StatefulWidget {
@@ -87,12 +88,21 @@ class _DepartmentsPageState extends State<DepartmentsPage> with SingleTickerProv
 
     if (confirmed == true && dept.id != null) {
       final result = await DepartmentService.deleteDepartment(dept.id!);
-      if (result['success']) {
-        _loadDepartments();
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(result['message'])),
+      if (mounted) {
+        if (result['success']) {
+          _loadDepartments();
+          LuxuryStatusDialog.show(
+            context,
+            isSuccess: true,
+            title: 'Division Decommissioned',
+            message: 'Department "${dept.nom}" has been successfully removed from the organizational map.',
+          );
+        } else {
+          LuxuryStatusDialog.show(
+            context,
+            isSuccess: false,
+            title: 'Decommissioning Fault',
+            message: result['message'] ?? 'Structure integrity constraints prevented the removal.',
           );
         }
       }

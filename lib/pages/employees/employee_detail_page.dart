@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../shared/models/employee_model.dart';
 import '../../core/routes/app_routes.dart';
-import '../../shared/widgets/luxury/luxury_scaffold.dart';
+import '../../shared/widgets/luxury/luxury_app_bar.dart';
 
 class EmployeeDetailPage extends StatelessWidget {
   final Employee employee;

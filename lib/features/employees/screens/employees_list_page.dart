@@ -9,6 +9,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../auth/data/services/auth_service.dart';
 import '../../../core/routes/app_routes.dart';
 import '../../../core/state/settings_controller.dart';
+import '../../../shared/widgets/luxury/luxury_status_dialog.dart';
 import 'employee_detail_page.dart';
 import 'add_edit_employee_page.dart';
 
@@ -70,9 +71,11 @@ class _EmployeesListPageState extends State<EmployeesListPage> with SingleTicker
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        final settings = Provider.of<SettingsController>(context, listen: false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${settings.translate('error_loading_employees')}: $e')),
+        LuxuryStatusDialog.show(
+          context,
+          isSuccess: false,
+          title: 'Retrieval Segment Fault',
+          message: 'Unable to decrypt the employee repository. Connection to the central mainframe may be compromised.',
         );
       }
     }
@@ -133,7 +136,7 @@ class _EmployeesListPageState extends State<EmployeesListPage> with SingleTicker
                   : _filteredEmployees.isEmpty
                       ? SliverFillRemaining(child: _buildEmptyState(isDark, settings))
                       : SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 160),
                           sliver: SliverList(
                             delegate: SliverChildBuilderDelegate(
                               (context, index) {

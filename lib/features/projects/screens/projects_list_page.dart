@@ -9,6 +9,7 @@ import '../../../shared/widgets/luxury/luxury_app_bar.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/state/settings_controller.dart';
 import '../../../core/routes/app_routes.dart';
+import '../../../shared/widgets/luxury/luxury_status_dialog.dart';
 
 class ProjectsListPage extends StatefulWidget {
   const ProjectsListPage({super.key});
@@ -418,8 +419,11 @@ class _ProjectsListPageState extends State<ProjectsListPage> with SingleTickerPr
                 _loadProjects();
               }
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(result['message'])),
+                LuxuryStatusDialog.show(
+                  context,
+                  isSuccess: result['success'],
+                  title: result['success'] ? 'Project Purged' : 'Purge Restricted',
+                  message: result['message'] ?? 'The project entity has been successfully decommissioned.',
                 );
               }
             },
@@ -483,124 +487,328 @@ class _AddEditProjectDialogState extends State<AddEditProjectDialog> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-      child: AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Text(widget.project == null ? 'New Project' : 'Edit Project'),
-        content: SizedBox(
-          width: 500,
-          child: SingleChildScrollView(
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextFormField(
-                    controller: _nomController,
-                    decoration: const InputDecoration(labelText: 'Project Name'),
-                    validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _descController,
-                    decoration: const InputDecoration(labelText: 'Description'),
-                    maxLines: 3,
-                  ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<int>(
-                    initialValue: _selectedClientId,
-                    decoration: const InputDecoration(labelText: 'Client'),
-                    items: _clients.map((c) => DropdownMenuItem(
-                      value: c.id,
-                      child: Text(c.displayName),
-                    )).toList(),
-                    onChanged: (v) => setState(() => _selectedClientId = v),
-                    validator: (v) => v == null ? 'Select a client' : null,
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      child: Container(
+        width: double.infinity,
+        constraints: const BoxConstraints(maxWidth: 500),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF151515).withOpacity(0.95) : Colors.white.withOpacity(0.95),
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: AppTheme.accentGold.withOpacity(0.2)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 30,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(28),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: TextFormField(
-                          controller: _budgetController,
-                          decoration: const InputDecoration(labelText: 'Budget (€)'),
-                          keyboardType: TextInputType.number,
-                        ),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: AppTheme.accentGold.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(Icons.rocket_launch_rounded, color: AppTheme.accentGold, size: 22),
+                          ),
+                          const SizedBox(width: 14),
+                          Text(
+                            widget.project == null ? 'NOUVEAU PROJET' : 'ÉDITION PROJET',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 2.0,
+                              color: AppTheme.accentGold,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: TextFormField(
-                          controller: _coutController,
-                          decoration: const InputDecoration(labelText: 'Estimated Cost (€)'),
-                          keyboardType: TextInputType.number,
-                        ),
+                      const SizedBox(height: 28),
+                      
+                      _buildLabel('IDENTITÉ DU PROJET'),
+                      _buildTextField(_nomController, 'Nom de l\'initiative', isDark, Icons.business_center_rounded, (v) => v?.isEmpty ?? true ? 'Requis' : null),
+                      
+                      const SizedBox(height: 16),
+                      
+                      _buildLabel('PORTFOLIO CLIENT'),
+                      _buildDropdownField<int>(
+                        value: _selectedClientId,
+                        hint: 'Sélectionner un client',
+                        isDark: isDark,
+                        icon: Icons.person_search_rounded,
+                        items: _clients.map((c) => DropdownMenuItem(
+                          value: c.id,
+                          child: Text(c.displayName, style: const TextStyle(fontSize: 14)),
+                        )).toList(),
+                        onChanged: (v) => setState(() => _selectedClientId = v),
+                        validator: (v) => v == null ? 'Requis' : null,
+                      ),
+                      
+                      const SizedBox(height: 16),
+                      
+                      _buildLabel('OBJECTIFS TACTIQUES'),
+                      _buildTextField(_descController, 'Détails du projet...', isDark, Icons.description_rounded, null, maxLines: 2),
+                      
+                      const SizedBox(height: 16),
+                      
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildLabel('ALLOCATION (€)'),
+                                _buildTextField(_budgetController, '0.00', isDark, Icons.account_balance_rounded, null, keyboardType: TextInputType.number),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildLabel('COÛT PRÉVU (€)'),
+                                _buildTextField(_coutController, '0.00', isDark, Icons.analytics_rounded, null, keyboardType: TextInputType.number),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildLabel('PRIORITÉ'),
+                                _buildDropdownField<String>(
+                                  value: _selectedPriorite,
+                                  hint: 'Priorité',
+                                  isDark: isDark,
+                                  icon: Icons.priority_high_rounded,
+                                  items: ['Faible', 'Moyenne', 'Haute', 'Critique'].map((p) => DropdownMenuItem(
+                                    value: p,
+                                    child: Text(p, style: const TextStyle(fontSize: 14)),
+                                  )).toList(),
+                                  onChanged: (v) => setState(() => _selectedPriorite = v!),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildLabel('STATUT'),
+                                _buildDropdownField<String>(
+                                  value: _selectedStatut,
+                                  hint: 'Statut',
+                                  isDark: isDark,
+                                  icon: Icons.flag_rounded,
+                                  items: ['Planifié', 'En cours', 'Terminé', 'En retard'].map((s) => DropdownMenuItem(
+                                    value: s,
+                                    child: Text(s, style: const TextStyle(fontSize: 14)),
+                                  )).toList(),
+                                  onChanged: (v) => setState(() => _selectedStatut = v!),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      
+                      const SizedBox(height: 16),
+                      
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildLabel('DÉPLOIEMENT'),
+                                _buildDatePicker('Date début', _dateDebut, isDark, (d) => setState(() => _dateDebut = d)),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildLabel('ÉCHÉANCE'),
+                                _buildDatePicker('Date fin', _dateFin, isDark, (d) => setState(() => _dateFin = d)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 32),
+                      
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              ),
+                              child: Text(
+                                'ANNULER',
+                                style: TextStyle(
+                                  color: isDark ? Colors.white38 : Colors.black38,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.0,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: _isSaving ? null : _save,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [AppTheme.accentGold, Color(0xFF8B6914)],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  borderRadius: BorderRadius.circular(14),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: AppTheme.accentGold.withOpacity(0.2),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 6),
+                                    ),
+                                  ],
+                                ),
+                                child: Center(
+                                  child: _isSaving 
+                                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                    : Text(
+                                        widget.project == null ? 'INITIALISER' : 'METTRE À JOUR',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 1.0,
+                                        ),
+                                      ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          initialValue: _selectedPriorite,
-                          decoration: const InputDecoration(labelText: 'Priority'),
-                          items: ['Faible', 'Moyenne', 'Haute', 'Critique'].map((p) => DropdownMenuItem(
-                            value: p,
-                            child: Text(p),
-                          )).toList(),
-                          onChanged: (v) => setState(() => _selectedPriorite = v!),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          initialValue: _selectedStatut,
-                          decoration: const InputDecoration(labelText: 'Status'),
-                          items: ['Planifié', 'En cours', 'Terminé', 'En retard'].map((s) => DropdownMenuItem(
-                            value: s,
-                            child: Text(s),
-                          )).toList(),
-                          onChanged: (v) => setState(() => _selectedStatut = v!),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildDatePicker('Start Date', _dateDebut, (d) => setState(() => _dateDebut = d)),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _buildDatePicker('End Date', _dateFin, (d) => setState(() => _dateFin = d)),
-                      ),
-                    ],
-                  ),
-                ],
+                ),
               ),
             ),
           ),
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: _isSaving ? null : _save,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.accentGold,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            child: _isSaving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Save'),
-          ),
-        ],
       ),
     );
   }
 
-  Widget _buildDatePicker(String label, DateTime? date, Function(DateTime) onSelect) {
+  Widget _buildLabel(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 8),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1.2,
+          color: Colors.grey,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextField(TextEditingController controller, String hint, bool isDark, IconData icon, String? Function(String?)? validator, {int maxLines = 1, TextInputType keyboardType = TextInputType.text}) {
+    return TextFormField(
+      controller: controller,
+      maxLines: maxLines,
+      keyboardType: keyboardType,
+      validator: validator,
+      style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 13, fontWeight: FontWeight.w500),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(color: isDark ? Colors.white24 : Colors.black26),
+        prefixIcon: Icon(icon, color: AppTheme.accentGold.withOpacity(0.5), size: 16),
+        filled: true,
+        fillColor: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.03),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: AppTheme.accentGold.withOpacity(0.1)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: AppTheme.accentGold.withOpacity(0.1)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: AppTheme.accentGold, width: 1.2),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+    );
+  }
+
+  Widget _buildDropdownField<T>({required T? value, required String hint, required bool isDark, required IconData icon, required List<DropdownMenuItem<T>> items, required Function(T?) onChanged, String? Function(T?)? validator}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.accentGold.withOpacity(0.1)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButtonFormField<T>(
+          isExpanded: true,
+          value: value,
+          dropdownColor: isDark ? const Color(0xFF1A1A1A) : Colors.white,
+          decoration: InputDecoration(
+            border: InputBorder.none,
+            prefixIcon: Icon(icon, color: AppTheme.accentGold.withOpacity(0.5), size: 16),
+            hintText: hint,
+            hintStyle: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 13),
+          ),
+          items: items,
+          onChanged: onChanged,
+          validator: validator,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDatePicker(String label, DateTime? date, bool isDark, Function(DateTime) onSelect) {
     return InkWell(
       onTap: () async {
         final d = await showDatePicker(
@@ -608,12 +816,45 @@ class _AddEditProjectDialogState extends State<AddEditProjectDialog> {
           initialDate: date ?? DateTime.now(),
           firstDate: DateTime(2020),
           lastDate: DateTime(2030),
+          builder: (context, child) {
+            return Theme(
+              data: Theme.of(context).copyWith(
+                colorScheme: ColorScheme.dark(
+                  primary: AppTheme.accentGold,
+                  onPrimary: Colors.black,
+                  surface: isDark ? const Color(0xFF1A1A1A) : Colors.white,
+                  onSurface: isDark ? Colors.white : Colors.black,
+                ),
+              ),
+              child: child!,
+            );
+          },
         );
         if (d != null) onSelect(d);
       },
-      child: InputDecorator(
-        decoration: InputDecoration(labelText: label),
-        child: Text(date == null ? 'Select Date' : DateFormat('dd/MM/yyyy').format(date)),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.03),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppTheme.accentGold.withOpacity(0.1)),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.calendar_month_rounded, color: AppTheme.accentGold.withOpacity(0.5), size: 16),
+            const SizedBox(width: 12),
+            Text(
+              date == null ? 'Choisir date' : DateFormat('dd/MM/yyyy').format(date),
+              style: TextStyle(
+                color: date == null 
+                  ? (isDark ? Colors.white24 : Colors.black26)
+                  : (isDark ? Colors.white : Colors.black87),
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -641,18 +882,27 @@ class _AddEditProjectDialogState extends State<AddEditProjectDialog> {
         : await ProjectService.updateProject(project);
 
     if (mounted) {
-      setState(() => _isSaving = false);
       if (result['success']) {
         widget.onSave();
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result['message'])),
+        LuxuryStatusDialog.show(
+          context,
+          isSuccess: true,
+          title: widget.project == null ? 'Project Initialized' : 'Project Refined',
+          message: result['message'] ?? 'The project timeline has been synchronized with the core engine.',
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result['message'])),
+        setState(() => _isSaving = false);
+        LuxuryStatusDialog.show(
+          context,
+          isSuccess: false,
+          title: 'Planning Fault',
+          message: result['message'] ?? 'Architecture validation failed for the requested project parameters.',
         );
       }
     }
   }
 }
+
+// Keep the rest of the file...
+

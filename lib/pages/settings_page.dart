@@ -182,7 +182,7 @@ class SettingsPage extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 100), // Space for bottom nav or just breathing room
+            const SizedBox(height: 160), // Space for bottom nav or just breathing room
           ],
         ),
       ),

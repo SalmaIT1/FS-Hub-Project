@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
 import '../../../../shared/database/connection.dart';
 import '../models/user_model.dart';
 
@@ -64,16 +66,20 @@ class AuthRepository {
         {'token': token});
   }
 
+
+
   Future<void> addToTokenBlocklist(String token) async {
+    final hash = sha256.convert(utf8.encode(token)).toString();
     await _db.execute(
-        'INSERT IGNORE INTO revoked_tokens (token) VALUES (:token)',
-        {'token': token});
+        'INSERT IGNORE INTO revoked_tokens (token_hash) VALUES (:hash)',
+        {'hash': hash});
   }
 
   Future<bool> isTokenInBlocklist(String token) async {
+    final hash = sha256.convert(utf8.encode(token)).toString();
     final res = await _db.execute(
-        'SELECT 1 FROM revoked_tokens WHERE token = :token',
-        {'token': token});
+        'SELECT 1 FROM revoked_tokens WHERE token_hash = :hash',
+        {'hash': hash});
     return res.rows.isNotEmpty;
   }
 

@@ -200,7 +200,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                         settings: settings,
                       ),
 
-                      const SizedBox(height: 80),
+                      const SizedBox(height: 160),
                     ],
                   ),
                 ),

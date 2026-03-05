@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../domain/entities/chat_entities.dart';
 import '../providers/chat_provider.dart';
 import '../../../../core/state/settings_controller.dart';
+import '../../../../shared/widgets/luxury/luxury_status_dialog.dart';
 
 class GroupCreationPage extends StatefulWidget {
   final ChatController controller;
@@ -77,14 +78,26 @@ class _GroupCreationPageState extends State<GroupCreationPage> {
       );
 
       if (conversation != null) {
-        // Correct order: pop current page, THEN trigger success callback (which pushes thread)
+        if (mounted) {
+          LuxuryStatusDialog.show(
+            context,
+            isSuccess: true,
+            title: 'Neural Link Established',
+            message: 'Group "${_nameController.text}" has been synchronized across all nodes.',
+          );
+        }
         navigator.pop();
         widget.onGroupCreated(conversation);
       }
     } catch (e) {
-      scaffoldMessenger.showSnackBar(
-        SnackBar(content: Text('Error creating group: $e')),
-      );
+      if (mounted) {
+        LuxuryStatusDialog.show(
+          context,
+          isSuccess: false,
+          title: 'Connection Fault',
+          message: e.toString(),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isCreating = false);
     }

@@ -11,6 +11,7 @@ import '../../../shared/widgets/luxury/luxury_app_bar.dart';
 import '../../../shared/widgets/glass_button.dart';
 import '../../departments/services/department_service.dart';
 import '../../../shared/models/department_model.dart';
+import '../../../shared/widgets/luxury/luxury_status_dialog.dart';
 
 class AddEditEmployeePage extends StatefulWidget {
   final Employee? employee;
@@ -202,29 +203,29 @@ class _AddEditEmployeePageState extends State<AddEditEmployeePage> {
 
       if (mounted) {
         if (result['success']) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(result['message']),
-              backgroundColor: const Color(0xFF4CAF50),
-            ),
+          LuxuryStatusDialog.show(
+            context,
+            isSuccess: true,
+            title: _isEditMode ? 'Protocol Updated' : 'Entity Created',
+            message: result['message'] ?? 'Employee record has been synchronized with the central database.',
           );
           Navigator.pop(context, true);
         } else {
-          _showError(result['message']);
+          _showError(result['message'] ?? 'Data integrity breach detected.');
         }
       }
     } catch (e) {
       setState(() => _isLoading = false);
-      _showError('Error: ${e.toString()}');
+      _showError('System Interference: ${e.toString()}');
     }
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: const Color(0xFFEF5350),
-      ),
+    LuxuryStatusDialog.show(
+      context,
+      isSuccess: false,
+      title: 'Execution Error',
+      message: message,
     );
   }
 

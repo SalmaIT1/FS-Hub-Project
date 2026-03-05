@@ -6,6 +6,7 @@ import '../services/client_service.dart';
 import '../../../shared/widgets/luxury/luxury_app_bar.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/state/settings_controller.dart';
+import '../../../shared/widgets/luxury/luxury_status_dialog.dart';
 
 class ClientFormPage extends StatefulWidget {
   final Client? client;
@@ -107,30 +108,32 @@ class _ClientFormPageState extends State<ClientFormPage> with TickerProviderStat
           : await ClientService.updateClient(widget.client!.id!, client);
 
       if (result['success'] && mounted) {
-        Navigator.pop(context, true);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(widget.client == null ? 'Client created successfully' : 'Client updated successfully'),
-            backgroundColor: const Color(0xFF4CAF50),
-          ),
+        LuxuryStatusDialog.show(
+          context,
+          isSuccess: true,
+          title: widget.client == null ? 'Client Onboarded' : 'Entity Synchronized',
+          message: widget.client == null 
+              ? 'External entity "${_nomController.text}" has been registered.' 
+              : 'Client metadata updated successfully.',
         );
+        Navigator.pop(context, true);
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(result['error'] ?? 'An error occurred'),
-              backgroundColor: const Color(0xFFEF5350),
-            ),
+          LuxuryStatusDialog.show(
+            context,
+            isSuccess: false,
+            title: 'Registry Fault',
+            message: result['error'] ?? 'Central node rejected the update request.',
           );
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Network error: $e'),
-            backgroundColor: const Color(0xFFEF5350),
-          ),
+        LuxuryStatusDialog.show(
+          context,
+          isSuccess: false,
+          title: 'Neural Link Failure',
+          message: e.toString(),
         );
       }
     } finally {
@@ -145,74 +148,156 @@ class _ClientFormPageState extends State<ClientFormPage> with TickerProviderStat
     final isEditing = widget.client != null;
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: LuxuryAppBar(
-        title: isEditing ? settings.translate('edit_client') : settings.translate('add_client'),
-        subtitle: isEditing ? 'ID: ${widget.client!.id}' : settings.translate('new_client_subtitle'),
+        title: isEditing ? settings.translate('edit_client').toUpperCase() : settings.translate('add_client').toUpperCase(),
+        subtitle: isEditing ? 'ENTITY SYNC: ${widget.client!.id}' : 'ESTABLISH NEW CONNECTION',
         showBackButton: true,
         onBackPress: () => Navigator.pop(context),
         isPremium: true,
       ),
       body: Container(
+        width: double.infinity,
+        height: double.infinity,
         decoration: BoxDecoration(
-          gradient: RadialGradient(
-            center: const Alignment(-0.8, -0.8),
-            radius: 1.2,
-            colors: isDark 
-                ? [const Color(0xFF0F0F0F), Colors.black]
-                : [const Color(0xFFF8F8F8), const Color(0xFFECECEC)],
-          ),
+          color: isDark ? const Color(0xFF0A0A0A) : const Color(0xFFF4F4F4),
         ),
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator(color: AppTheme.accentGold))
-            : SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Client Type Selection
-                        _buildAnimatedSection(0, _buildTypeSelector(isDark, settings)),
-                        
-                        const SizedBox(height: 20),
-                        
-                        // Basic Information
-                        _buildAnimatedSection(1, _buildBasicInfoSection(isDark, settings)),
-                        
-                        const SizedBox(height: 20),
-                        
-                        // Contact Information
-                        _buildAnimatedSection(2, _buildContactInfoSection(isDark, settings)),
-                        
-                        const SizedBox(height: 20),
-                        
-                        // Credit Score
-                        _buildAnimatedSection(3, _buildCreditScoreSection(isDark, settings)),
-                        
-                        const SizedBox(height: 40),
-                        
-                        // Save Button
-                        _buildAnimatedSection(4, _buildSaveButton(isDark, settings)),
-                        
-                        const SizedBox(height: 100),
-                      ],
-                    ),
+        child: Stack(
+          children: [
+            // Subtle ambient glows
+            if (isDark) ...[
+              Positioned(
+                top: -100,
+                right: -100,
+                child: Container(
+                  width: 300,
+                  height: 300,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppTheme.accentGold.withOpacity(0.05),
                   ),
+                  child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 100, sigmaY: 100), child: Container()),
                 ),
               ),
+            ],
+            
+            _isLoading
+                ? const Center(child: CircularProgressIndicator(color: AppTheme.accentGold))
+                : SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 120, 20, 100),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Header badge
+                            _buildAnimatedSection(0, Center(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.accentGold.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(100),
+                                  border: Border.all(color: AppTheme.accentGold.withOpacity(0.2)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.verified_user_rounded, color: AppTheme.accentGold, size: 14),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      isEditing ? 'MODIFYING SECURE RECORD' : 'SECURE ONBOARDING',
+                                      style: const TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 1.5,
+                                        color: AppTheme.accentGold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )),
+                            
+                            const SizedBox(height: 32),
+                            
+                            // Client Type Selection
+                            _buildLabel('ENTITY CLASSIFICATION'),
+                            _buildAnimatedSection(1, _buildTypeSelector(isDark, settings)),
+                            
+                            const SizedBox(height: 24),
+                            
+                            // Basic Information
+                            _buildLabel('IDENTITY PARAMETERS'),
+                            _staggeredInput(2, _nomController, settings.translate('nom'), Icons.person_rounded, isDark, (v) => v?.isEmpty ?? true ? settings.translate('required_field') : null),
+                            const SizedBox(height: 12),
+                            _staggeredInput(3, _prenomController, settings.translate('prenom'), Icons.person_outline_rounded, isDark, (v) => v?.isEmpty ?? true ? settings.translate('required_field') : null),
+                            
+                            if (_selectedType == ClientType.entreprise) ...[
+                              const SizedBox(height: 12),
+                              _staggeredInput(4, _raisonSocialeController, settings.translate('raison_sociale'), Icons.business_rounded, isDark, null),
+                            ],
+                            
+                            const SizedBox(height: 24),
+                            
+                            // Contact Information
+                            _buildLabel('COMMUNICATION CHANNELS'),
+                            _staggeredInput(5, _emailController, settings.translate('email'), Icons.email_rounded, isDark, (v) => v != null && v.isNotEmpty && !v.contains('@') ? settings.translate('invalid_email') : null, keyboardType: TextInputType.emailAddress),
+                            const SizedBox(height: 12),
+                            _staggeredInput(6, _telephoneController, settings.translate('telephone'), Icons.phone_rounded, isDark, null, keyboardType: TextInputType.phone),
+                            
+                            const SizedBox(height: 48),
+                            
+                            // Save Button
+                            _buildAnimatedSection(7, _buildSaveButton(isDark, settings)),
+                            
+                            const SizedBox(height: 40),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+          ],
+        ),
       ),
     );
   }
 
+  Widget _buildLabel(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 8, bottom: 12),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1.2,
+          color: Colors.grey,
+        ),
+      ),
+    );
+  }
+
+  Widget _staggeredInput(int index, TextEditingController controller, String label, IconData icon, bool isDark, String? Function(String?)? validator, {TextInputType keyboardType = TextInputType.text}) {
+    return _buildAnimatedSection(index, TextFormField(
+      controller: controller,
+      keyboardType: keyboardType,
+      validator: validator,
+      style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 14, fontWeight: FontWeight.w500),
+      decoration: _buildInputDecoration(label, icon, isDark),
+    ));
+  }
+
   Widget _buildAnimatedSection(int index, Widget child) {
+    // Reusing the index-based animation logic
+    final animIndex = index < _staggeredAnimations.length ? index : _staggeredAnimations.length - 1;
     return AnimatedBuilder(
-      animation: _staggeredAnimations[index],
+      animation: _staggeredAnimations[animIndex],
       builder: (context, child) => Opacity(
-        opacity: _staggeredAnimations[index].value,
+        opacity: _staggeredAnimations[animIndex].value,
         child: Transform.translate(
-          offset: Offset(0, 20 * (1 - _staggeredAnimations[index].value)),
+          offset: Offset(0, 15 * (1 - _staggeredAnimations[animIndex].value)),
           child: child,
         ),
       ),
@@ -220,257 +305,57 @@ class _ClientFormPageState extends State<ClientFormPage> with TickerProviderStat
     );
   }
 
-  Widget _buildGlassContainer({required Widget child, required bool isDark}) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: isDark ? Colors.white.withOpacity(0.05) : Colors.white.withOpacity(0.7),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05)),
-          ),
-          child: child,
-        ),
-      ),
+  Widget _buildTypeSelector(bool isDark, SettingsController settings) {
+    return Row(
+      children: [
+        _buildTypeCard(ClientType.particulier, Icons.person_rounded, settings.translate('particulier'), isDark),
+        const SizedBox(width: 12),
+        _buildTypeCard(ClientType.entreprise, Icons.business_rounded, settings.translate('entreprise'), isDark),
+      ],
     );
   }
 
-  Widget _buildTypeSelector(bool isDark, SettingsController settings) {
-    return _buildGlassContainer(
-      isDark: isDark,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            settings.translate('client_type'),
-            style: TextStyle(
-              color: isDark ? Colors.white : Colors.black,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+  Widget _buildTypeCard(ClientType type, IconData icon, String label, bool isDark) {
+    final isSelected = _selectedType == type;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _selectedType = type),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          decoration: BoxDecoration(
+            color: isSelected 
+                ? AppTheme.accentGold.withOpacity(0.08)
+                : (isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.02)),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isSelected ? AppTheme.accentGold : Colors.transparent,
+              width: 1.5,
             ),
+            boxShadow: isSelected ? [
+              BoxShadow(color: AppTheme.accentGold.withOpacity(0.1), blurRadius: 10)
+            ] : null,
           ),
-          const SizedBox(height: 16),
-          Row(
+          child: Column(
             children: [
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => setState(() => _selectedType = ClientType.particulier),
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: _selectedType == ClientType.particulier
-                          ? AppTheme.accentGold.withOpacity(0.2)
-                          : isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: _selectedType == ClientType.particulier
-                            ? AppTheme.accentGold
-                            : isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05),
-                      ),
-                    ),
-                    child: Column(
-                      children: [
-                        Icon(
-                          Icons.person_rounded,
-                          color: _selectedType == ClientType.particulier ? AppTheme.accentGold : Colors.grey,
-                          size: 32,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          settings.translate('particulier'),
-                          style: TextStyle(
-                            color: _selectedType == ClientType.particulier ? AppTheme.accentGold : Colors.grey,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+              Icon(
+                icon,
+                color: isSelected ? AppTheme.accentGold : Colors.grey,
+                size: 24,
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => setState(() => _selectedType = ClientType.entreprise),
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: _selectedType == ClientType.entreprise
-                          ? AppTheme.accentGold.withOpacity(0.2)
-                          : isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: _selectedType == ClientType.entreprise
-                            ? AppTheme.accentGold
-                            : isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05),
-                      ),
-                    ),
-                    child: Column(
-                      children: [
-                        Icon(
-                          Icons.business_rounded,
-                          color: _selectedType == ClientType.entreprise ? AppTheme.accentGold : Colors.grey,
-                          size: 32,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          settings.translate('entreprise'),
-                          style: TextStyle(
-                            color: _selectedType == ClientType.entreprise ? AppTheme.accentGold : Colors.grey,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isSelected ? AppTheme.accentGold : Colors.grey,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.5,
                 ),
               ),
             ],
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBasicInfoSection(bool isDark, SettingsController settings) {
-    return _buildGlassContainer(
-      isDark: isDark,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            settings.translate('basic_info'),
-            style: TextStyle(
-              color: isDark ? Colors.white : Colors.black,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 16),
-          
-          // Nom
-          TextFormField(
-            controller: _nomController,
-            decoration: _buildInputDecoration(settings.translate('nom'), Icons.person_rounded, isDark),
-            validator: (value) {
-              if (value == null || value.trim().isEmpty) {
-                return settings.translate('required_field');
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 16),
-          
-          // Prénom
-          TextFormField(
-            controller: _prenomController,
-            decoration: _buildInputDecoration(settings.translate('prenom'), Icons.person_outline_rounded, isDark),
-            validator: (value) {
-              if (value == null || value.trim().isEmpty) {
-                return settings.translate('required_field');
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 16),
-          
-          // Raison Sociale (only for entreprise)
-          if (_selectedType == ClientType.entreprise)
-            TextFormField(
-              controller: _raisonSocialeController,
-              decoration: _buildInputDecoration(settings.translate('raison_sociale'), Icons.business_rounded, isDark),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildContactInfoSection(bool isDark, SettingsController settings) {
-    return _buildGlassContainer(
-      isDark: isDark,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            settings.translate('contact_info'),
-            style: TextStyle(
-              color: isDark ? Colors.white : Colors.black,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 16),
-          
-          // Email
-          TextFormField(
-            controller: _emailController,
-            decoration: _buildInputDecoration(settings.translate('email'), Icons.email_rounded, isDark),
-            keyboardType: TextInputType.emailAddress,
-            validator: (value) {
-              if (value != null && value.isNotEmpty && !value.contains('@')) {
-                return settings.translate('invalid_email');
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 16),
-          
-          // Téléphone
-          TextFormField(
-            controller: _telephoneController,
-            decoration: _buildInputDecoration(settings.translate('telephone'), Icons.phone_rounded, isDark),
-            keyboardType: TextInputType.phone,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCreditScoreSection(bool isDark, SettingsController settings) {
-    return _buildGlassContainer(
-      isDark: isDark,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            settings.translate('credit_score'),
-            style: TextStyle(
-              color: isDark ? Colors.white : Colors.black,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Calculated automatically based on project payments',
-            style: TextStyle(
-              color: isDark ? Colors.grey[400] : Colors.grey[600],
-              fontSize: 12,
-              fontStyle: FontStyle.italic,
-            ),
-          ),
-          const SizedBox(height: 16),
-          
-          TextFormField(
-            controller: _scoreCreditController,
-            decoration: _buildInputDecoration('Credit Score', Icons.score_rounded, isDark).copyWith(
-              suffixText: 'Auto-calculated',
-              suffixStyle: TextStyle(
-                color: isDark ? Colors.grey[400] : Colors.grey[600],
-                fontSize: 12,
-              ),
-            ),
-            keyboardType: TextInputType.number,
-            readOnly: true,
-            enabled: false,
-            style: TextStyle(
-              color: isDark ? Colors.grey[400] : Colors.grey[600],
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -478,45 +363,56 @@ class _ClientFormPageState extends State<ClientFormPage> with TickerProviderStat
   InputDecoration _buildInputDecoration(String label, IconData icon, bool isDark) {
     return InputDecoration(
       labelText: label,
-      prefixIcon: Icon(icon, color: AppTheme.accentGold.withOpacity(0.7)),
+      labelStyle: const TextStyle(fontSize: 13),
+      prefixIcon: Icon(icon, color: AppTheme.accentGold.withOpacity(0.5), size: 18),
       filled: true,
-      fillColor: isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.03),
+      fillColor: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.03),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide(color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05)),
+        borderSide: BorderSide(color: AppTheme.accentGold.withOpacity(0.05)),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide(color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05)),
+        borderSide: BorderSide(color: AppTheme.accentGold.withOpacity(0.05)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: AppTheme.accentGold),
+        borderSide: const BorderSide(color: AppTheme.accentGold, width: 1.2),
       ),
-      labelStyle: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
     );
   }
 
   Widget _buildSaveButton(bool isDark, SettingsController settings) {
-    return SizedBox(
-      width: double.infinity,
-      height: 54,
+    return GestureDetector(
+      onTap: _saveClient,
       child: Container(
+        width: double.infinity,
+        height: 56,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
-          gradient: const LinearGradient(colors: [AppTheme.accentGold, Color(0xFF8B6914)]),
-          boxShadow: [BoxShadow(color: AppTheme.accentGold.withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 8))],
-        ),
-        child: ElevatedButton(
-          onPressed: _saveClient,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.transparent,
-            shadowColor: Colors.transparent,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          gradient: const LinearGradient(
+            colors: [AppTheme.accentGold, Color(0xFF8B6914)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.accentGold.withOpacity(0.2),
+              blurRadius: 15,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Center(
           child: Text(
-            widget.client == null ? settings.translate('create_client') : settings.translate('update_client'),
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+            (widget.client == null ? settings.translate('create_client') : settings.translate('update_client')).toUpperCase(),
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w900,
+              fontSize: 14,
+              letterSpacing: 2.0,
+            ),
           ),
         ),
       ),

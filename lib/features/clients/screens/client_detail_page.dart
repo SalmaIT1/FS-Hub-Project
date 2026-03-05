@@ -6,6 +6,7 @@ import '../services/client_service.dart';
 import '../../../shared/widgets/luxury/luxury_app_bar.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/state/settings_controller.dart';
+import '../../../shared/widgets/luxury/luxury_status_dialog.dart';
 import 'client_form_page.dart';
 
 class ClientDetailPage extends StatefulWidget {
@@ -87,21 +88,21 @@ class _ClientDetailPageState extends State<ClientDetailPage> with TickerProvider
           _isLoading = false;
         });
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Credit score updated successfully'),
-            backgroundColor: Color(0xFF4CAF50),
-          ),
+        LuxuryStatusDialog.show(
+          context,
+          isSuccess: true,
+          title: 'Metrical Adjustment',
+          message: 'Client credit score has been recalculated and synchronized.',
         );
       }
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to update score: $e'),
-            backgroundColor: const Color(0xFFEF5350),
-          ),
+        LuxuryStatusDialog.show(
+          context,
+          isSuccess: false,
+          title: 'Sync Fault',
+          message: 'Failed to update credit metric: $e',
         );
       }
     }
@@ -135,22 +136,22 @@ class _ClientDetailPageState extends State<ClientDetailPage> with TickerProvider
       final result = await ClientService.deleteClient(_client.id!);
 
       if (result['success'] && mounted) {
-        Navigator.pop(context, true);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Client deleted successfully'),
-            backgroundColor: Color(0xFF4CAF50),
-          ),
+        LuxuryStatusDialog.show(
+          context,
+          isSuccess: true,
+          title: 'Entity Purged',
+          message: 'Target client record has been wiped from the central registry.',
         );
+        Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to delete client: $e'),
-            backgroundColor: const Color(0xFFEF5350),
-          ),
+        LuxuryStatusDialog.show(
+          context,
+          isSuccess: false,
+          title: 'Purge Error',
+          message: 'Registry integrity check failed during removal: $e',
         );
       }
     }

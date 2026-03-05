@@ -1,4 +1,4 @@
-import '../../presentation/websocket/websocket_server.dart';
+import '../../../chat/presentation/websocket/websocket_server.dart';
 import '../../data/repositories/notification_repository.dart';
 
 class NotificationService {
