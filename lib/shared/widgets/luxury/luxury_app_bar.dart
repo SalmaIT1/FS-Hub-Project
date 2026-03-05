@@ -9,7 +9,6 @@ import '../../../features/chat/presentation/providers/chat_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/state/settings_controller.dart';
 import '../../../features/chat/presentation/widgets/avatar_helper.dart';
-import '../notification_badge.dart';
 
 class LuxuryAppBar extends StatefulWidget implements PreferredSizeWidget {
   final String title;
@@ -505,58 +504,15 @@ class _LuxuryAppBarState extends State<LuxuryAppBar> with TickerProviderStateMix
   }
 
   List<Widget> _buildPremiumControls(BuildContext context, bool isDark) {
-    final settings = context.watch<SettingsController>();
-    
-    // Create user menu dropdown with theme toggle, settings, logout
-    final userMenu = PopupMenuButton<String>(
-      icon: Icon(Icons.person_outline, color: isDark ? const Color(0xFFC9A24D) : const Color(0xFF0A0A0A)),
-      itemBuilder: (BuildContext context) => [
-        PopupMenuItem(
-          value: 'theme',
-          child: ListTile(
-            leading: const Icon(Icons.wb_sunny_outlined),
-            title: Text(settings.languageCode == 'fr' ? 'Changer de thème' : 'Toggle Theme'),
-          ),
-        ),
-        PopupMenuItem(
-          value: 'settings',
-          child: ListTile(
-            leading: const Icon(Icons.settings_outlined),
-            title: Text(settings.translate('settings')),
-          ),
-        ),
-        PopupMenuItem(
-          value: 'logout',
-          child: ListTile(
-            leading: const Icon(Icons.power_settings_new_outlined),
-            title: Text(settings.translate('logout')),
-          ),
-        ),
-      ],
-      onSelected: (String value) async {
-        if (value == 'theme') {
-          await AppTheme.toggleTheme();
-        } else if (value == 'settings') {
-          Navigator.pushNamed(context, '/settings');
-        } else if (value == 'logout') {
-          // Disconnect chat first to ensure online status is updated immediately
-          try {
-            await context.read<ChatController>().logout();
-          } catch (e) {
-            print('Error during chat logout: $e');
-          }
-          await AuthService.logout();
-          if (context.mounted) Navigator.pushReplacementNamed(context, '/login');
-        }
-      },
-    );
-
     List<Widget> controls = [];
     
-    // Always add notification badge
-    controls.add(NotificationBadge(
+    // Always add notification badge – now opens a dropdown instead of navigating
+    controls.add(_NotificationDropdownButton(
       notificationCount: _notificationCount,
-      onTap: () => Navigator.pushNamed(context, '/notifications'),
+      isDark: isDark,
+      onCountChanged: (count) {
+        if (mounted) setState(() => _notificationCount = count);
+      },
     ));
     controls.add(const SizedBox(width: 4)); // Reduced spacing
     
@@ -576,11 +532,7 @@ class _LuxuryAppBarState extends State<LuxuryAppBar> with TickerProviderStateMix
       }
     }
 
-    controls.add(SizedBox(
-      width: 48,
-      height: 48,
-      child: userMenu,
-    ));
+    controls.add(_UserMenuDropdownButton(isDark: isDark, appBarContext: context));
 
     return controls;
   }
@@ -623,6 +575,398 @@ class _LuxuryAppBarState extends State<LuxuryAppBar> with TickerProviderStateMix
         }
         return action;
       }).toList(),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// NOTIFICATION DROPDOWN BUTTON
+// ══════════════════════════════════════════════════════════════
+class _NotificationDropdownButton extends StatefulWidget {
+  final int notificationCount;
+  final bool isDark;
+  final ValueChanged<int> onCountChanged;
+
+  const _NotificationDropdownButton({
+    required this.notificationCount,
+    required this.isDark,
+    required this.onCountChanged,
+  });
+
+  @override
+  State<_NotificationDropdownButton> createState() => _NotificationDropdownButtonState();
+}
+
+class _NotificationDropdownButtonState extends State<_NotificationDropdownButton> {
+  OverlayEntry? _overlayEntry;
+  final GlobalKey _buttonKey = GlobalKey();
+  List<dynamic> _notifications = [];
+  bool _loading = false;
+  String? _currentUserId;
+
+  Future<void> _loadNotifications() async {
+    if (_loading) return;
+    setState(() => _loading = true);
+    try {
+      final user = await AuthService.getCurrentUser();
+      if (user != null) {
+        _currentUserId = user['id'].toString();
+        final result = await NotificationService.getUserNotifications(_currentUserId!);
+        if (result['success']) {
+          _notifications = (result['data'] as List).take(5).toList();
+        }
+      }
+    } catch (_) {}
+    setState(() => _loading = false);
+  }
+
+  void _showDropdown() async {
+    await _loadNotifications();
+    if (!mounted) return;
+
+    final renderBox = _buttonKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
+    final offset = renderBox.localToGlobal(Offset.zero);
+    final size = renderBox.size;
+
+    _overlayEntry = OverlayEntry(
+      builder: (ctx) => _NotificationDropdownOverlay(
+        position: Offset(offset.dx, offset.dy + size.height + 8),
+        notifications: _notifications,
+        isDark: widget.isDark,
+        currentUserId: _currentUserId,
+        onDismiss: _removeDropdown,
+        onMarkRead: (notif) async {
+          if (_currentUserId != null) {
+            await NotificationService.markAsRead(notif.id, _currentUserId!);
+            await _loadNotifications();
+            final unread = _notifications.where((n) => n.isRead == false).length;
+            widget.onCountChanged(unread);
+            _removeDropdown();
+            _showDropdown();
+          }
+        },
+        onShowAll: () {
+          _removeDropdown();
+          Navigator.pushNamed(ctx, '/notifications');
+        },
+      ),
+    );
+    Overlay.of(context).insert(_overlayEntry!);
+  }
+
+  void _removeDropdown() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+  }
+
+  void _toggleDropdown() {
+    if (_overlayEntry != null) {
+      _removeDropdown();
+    } else {
+      _showDropdown();
+    }
+  }
+
+  @override
+  void dispose() {
+    _removeDropdown();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      key: _buttonKey,
+      onTap: _toggleDropdown,
+      child: Container(
+        width: 48,
+        height: 48,
+        color: Colors.transparent,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Icon(
+              Icons.notifications_outlined,
+              size: 20,
+              color: widget.isDark
+                  ? const Color(0xFFC9A24D)
+                  : const Color(0xFF0A0A0A),
+            ),
+            if (widget.notificationCount > 0)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFC9A24D),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NotificationDropdownOverlay extends StatelessWidget {
+  final Offset position;
+  final List<dynamic> notifications;
+  final bool isDark;
+  final String? currentUserId;
+  final VoidCallback onDismiss;
+  final Function(dynamic) onMarkRead;
+  final VoidCallback onShowAll;
+
+  const _NotificationDropdownOverlay({
+    required this.position,
+    required this.notifications,
+    required this.isDark,
+    required this.currentUserId,
+    required this.onDismiss,
+    required this.onMarkRead,
+    required this.onShowAll,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    const dropWidth = 340.0;
+    final left = (position.dx + dropWidth > screenWidth - 12)
+        ? screenWidth - dropWidth - 12
+        : position.dx;
+
+    return Stack(
+      children: [
+        // Dismiss tap area
+        Positioned.fill(
+          child: GestureDetector(
+            onTap: onDismiss,
+            behavior: HitTestBehavior.opaque,
+            child: Container(color: Colors.transparent),
+          ),
+        ),
+        // Dropdown panel
+        Positioned(
+          top: position.dy,
+          left: left,
+          width: dropWidth,
+          child: Material(
+            color: Colors.transparent,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF111111).withOpacity(0.97) : const Color(0xFFF5F0E8).withOpacity(0.98),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: const Color(0xFFC9A24D).withOpacity(isDark ? 0.25 : 0.30),
+                      width: 1.0,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(isDark ? 0.5 : 0.15),
+                        blurRadius: 40,
+                        offset: const Offset(0, 16),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.notifications_outlined,
+                              size: 16,
+                              color: const Color(0xFFC9A24D),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'NOTIFICATIONS',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 2.5,
+                                color: isDark ? Colors.white60 : Colors.black54,
+                              ),
+                            ),
+                            const Spacer(),
+                            if (notifications.any((n) => n.isRead == false))
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFC9A24D).withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(100),
+                                  border: Border.all(color: const Color(0xFFC9A24D).withOpacity(0.4)),
+                                ),
+                                child: Text(
+                                  '${notifications.where((n) => n.isRead == false).length} new',
+                                  style: const TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFFC9A24D),
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      // Gold divider
+                      Container(
+                        height: 0.5,
+                        color: const Color(0xFFC9A24D).withOpacity(0.2),
+                      ),
+                      // Notification list
+                      if (notifications.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
+                          child: Center(
+                            child: Text(
+                              'No notifications',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: isDark ? Colors.white38 : Colors.black38,
+                              ),
+                            ),
+                          ),
+                        )
+                      else
+                        ...notifications.map((notif) {
+                          final unread = notif.isRead == false;
+                          return GestureDetector(
+                            onTap: unread ? () => onMarkRead(notif) : null,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                              decoration: BoxDecoration(
+                                color: unread
+                                    ? const Color(0xFFC9A24D).withOpacity(isDark ? 0.06 : 0.08)
+                                    : Colors.transparent,
+                                border: Border(
+                                  bottom: BorderSide(
+                                    color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05),
+                                  ),
+                                ),
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Unread dot
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 6, right: 12),
+                                    child: Container(
+                                      width: 6,
+                                      height: 6,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: unread
+                                            ? const Color(0xFFC9A24D)
+                                            : Colors.transparent,
+                                      ),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          notif.title,
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: unread ? FontWeight.w600 : FontWeight.w400,
+                                            color: isDark ? Colors.white : Colors.black87,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 3),
+                                        Text(
+                                          notif.message,
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: isDark ? Colors.white54 : Colors.black54,
+                                            height: 1.4,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        if (notif.timestamp.isNotEmpty) ...[
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            notif.timestamp,
+                                            style: TextStyle(
+                                              fontSize: 9,
+                                              letterSpacing: 0.5,
+                                              color: isDark ? Colors.white30 : Colors.black38,
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                  if (unread)
+                                    Padding(
+                                      padding: const EdgeInsets.only(left: 8, top: 2),
+                                      child: Icon(
+                                        Icons.check_circle_outline,
+                                        size: 14,
+                                        color: const Color(0xFFC9A24D).withOpacity(0.6),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }),
+                      // Footer: Show all
+                      GestureDetector(
+                        onTap: onShowAll,
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFC9A24D).withOpacity(isDark ? 0.08 : 0.06),
+                            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
+                          ),
+                          child: Center(
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'SHOW ALL',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 2.0,
+                                    color: const Color(0xFFC9A24D),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                const Icon(Icons.arrow_forward, size: 12, color: Color(0xFFC9A24D)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -876,6 +1220,261 @@ class LuxuryScaffold extends StatelessWidget {
       ),
       body: body,
       bottomNavigationBar: bottomNavigationBar,
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// USER MENU DROPDOWN BUTTON
+// ══════════════════════════════════════════════════════════════
+class _UserMenuDropdownButton extends StatefulWidget {
+  final bool isDark;
+  final BuildContext appBarContext;
+
+  const _UserMenuDropdownButton({required this.isDark, required this.appBarContext});
+
+  @override
+  State<_UserMenuDropdownButton> createState() => _UserMenuDropdownButtonState();
+}
+
+class _UserMenuDropdownButtonState extends State<_UserMenuDropdownButton> {
+  OverlayEntry? _overlayEntry;
+  final GlobalKey _buttonKey = GlobalKey();
+
+  void _showDropdown() {
+    if (!mounted) return;
+
+    final renderBox = _buttonKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
+    final offset = renderBox.localToGlobal(Offset.zero);
+    final size = renderBox.size;
+
+    _overlayEntry = OverlayEntry(
+      builder: (ctx) => _UserMenuDropdownOverlay(
+        position: Offset(offset.dx, offset.dy + size.height + 8),
+        isDark: widget.isDark,
+        onDismiss: _removeDropdown,
+        appBarContext: widget.appBarContext,
+      ),
+    );
+    Overlay.of(context).insert(_overlayEntry!);
+  }
+
+  void _removeDropdown() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+  }
+
+  void _toggleDropdown() {
+    if (_overlayEntry != null) {
+      _removeDropdown();
+    } else {
+      _showDropdown();
+    }
+  }
+
+  @override
+  void dispose() {
+    _removeDropdown();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      key: _buttonKey,
+      onTap: _toggleDropdown,
+      child: Container(
+        width: 48,
+        height: 48,
+        color: Colors.transparent,
+        child: Icon(
+          Icons.menu_rounded,
+          size: 20,
+          color: widget.isDark
+              ? const Color(0xFFC9A24D)
+              : const Color(0xFF0A0A0A),
+        ),
+      ),
+    );
+  }
+}
+
+class _UserMenuDropdownOverlay extends StatelessWidget {
+  final Offset position;
+  final bool isDark;
+  final VoidCallback onDismiss;
+  final BuildContext appBarContext;
+
+  const _UserMenuDropdownOverlay({
+    required this.position,
+    required this.isDark,
+    required this.onDismiss,
+    required this.appBarContext,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = appBarContext.read<SettingsController>();
+
+    final screenWidth = MediaQuery.of(context).size.width;
+    const dropWidth = 240.0;
+    final left = (position.dx + dropWidth > screenWidth - 12)
+        ? screenWidth - dropWidth - 12
+        : position.dx;
+
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: GestureDetector(
+            onTap: onDismiss,
+            behavior: HitTestBehavior.opaque,
+            child: Container(color: Colors.transparent),
+          ),
+        ),
+        Positioned(
+          top: position.dy,
+          left: left,
+          width: dropWidth,
+          child: Material(
+            color: Colors.transparent,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF111111).withOpacity(0.97) : const Color(0xFFF5F0E8).withOpacity(0.98),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: const Color(0xFFC9A24D).withOpacity(isDark ? 0.25 : 0.30),
+                      width: 1.0,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(isDark ? 0.5 : 0.15),
+                        blurRadius: 40,
+                        offset: const Offset(0, 16),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.menu_rounded,
+                              size: 16,
+                              color: const Color(0xFFC9A24D),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              settings.languageCode == 'fr' ? 'PRÉFÉRENCES' : 'PREFERENCES',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 2.0,
+                                color: isDark ? Colors.white60 : Colors.black54,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        height: 0.5,
+                        color: const Color(0xFFC9A24D).withOpacity(0.2),
+                      ),
+                      const SizedBox(height: 8),
+                      // Theme Toggle
+                      _buildMenuItem(
+                        isDark: isDark,
+                        icon: Icons.wb_sunny_outlined,
+                        label: settings.languageCode == 'fr' ? 'Changer de thème' : 'Toggle Theme',
+                        onTap: () async {
+                          onDismiss();
+                          await AppTheme.toggleTheme();
+                        },
+                      ),
+                      // Settings
+                      _buildMenuItem(
+                        isDark: isDark,
+                        icon: Icons.settings_outlined,
+                        label: settings.translate('settings'),
+                        onTap: () {
+                          onDismiss();
+                          Navigator.pushNamed(appBarContext, '/settings');
+                        },
+                      ),
+                      // Logout
+                      _buildMenuItem(
+                        isDark: isDark,
+                        icon: Icons.power_settings_new_outlined,
+                        label: settings.translate('logout'),
+                        isDestructive: true,
+                        onTap: () async {
+                          onDismiss();
+                          try {
+                            await appBarContext.read<ChatController>().logout();
+                          } catch (e) {
+                            print('Error during chat logout: $e');
+                          }
+                          await AuthService.logout();
+                          if (appBarContext.mounted) {
+                            Navigator.pushReplacementNamed(appBarContext, '/login');
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMenuItem({
+    required bool isDark,
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool isDestructive = false,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color: isDestructive 
+                  ? Colors.red[400] 
+                  : (isDark ? Colors.white70 : Colors.black87),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: isDestructive
+                    ? Colors.red[400]
+                    : (isDark ? Colors.white : Colors.black87),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -36,10 +36,24 @@ class AuthService {
   // Stores tokens that have been explicitly logged out before their expiry.
   // Cleared on server restart — acceptable for dev/MVP. For production,
   // replace with a Redis-backed store.
-  static final Set<String> _revokedTokens = {};
+  // No longer needed: replace with persistent DB store
+  // static final Set<String> _revokedTokens = {};
 
-  static void revokeAccessToken(String token) => _revokedTokens.add(token);
-  static bool isTokenRevoked(String token) => _revokedTokens.contains(token);
+  static void revokeAccessToken(String token) async {
+    try {
+      await _repository.addToTokenBlocklist(token);
+    } catch (e) {
+      print('Failed to persist token revocation: $e');
+    }
+  }
+
+  static Future<bool> isTokenRevoked(String token) async {
+    try {
+       return await _repository.isTokenInBlocklist(token);
+    } catch (e) {
+      return false;
+    }
+  }
 
   // ── WS Ticket store (short-lived one-time tickets) ───────────────────────
   static final Map<String, _WsTicket> _wsTickets = {};
@@ -246,6 +260,56 @@ class AuthService {
     } catch (e) {
       print('Get profile error: $e');
       return {'success': false, 'message': 'Failed to get profile'};
+    }
+  }
+
+  // ── Change Password ───────────────────────────────────────────────────────
+  static Future<Map<String, dynamic>> changePassword(String userId, String oldPassword, String newPassword) async {
+    try {
+      final storedHash = await _repository.getPasswordHash(userId);
+      if (storedHash == null) {
+        return {'success': false, 'message': 'User not found'};
+      }
+
+      bool isValid = false;
+      if (storedHash.startsWith(r'$2')) {
+        isValid = BCrypt.checkpw(oldPassword, storedHash);
+      }
+
+      if (!isValid) {
+        return {'success': false, 'message': 'Incorrect current password'};
+      }
+
+      final newHash = BCrypt.hashpw(newPassword, BCrypt.gensalt());
+      await _repository.updatePassword(userId, newHash);
+      return {'success': true, 'message': 'Password updated successfully'};
+    } catch (e) {
+      print('Change password error: $e');
+      return {'success': false, 'message': 'Failed to update password'};
+    }
+  }
+
+  // ── User Settings ────────────────────────────────────────────────────────
+  static Future<Map<String, dynamic>> getUserSettings(String userId) async {
+    try {
+      final settings = await _repository.getUserSettings(userId);
+      if (settings == null) {
+        return {'success': false, 'message': 'Settings not found'};
+      }
+      return {'success': true, 'data': settings};
+    } catch (e) {
+      print('Get settings error: $e');
+      return {'success': false, 'message': 'Failed to get settings'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> updateUserSettings(String userId, Map<String, dynamic> settings) async {
+    try {
+      await _repository.updateUserSettings(userId, settings);
+      return {'success': true, 'message': 'Settings updated successfully'};
+    } catch (e) {
+      print('Update settings error: $e');
+      return {'success': false, 'message': 'Failed to update settings'};
     }
   }
 

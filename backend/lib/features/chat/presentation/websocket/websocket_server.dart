@@ -160,42 +160,70 @@ class WebSocketServer {
     }
   }
 
-  void _handleMessage(String connectionId, String userId, dynamic message) {
+  void _handleMessage(String connectionId, String userId, String message) {
     try {
-      final data = jsonDecode(message as String);
+      final json = jsonDecode(message);
+      final String type = json['type'] ?? '';
       
-      switch (data['type']) {
+      // Robust payload extraction: check both root level and nested 'data' object
+      final Map<String, dynamic> payload = json['data'] is Map ? Map<String, dynamic>.from(json['data']) : {};
+      
+      // Merge root properties into payload for better backward/cross compatibility
+      json.forEach((key, value) {
+        if (key != 'type' && key != 'data') {
+          payload[key] = value;
+        }
+      });
+      
+      switch (type) {
         case 'ping':
           _handlePing(connectionId, userId);
           break;
         
         case 'join':
         case 'join_conversation':
-          _handleJoinConversation(connectionId, userId, data['data'] ?? {});
+          _handleJoinConversation(connectionId, userId, payload);
           break;
           
         case 'message':
-            _handleChatMessage(connectionId, userId, data['data']);
+            _handleChatMessage(connectionId, userId, payload);
           break;
           
         case 'typing':
-          _handleTyping(connectionId, userId, data['data']);
+          _handleTyping(connectionId, userId, payload);
           break;
           
         case 'presence':
-          _handlePresence(connectionId, userId, data['data']);
+          _handlePresence(connectionId, userId, payload);
           break;
           
         case 'file_upload_start':
-          _handleFileUpload(connectionId, userId, data['data']);
+          _handleFileUpload(connectionId, userId, payload);
           break;
           
         default:
-          print('[WS-MESSAGE] Unknown message type: ${data['type']}');
+          print('[WS-MESSAGE] Unknown message type: $type');
       }
     } catch (e) {
       print('[WS-MESSAGE-ERROR] Error handling WebSocket message: $e');
       _sendError(connectionId, 'Failed to process message: $e');
+    }
+  }
+
+  /// Broadcasts a notification to a specific user
+  static void broadcastNotification(String userId, Map<String, dynamic> notification) {
+    final instance = _instance;
+    if (instance == null) return;
+    
+    final connections = instance._userToConnections[userId];
+    if (connections != null) {
+      for (final connId in connections) {
+        instance._sendToConnection(connId, {
+          'type': 'notification',
+          'payload': notification,
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+        });
+      }
     }
   }
 

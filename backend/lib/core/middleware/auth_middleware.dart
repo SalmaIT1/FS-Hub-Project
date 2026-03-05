@@ -39,7 +39,7 @@ Middleware requireAuth() {
       }
 
       // Check if token has been invalidated (logged out).
-      if (AuthService.isTokenRevoked(token)) {
+      if (await AuthService.isTokenRevoked(token)) {
         print('[AUTH] 401 revoked token for ${request.method} ${request.requestedUri.path}');
         return Response(
           401,

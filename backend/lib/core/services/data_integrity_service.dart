@@ -21,8 +21,6 @@ class DataIntegrityService {
   /// Deletes upload records and files that were never completed
   static Future<void> _cleanupExpiredUploads() async {
     try {
-      // Logic from audit report: delete if expired_at is in the past and not completed
-      // For this MVP, we just log it or do a simple DB cleanup
       await _db.execute(
         "DELETE FROM file_uploads WHERE is_completed = FALSE AND expires_at < NOW()"
       );
@@ -34,25 +32,24 @@ class DataIntegrityService {
   /// Checks for overdue tasks and sends notifications to owners
   static Future<void> checkDeadlines() async {
     try {
-      // Find tasks that are past their due_date and not completed
       final result = await _db.execute('''
-        SELECT t.id, t.title, t.assigned_to 
-        FROM tasks t
-        WHERE t.status != 'completed' 
-        AND t.due_date < NOW()
+        SELECT t.id, t.titre, t.employee_id 
+        FROM taches t
+        WHERE t.statut != 'Done' 
+        AND t.updated_at < DATE_SUB(NOW(), INTERVAL 7 DAY)
       ''');
 
       for (final row in result.rows) {
         final taskId = row.colByName('id');
-        final title = row.colByName('title');
-        final userId = row.colByName('assigned_to');
+        final title = row.colByName('titre');
+        final userId = row.colByName('employee_id');
 
         if (userId != null) {
           await NotificationService.createNotification(
             userId: userId.toString(),
-            title: 'Task Overdue',
-            message: 'Your task "$title" is past its deadline.',
-            type: 'deadline_overdue',
+            title: 'Task Staleness Alert',
+            message: 'Your task "$title" hasn\'t been updated in 7 days.',
+            type: 'task_stale',
           );
         }
       }
@@ -77,9 +74,18 @@ class DataIntegrityService {
   static Future<bool> validateUploadsForMessage(List<String> uploadIds) async {
     if (uploadIds.isEmpty) return true;
     try {
-      final placeholders = uploadIds.map((id) => "'$id'").join(',');
+      // SECURE BATCH VALIDATION: Use safe parameterization
+      final params = <String, dynamic>{};
+      final placeholders = [];
+      for (int i = 0; i < uploadIds.length; i++) {
+        final key = 'id$i';
+        placeholders.add(':$key');
+        params[key] = uploadIds[i];
+      }
+      
       final result = await _db.execute(
-        "SELECT COUNT(*) as cnt FROM file_uploads WHERE id IN ($placeholders) AND expires_at >= NOW()"
+        "SELECT COUNT(*) as cnt FROM file_uploads WHERE id IN (${placeholders.join(',')}) AND expires_at >= NOW()",
+        params
       );
       final count = int.tryParse(result.rows.first.colByName('cnt')?.toString() ?? '0') ?? 0;
       return count == uploadIds.length;
@@ -93,9 +99,17 @@ class DataIntegrityService {
   static Future<void> markUploadsAsUsed(List<String> uploadIds) async {
     if (uploadIds.isEmpty) return;
     try {
-      final placeholders = uploadIds.map((id) => "'$id'").join(',');
+       final params = <String, dynamic>{};
+      final placeholders = [];
+      for (int i = 0; i < uploadIds.length; i++) {
+        final key = 'id$i';
+        placeholders.add(':$key');
+        params[key] = uploadIds[i];
+      }
+
       await _db.execute(
-        "UPDATE file_uploads SET is_completed = TRUE, expires_at = DATE_ADD(NOW(), INTERVAL 1 YEAR) WHERE id IN ($placeholders)"
+        "UPDATE file_uploads SET is_completed = TRUE, expires_at = DATE_ADD(NOW(), INTERVAL 1 YEAR) WHERE id IN (${placeholders.join(',')})",
+        params
       );
     } catch (e) {
       print('Mark uploads used error: $e');

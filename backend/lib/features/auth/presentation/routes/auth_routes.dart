@@ -17,6 +17,9 @@ class AuthRoutes {
     final protectedRouter = Router()
       ..post('/logout', _logout)
       ..get('/profile', _getProfile)
+      ..post('/change-password', _changePassword)
+      ..get('/settings', _getUserSettings)
+      ..post('/settings', _updateUserSettings)
       ..post('/ws-ticket', _getWsTicket);
 
     final protectedHandler = Pipeline()
@@ -151,6 +154,82 @@ class AuthRoutes {
         body: jsonEncode({'success': false, 'message': e.toString()}),
         headers: {'Content-Type': 'application/json'},
       );
+    }
+  }
+
+  /// Changes the user's password
+  Future<Response> _changePassword(Request request) async {
+    try {
+      final userId = request.authUserId; // Set by auth_middleware
+      if (userId == null) {
+        return Response(
+          401,
+          body: jsonEncode({'success': false, 'message': 'Unauthorized'}),
+          headers: {'Content-Type': 'application/json'},
+        );
+      }
+
+      final body = await request.readAsString();
+      final data = jsonDecode(body) as Map<String, dynamic>;
+
+      final oldPassword = data['oldPassword'];
+      final newPassword = data['newPassword'];
+
+      if (oldPassword == null || newPassword == null) {
+        return Response(
+          400,
+          body: jsonEncode({'success': false, 'message': 'oldPassword and newPassword are required'}),
+          headers: {'Content-Type': 'application/json'},
+        );
+      }
+
+      final result = await AuthService.changePassword(userId, oldPassword, newPassword);
+
+      if (result['success'] == true) {
+        return Response.ok(
+          jsonEncode(result),
+          headers: {'Content-Type': 'application/json'},
+        );
+      } else {
+        return Response(
+          400,
+          body: jsonEncode(result),
+          headers: {'Content-Type': 'application/json'},
+        );
+      }
+    } catch (e) {
+      return Response.internalServerError(
+        body: jsonEncode({'success': false, 'message': e.toString()}),
+        headers: {'Content-Type': 'application/json'},
+      );
+    }
+  }
+
+
+  Future<Response> _getUserSettings(Request request) async {
+    try {
+      final userId = request.authUserId;
+      if (userId == null) return Response(401, body: jsonEncode({'success': false, 'message': 'Unauthorized'}), headers: {'Content-Type': 'application/json'});
+
+      final result = await AuthService.getUserSettings(userId);
+      return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json'});
+    } catch (e) {
+      return Response.internalServerError(body: jsonEncode({'success': false, 'message': e.toString()}), headers: {'Content-Type': 'application/json'});
+    }
+  }
+
+  Future<Response> _updateUserSettings(Request request) async {
+    try {
+      final userId = request.authUserId;
+      if (userId == null) return Response(401, body: jsonEncode({'success': false, 'message': 'Unauthorized'}), headers: {'Content-Type': 'application/json'});
+
+      final body = await request.readAsString();
+      final data = jsonDecode(body) as Map<String, dynamic>;
+
+      final result = await AuthService.updateUserSettings(userId, data);
+      return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json'});
+    } catch (e) {
+      return Response.internalServerError(body: jsonEncode({'success': false, 'message': e.toString()}), headers: {'Content-Type': 'application/json'});
     }
   }
 

@@ -110,9 +110,41 @@ class Migrations {
     await _ensureColumn(conn, dbName, 'demands', 'created_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP');
     await _ensureColumn(conn, dbName, 'demands', 'updated_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP');
 
-    // E. Ensure presence columns in 'users'
+    // E. Ensure presence and privacy columns in 'users'
     await _ensureColumn(conn, dbName, 'users', 'is_online', 'BOOLEAN DEFAULT FALSE');
     await _ensureColumn(conn, dbName, 'users', 'last_seen', 'DATETIME NULL');
+    await _ensureColumn(conn, dbName, 'users', 'profile_visible', 'BOOLEAN DEFAULT TRUE');
+    await _ensureColumn(conn, dbName, 'users', 'show_online_status', 'BOOLEAN DEFAULT TRUE');
+    await _ensureColumn(conn, dbName, 'users', 'analytics_enabled', 'BOOLEAN DEFAULT FALSE');
+
+    // FC. File Uploads (Missing table fix)
+    await _ensureTable(conn, dbName, 'file_uploads', '''
+      CREATE TABLE file_uploads (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          original_filename VARCHAR(255) NOT NULL,
+          stored_filename VARCHAR(255) NOT NULL,
+          file_path TEXT NOT NULL,
+          file_size BIGINT NOT NULL,
+          mime_type VARCHAR(100) NOT NULL,
+          uploaded_by VARCHAR(50) NOT NULL,
+          is_public BOOLEAN DEFAULT FALSE,
+          is_completed BOOLEAN DEFAULT FALSE,
+          download_count INTEGER DEFAULT 0,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          expires_at TIMESTAMP NULL,
+          INDEX idx_uploaded_by (uploaded_by),
+          INDEX idx_expires_at (expires_at),
+          INDEX idx_is_completed (is_completed)
+      )
+    ''');
+
+    // FD. Revoked Tokens
+    await _ensureTable(conn, dbName, 'revoked_tokens', '''
+      CREATE TABLE revoked_tokens (
+          token VARCHAR(1024) PRIMARY KEY,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    ''');
 
     // F. Ensure 'notifications' table exists
     await _ensureTable(conn, dbName, 'notifications', '''
@@ -340,6 +372,19 @@ class Migrations {
           PRIMARY KEY (conversation_id, user_id),
           FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
           FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    ''');
+
+    // TA. Message Idempotency (Missing table fix)
+    await _ensureTable(conn, dbName, 'message_idempotency', '''
+      CREATE TABLE message_idempotency (
+          client_message_id VARCHAR(100) NOT NULL,
+          conversation_id INT NOT NULL,
+          server_message_id INT NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (client_message_id, conversation_id),
+          FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+          FOREIGN KEY (server_message_id) REFERENCES messages(id) ON DELETE CASCADE
       )
     ''');
 

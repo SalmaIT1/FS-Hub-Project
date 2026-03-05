@@ -3,7 +3,10 @@ import 'package:provider/provider.dart';
 import '../core/state/settings_controller.dart';
 import '../shared/widgets/luxury/luxury_app_bar.dart';
 import '../core/theme/app_theme.dart';
-
+import 'settings/account_security_page.dart';
+import 'settings/privacy_page.dart';
+import 'settings/help_center_page.dart';
+import 'settings/report_issue_page.dart';
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
 
@@ -96,7 +99,12 @@ class SettingsPage extends StatelessWidget {
                   context,
                   title: settings.translate('account_security'),
                   icon: Icons.security_outlined,
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const AccountSecurityPage()),
+                    );
+                  },
                   isDark: isDark,
                 ),
                 _buildDivider(isDark),
@@ -104,7 +112,12 @@ class SettingsPage extends StatelessWidget {
                   context,
                   title: settings.translate('privacy'),
                   icon: Icons.lock_outline_rounded,
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const PrivacyPage()),
+                    );
+                  },
                   isDark: isDark,
                 ),
               ],
@@ -122,7 +135,12 @@ class SettingsPage extends StatelessWidget {
                   context,
                   title: settings.translate('help_center'),
                   icon: Icons.help_outline_rounded,
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const HelpCenterPage()),
+                    );
+                  },
                   isDark: isDark,
                 ),
                 _buildDivider(isDark),
@@ -130,7 +148,12 @@ class SettingsPage extends StatelessWidget {
                   context,
                   title: settings.translate('report_issue'),
                   icon: Icons.bug_report_outlined,
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const ReportIssuePage()),
+                    );
+                  },
                   isDark: isDark,
                 ),
                 _buildDivider(isDark),

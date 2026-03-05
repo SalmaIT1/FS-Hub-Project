@@ -1,3 +1,4 @@
+import '../../presentation/websocket/websocket_server.dart';
 import '../../data/repositories/notification_repository.dart';
 
 class NotificationService {
@@ -16,6 +17,23 @@ class NotificationService {
         message: message,
         type: type,
       );
+
+      // REAL-TIME BROADCAST: Notify the user immediately via WebSocket
+      try {
+        final instance = WebSocketServer.instance;
+        if (instance != null) {
+          WebSocketServer.broadcastNotification(userId, {
+            'id': id,
+            'title': title,
+            'message': message,
+            'type': type,
+            'created_at': DateTime.now().toIso8601String(),
+          });
+        }
+      } catch (e) {
+        print('[NotificationService] Broadcast failed: $e');
+      }
+
       return {
         'success': true,
         'message': 'Notification created',

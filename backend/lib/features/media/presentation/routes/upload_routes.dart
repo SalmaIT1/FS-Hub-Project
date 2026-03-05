@@ -28,14 +28,6 @@ class UploadRoutes {
   Future<Response> _putUpload(Request request, String uploadId) async {
     try {
       final userId = request.authUserId;
-      final bodyBytes = <int>[];
-      await for (final chunk in request.read()) {
-        bodyBytes.addAll(chunk);
-        if (bodyBytes.length > _maxUploadBytes) {
-          return Response(413, body: jsonEncode({'success': false, 'message': 'File too large'}));
-        }
-      }
-
       final media = await MediaService.getMediaById(uploadId);
       if (media == null) return Response.notFound(jsonEncode({'success': false, 'message': 'Not found'}));
       if (media.uploadedBy != userId) return Response.forbidden(jsonEncode({'success': false, 'message': 'Forbidden'}));
@@ -47,11 +39,29 @@ class UploadRoutes {
       final actualStoredFilename = '$uploadId.$extension';
       final filePath = '${uploadDir.path}/$actualStoredFilename';
 
-      await File(filePath).writeAsBytes(bodyBytes);
+      // SECURE STREAMING: Read request stream and write directly to disk to avoid Memory DoS
+      final file = File(filePath);
+      final sink = file.openWrite();
+      int totalBytes = 0;
+      
+      try {
+        await for (final chunk in request.read()) {
+          totalBytes += chunk.length;
+          if (totalBytes > _maxUploadBytes) {
+             await sink.close();
+             if (await file.exists()) await file.delete();
+             return Response(413, body: jsonEncode({'success': false, 'message': 'File too large'}));
+          }
+          sink.add(chunk);
+        }
+      } finally {
+        await sink.close();
+      }
+
       await MediaService.updateMedia(uploadId, {
         'stored_filename': actualStoredFilename,
         'file_path': filePath,
-        'file_size': bodyBytes.length,
+        'file_size': totalBytes,
       });
 
       return Response.ok(jsonEncode({'success': true, 'upload_id': uploadId}));
@@ -61,6 +71,8 @@ class UploadRoutes {
   }
 
   Future<Response> _uploadFile(Request request) async {
+    // This handler uses MimeMultipartTransformer which also streams,
+    // but we ensure we don't buffer the whole thing in memory.
     try {
       final userId = request.authUserId;
       final contentType = request.headers['content-type'] ?? '';
@@ -72,74 +84,83 @@ class UploadRoutes {
       if (boundaryMatch == null) return Response.badRequest(body: jsonEncode({'success': false, 'message': 'Missing boundary'}));
       final boundary = boundaryMatch.group(1)!.trim();
 
-      final bodyBytes = <int>[];
-      await for (final chunk in request.read()) {
-        bodyBytes.addAll(chunk);
-        if (bodyBytes.length > _maxUploadBytes) return Response(413, body: jsonEncode({'success': false, 'message': 'File too large'}));
-      }
-
       final transformer = MimeMultipartTransformer(boundary);
-      final parts = await transformer.bind(Stream.fromIterable([bodyBytes])).toList();
+      final parts = transformer.bind(request.read()); // Stream from request directly
 
       String? filename;
       String? mimeType;
-      List<int>? fileBytes;
+      String? uploadId;
+      String? filePath;
+      int totalBytes = 0;
 
-      for (final part in parts) {
+      await for (final part in parts) {
         final disposition = part.headers['content-disposition'] ?? '';
         if (disposition.contains('filename=')) {
           final fnMatch = RegExp(r'filename="([^"]*)"').firstMatch(disposition);
           if (fnMatch != null) filename = MediaService.sanitizeFilename(fnMatch.group(1)!);
           mimeType = part.headers['content-type']?.trim();
-          fileBytes = await part.expand((b) => b).toList();
+          
+          final extension = filename!.contains('.') ? filename.split('.').last.toLowerCase() : 'bin';
+          if (!_allowedExtensions.contains(extension)) {
+            return Response(415, body: jsonEncode({'success': false, 'message': 'File extension not allowed'}));
+          }
+
+          // Create record pending
+          uploadId = await MediaService.insertMedia({
+            'original_filename': filename,
+            'stored_filename': 'pending',
+            'file_path': 'pending',
+            'file_size': 0,
+            'mime_type': mimeType ?? 'application/octet-stream',
+            'uploaded_by': userId,
+            'is_public': false,
+            'expires_at': DateTime.now().add(const Duration(days: 365)).toIso8601String(),
+          });
+
+          final uploadDir = Directory('uploads');
+          if (!await uploadDir.exists()) await uploadDir.create(recursive: true);
+          
+          final actualStoredFilename = '$uploadId.$extension';
+          filePath = '${uploadDir.path}/$actualStoredFilename';
+          final file = File(filePath);
+          final sink = file.openWrite();
+
+          try {
+            await for (final chunk in part) {
+              totalBytes += chunk.length;
+              if (totalBytes > _maxUploadBytes) {
+                await sink.close();
+                if (await file.exists()) await file.delete();
+                return Response(413, body: jsonEncode({'success': false, 'message': 'File too large'}));
+              }
+              sink.add(chunk);
+            }
+          } finally {
+            await sink.close();
+          }
+
+          if (mimeType != null && mimeType.startsWith('image/')) {
+             await MediaService.generateThumbnail(filePath, uploadId.toString());
+          }
+
+          await MediaService.updateMedia(uploadId.toString(), {
+            'stored_filename': actualStoredFilename,
+            'file_path': filePath,
+            'file_size': totalBytes,
+          });
         }
       }
 
-      if (filename == null || fileBytes == null || fileBytes.isEmpty) {
+      if (uploadId == null) {
         return Response.badRequest(body: jsonEncode({'success': false, 'message': 'No file found'}));
       }
-
-      final sniffedMime = lookupMimeType(filename, headerBytes: fileBytes.take(16).toList());
-      final effectiveMime = sniffedMime ?? mimeType ?? 'application/octet-stream';
-      final extension = filename.contains('.') ? filename.split('.').last.toLowerCase() : 'bin';
-      
-      if (!_allowedExtensions.contains(extension)) {
-        return Response(415, body: jsonEncode({'success': false, 'message': 'File extension not allowed'}));
-      }
-
-      final uploadDir = Directory('uploads');
-      if (!await uploadDir.exists()) await uploadDir.create(recursive: true);
-
-      final uploadId = await MediaService.insertMedia({
-        'original_filename': filename,
-        'stored_filename': 'pending',
-        'file_path': 'pending',
-        'file_size': fileBytes.length,
-        'mime_type': effectiveMime,
-        'uploaded_by': userId,
-        'is_public': false,
-        'expires_at': DateTime.now().add(const Duration(days: 365)).toIso8601String(),
-      });
-
-      final actualStoredFilename = '$uploadId.$extension';
-      final filePath = '${uploadDir.path}/$actualStoredFilename';
-
-      await File(filePath).writeAsBytes(fileBytes);
-      if (effectiveMime.startsWith('image/')) await MediaService.generateThumbnail(filePath, uploadId.toString());
-
-      await MediaService.updateMedia(uploadId.toString(), {
-        'stored_filename': actualStoredFilename,
-        'file_path': filePath,
-      });
 
       return Response.ok(jsonEncode({
         'success': true,
         'upload_id': uploadId,
         'original_filename': filename,
-        'stored_filename': actualStoredFilename,
-        'file_path': filePath,
-        'file_size': fileBytes.length,
-        'mime_type': effectiveMime,
+        'file_size': totalBytes,
+        'mime_type': mimeType,
       }));
     } catch (e) {
       return Response.internalServerError(body: jsonEncode({'success': false, 'message': 'Upload failed: $e'}));
@@ -184,10 +205,11 @@ class UploadRoutes {
         'file_path': 'uploads/$uploadId.$extension',
       });
 
+      final baseUrl = '${request.requestedUri.scheme}://${request.requestedUri.host}:${request.requestedUri.port}';
       return Response.ok(jsonEncode({
         'success': true,
         'upload_id': uploadId,
-        'upload_url': 'http://localhost:8080/v1/uploads/$uploadId/put',
+        'upload_url': '$baseUrl/v1/uploads/$uploadId/put',
         'expires_at': expiresAt.toIso8601String(),
       }));
     } catch (e) {
@@ -212,10 +234,11 @@ class UploadRoutes {
 
       await MediaService.setExpiry(uploadId, DateTime.now().add(const Duration(days: 365)).toIso8601String());
 
+      final baseUrl = '${request.requestedUri.scheme}://${request.requestedUri.host}:${request.requestedUri.port}';
       return Response.ok(jsonEncode({
         'success': true,
         'upload_id': uploadId,
-        'file_url': 'http://localhost:8080/media/${media.storedFilename}',
+        'file_url': '$baseUrl/media/${media.storedFilename}',
       }));
     } catch (e) {
       return Response.internalServerError(body: jsonEncode({'success': false, 'message': 'Complete upload failed'}));

@@ -105,6 +105,57 @@ class AuthService {
     }
   }
 
+  static Future<Map<String, dynamic>> changePassword(String oldPassword, String newPassword) async {
+    try {
+      final response = await authenticatedRequest(
+        '/auth/change-password',
+        'POST',
+        body: {'oldPassword': oldPassword, 'newPassword': newPassword},
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        return {'success': false, 'message': jsonDecode(response.body)['message'] ?? 'Failed to update password'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  static Future<Map<String, dynamic>> updateUserSettings(Map<String, dynamic> settings) async {
+    try {
+      final response = await authenticatedRequest(
+        '/auth/settings',
+        'POST',
+        body: settings,
+      );
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        return {'success': false, 'message': jsonDecode(response.body)['message'] ?? 'Failed to update settings'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  static Future<Map<String, dynamic>> getUserSettings() async {
+    try {
+      final response = await authenticatedRequest(
+        '/auth/settings',
+        'GET',
+      );
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        return {'success': false, 'message': jsonDecode(response.body)['message'] ?? 'Failed to fetch settings'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
   static Future<Map<String, dynamic>> refreshToken() async {
     try {
       final prefs = await SharedPreferences.getInstance();
