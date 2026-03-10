@@ -1,16 +1,15 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
-import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:uuid/uuid.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as path;
-import '../../../core/platform/html_stub.dart'
+import 'package:fs_hub/core/platform/html_stub.dart'
     if (dart.library.html) '../../../core/platform/html_web.dart' as html;
 import '../widgets/attachment_preview_tray.dart';
-import '../../../chat/data/upload_service.dart';
+import '../../chat/data/datasources/upload_datasource.dart';
 
 /// Manages the complete attachment lifecycle
 /// 
@@ -21,7 +20,7 @@ import '../../../chat/data/upload_service.dart';
 /// - Upload cancellation and cleanup
 /// - Error handling and retry logic
 class AttachmentManager {
-  final UploadService _uploadService;
+  final UploadDatasource _uploadDatasource;
   final ImagePicker _imagePicker = ImagePicker();
   final Uuid _uuid = const Uuid();
 
@@ -33,7 +32,7 @@ class AttachmentManager {
   final Map<String, CancelToken> _uploadTokens = {};
   final Map<String, Uint8List> _bytesData = {};
 
-  AttachmentManager(this._uploadService);
+  AttachmentManager(this._uploadDatasource);
 
   List<AttachmentPreview> get currentAttachments => _attachments.values.toList();
 
@@ -438,7 +437,7 @@ class AttachmentManager {
       }
 
       // Request signed URL from server
-      final signedUrlResponse = await _uploadService.requestSignedUrl(
+      final signedUrlResponse = await _uploadDatasource.requestSignedUrl(
         filename: attachment.fileName,
         mimeType: _getMimeType(attachment.type, attachment.fileName),
         fileSize: attachment.fileSize,
@@ -456,7 +455,7 @@ class AttachmentManager {
       _emitAttachments();
 
       // Upload file with progress tracking
-      final result = await _uploadService.uploadFile(
+      final result = await _uploadDatasource.uploadFile(
         uploadId: uploadId,
         signedUrl: signedUrl,
         file: file,
@@ -551,3 +550,4 @@ class CancelToken {
     _cancelled = true;
   }
 }
+

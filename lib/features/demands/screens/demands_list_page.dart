@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'package:provider/provider.dart';
-import '../../../shared/models/demand_model.dart';
+import 'package:fs_hub/shared/models/demand_model.dart';
 import '../services/demand_service.dart';
 import '../../../widgets/demand_card.dart';
-import '../../../shared/widgets/luxury/luxury_app_bar.dart';
-import '../../../core/theme/app_theme.dart';
+import 'package:fs_hub/shared/widgets/luxury/luxury_app_bar.dart';
+import 'package:fs_hub/core/theme/app_theme.dart';
 import '../../auth/data/services/auth_service.dart';
-import '../../../core/routes/app_routes.dart';
-import '../../../core/state/settings_controller.dart';
+import 'package:fs_hub/core/routes/app_routes.dart';
+import 'package:fs_hub/core/state/settings_controller.dart';
 import 'demand_detail_page.dart';
 
 class DemandsListPage extends StatefulWidget {
@@ -98,7 +98,9 @@ class _DemandsListPageState extends State<DemandsListPage> with SingleTickerProv
             ? (settings.languageCode == 'fr' ? 'Gérer les requêtes du personnel' : 'Manage employee requests')
             : settings.translate('demands_subtitle'),
         isPremium: true,
+        showBackButton: false,
       ),
+      backgroundColor: Colors.transparent,
       body: Container(
         decoration: BoxDecoration(
           gradient: RadialGradient(
@@ -122,52 +124,53 @@ class _DemandsListPageState extends State<DemandsListPage> with SingleTickerProv
               SliverToBoxAdapter(child: _buildFilterSection(isDark, settings)),
 
               // List of demands
-              _isLoading
-                  ? const SliverFillRemaining(
-                      child: Center(child: CircularProgressIndicator(color: AppTheme.accentGold)),
-                    )
-                  : _demands.isEmpty
-                      ? SliverFillRemaining(child: _buildEmptyState(isDark, settings))
-                      : SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 160),
-                          sliver: SliverList(
-                            delegate: SliverChildBuilderDelegate(
-                              (context, index) {
-                                final animation = Tween<double>(begin: 0.0, end: 1.0).animate(
-                                  CurvedAnimation(
-                                    parent: _listController,
-                                    curve: Interval(
-                                      (index / 10).clamp(0.0, 1.0),
-                                      1.0,
-                                      curve: Curves.easeOutCubic,
-                                    ),
-                                  ),
-                                );
-
-                                return AnimatedBuilder(
-                                  animation: animation,
-                                  builder: (context, child) => Opacity(
-                                    opacity: animation.value,
-                                    child: Transform.translate(
-                                      offset: Offset(0, 30 * (1 - animation.value)),
-                                      child: child,
-                                    ),
-                                  ),
-                                  child: DemandCard(
-                                    demand: _demands[index],
-                                    onTap: () => Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => DemandDetailPage(demand: _demands[index]),
-                                      ),
-                                    ).then((_) => _loadDemands()),
-                                  ),
-                                );
-                              },
-                              childCount: _demands.length,
+              if (_isLoading)
+                const SliverFillRemaining(
+                  child: Center(child: CircularProgressIndicator(color: AppTheme.accentGold)),
+                )
+              else if (_demands.isEmpty)
+                SliverFillRemaining(child: _buildEmptyState(isDark, settings))
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 160),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final animation = Tween<double>(begin: 0.0, end: 1.0).animate(
+                          CurvedAnimation(
+                            parent: _listController,
+                            curve: Interval(
+                              (index / 10).clamp(0.0, 1.0),
+                              1.0,
+                              curve: Curves.easeOutCubic,
                             ),
                           ),
-                        ),
+                        );
+
+                        return AnimatedBuilder(
+                          animation: animation,
+                          builder: (context, child) => Opacity(
+                            opacity: animation.value,
+                            child: Transform.translate(
+                              offset: Offset(0, 30 * (1 - animation.value)),
+                              child: child,
+                            ),
+                          ),
+                          child: DemandCard(
+                            demand: _demands[index],
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => DemandDetailPage(demand: _demands[index]),
+                              ),
+                            ).then((_) => _loadDemands()),
+                          ),
+                        );
+                      },
+                      childCount: _demands.length,
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
@@ -309,3 +312,5 @@ class _DemandsListPageState extends State<DemandsListPage> with SingleTickerProv
     );
   }
 }
+
+

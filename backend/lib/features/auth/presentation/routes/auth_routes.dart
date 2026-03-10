@@ -3,6 +3,7 @@ import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 import '../../domain/services/auth_service.dart';
 import '../../../../core/middleware/auth_middleware.dart';
+import '../../../../core/middleware/permission_middleware.dart';
 
 class AuthRoutes {
   late final Router router;
@@ -11,7 +12,8 @@ class AuthRoutes {
     // Public routes (no auth middleware):
     final publicRouter = Router()
       ..post('/login', _login)
-      ..post('/refresh', _refreshToken);
+      ..post('/refresh', _refreshToken)
+      ..post('/forgot-password', _forgotPassword);
 
     // Protected routes:
     final protectedRouter = Router()
@@ -20,7 +22,8 @@ class AuthRoutes {
       ..post('/change-password', _changePassword)
       ..get('/settings', _getUserSettings)
       ..post('/settings', _updateUserSettings)
-      ..post('/ws-ticket', _getWsTicket);
+      ..post('/ws-ticket', _getWsTicket)
+      ..post('/admin/reset-user-password', Pipeline().addMiddleware(requirePermission('manage_users')).addHandler(_adminResetUserPassword));
 
     final protectedHandler = Pipeline()
         .addMiddleware(requireAuth())
@@ -243,5 +246,39 @@ class AuthRoutes {
       jsonEncode({'success': true, 'ticket': ticket}),
       headers: {'Content-Type': 'application/json'},
     );
+  }
+  Future<Response> _forgotPassword(Request request) async {
+    try {
+      final body = await request.readAsString();
+      final data = jsonDecode(body) as Map<String, dynamic>;
+      final email = data['email'];
+
+      if (email == null || email.toString().isEmpty) {
+        return Response(400, body: jsonEncode({'success': false, 'message': 'Email is required'}), headers: {'Content-Type': 'application/json'});
+      }
+
+      final result = await AuthService.forgotPassword(email.toString());
+      return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json'});
+    } catch (e) {
+      return Response.internalServerError(body: jsonEncode({'success': false, 'message': e.toString()}), headers: {'Content-Type': 'application/json'});
+    }
+  }
+
+  Future<Response> _adminResetUserPassword(Request request) async {
+    try {
+
+      final body = await request.readAsString();
+      final data = jsonDecode(body) as Map<String, dynamic>;
+      final targetUserId = data['userId'];
+
+      if (targetUserId == null || targetUserId.toString().isEmpty) {
+        return Response(400, body: jsonEncode({'success': false, 'message': 'userId is required'}), headers: {'Content-Type': 'application/json'});
+      }
+
+      final result = await AuthService.adminResetUserPassword(targetUserId.toString());
+      return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json'});
+    } catch (e) {
+      return Response.internalServerError(body: jsonEncode({'success': false, 'message': e.toString()}), headers: {'Content-Type': 'application/json'});
+    }
   }
 }

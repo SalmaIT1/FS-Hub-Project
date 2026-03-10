@@ -2,7 +2,7 @@ class UserModel {
   final String id;
   final String username;
   final String? role;
-  final String? permissions;
+  final List<String>? permissions;
   final String? lastLogin;
   final String? matricule;
   final String? nom;
@@ -46,7 +46,7 @@ class UserModel {
       id: map['id']?.toString() ?? '',
       username: map['username'] ?? '',
       role: map['role'],
-      permissions: map['permissions'],
+      permissions: (map['permissions'] as List?)?.map((e) => e.toString()).toList().cast<String>(),
       lastLogin: map['dernierLogin']?.toString(),
       matricule: map['matricule'],
       nom: map['nom'],

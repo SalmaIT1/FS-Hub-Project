@@ -361,7 +361,7 @@ class ConversationRoutes {
   // ── GET /<id>/typing ──────────────────────────────────────────────────────
   Future<Response> _getTypingUsers(Request request, String id) async {
     try {
-      final result = await ChatService.getTypingUsers(id);
+      final result = await ChatService.getTypingUsers(id, request.authUserId);
       return result['success'] == true
           ? Response.ok(jsonEncode(result),
               headers: {'Content-Type': 'application/json'})

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../widgets/audio_player_widget.dart';
-import '../services/waveform_generator.dart';
-import '../../chat/domain/chat_entities.dart';
+import 'package:fs_hub/features/voice/widgets/audio_player_widget.dart';
+import 'package:fs_hub/features/voice/services/waveform_generator.dart';
+import 'package:fs_hub/features/chat/domain/entities/chat_entities.dart';
 
 /// WhatsApp-style voice note component
 class WhatsAppVoiceNote extends StatefulWidget {
@@ -72,7 +72,7 @@ class _WhatsAppVoiceNoteState extends State<WhatsAppVoiceNote> {
               Expanded(
                 child: SizedBox(
                   height: 30,
-                  child: widget.voice.waveformData.isNotEmpty
+                  child: (widget.voice.waveformData != null && widget.voice.waveformData!.isNotEmpty)
                       ? _buildWaveform()
                       : _buildPlaceholderWaveform(),
                 ),
@@ -98,7 +98,7 @@ class _WhatsAppVoiceNoteState extends State<WhatsAppVoiceNote> {
 
   Widget _buildWaveform() {
     try {
-      final waveformData = WaveformGenerator.decodeWaveform(widget.voice.waveformData);
+      final waveformData = WaveformGenerator.decodeWaveform(widget.voice.waveformData ?? '');
       return CustomPaint(
         painter: WhatsAppWaveformPainter(
           waveform: waveformData,
@@ -202,3 +202,4 @@ class WhatsAppWaveformPainter extends CustomPainter {
         oldDelegate.isPlaying != isPlaying;
   }
 }
+

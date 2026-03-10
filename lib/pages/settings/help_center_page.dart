@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../core/state/settings_controller.dart';
-import '../../shared/widgets/luxury/luxury_app_bar.dart';
-import '../../core/theme/app_theme.dart';
+import 'package:fs_hub/core/state/settings_controller.dart';
+import 'package:fs_hub/shared/widgets/luxury/luxury_app_bar.dart';
+import 'package:fs_hub/core/theme/app_theme.dart';
 
 class HelpCenterPage extends StatelessWidget {
   const HelpCenterPage({super.key});
@@ -205,3 +205,4 @@ class HelpCenterPage extends StatelessWidget {
     );
   }
 }
+

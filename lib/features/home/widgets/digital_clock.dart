@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import 'package:fs_hub/core/state/location_controller.dart';
 
 class DigitalClockCard extends StatefulWidget {
   final bool isDark;
@@ -121,7 +123,11 @@ class _DigitalClockCardState extends State<DigitalClockCard> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  widget.isFr ? 'Siège Principal — Opérations' : 'Main Headquarters — Operations',
+                  context.watch<LocationController>().locationLabel.isNotEmpty
+                      ? context.watch<LocationController>().locationLabel
+                      : (widget.isFr
+                          ? 'Siège Principal — Opérations'
+                          : 'Main Headquarters — Operations'),
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
@@ -137,3 +143,4 @@ class _DigitalClockCardState extends State<DigitalClockCard> {
     );
   }
 }
+

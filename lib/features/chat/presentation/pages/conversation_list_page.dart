@@ -1,17 +1,17 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../domain/entities/chat_entities.dart';
+import 'package:fs_hub/features/chat/domain/entities/chat_entities.dart';
 import '../providers/chat_provider.dart';
 import 'chat_thread_page.dart';
-import '../../../../core/state/settings_controller.dart';
-import '../../../../core/routes/app_routes.dart';
+import 'package:fs_hub/core/state/settings_controller.dart';
+import 'package:fs_hub/core/routes/app_routes.dart';
 import '../widgets/avatar_helper.dart';
-import '../../../../shared/widgets/luxury/luxury_app_bar.dart';
-import '../../../../core/theme/app_theme.dart';
-import '../../../../core/utils/url_utils.dart';
-import '../../../../shared/widgets/authenticated_image.dart';
-import '../../../../shared/widgets/luxury/luxury_status_dialog.dart';
+import 'package:fs_hub/shared/widgets/luxury/luxury_app_bar.dart';
+import 'package:fs_hub/core/theme/app_theme.dart';
+import 'package:fs_hub/core/utils/url_utils.dart';
+import 'package:fs_hub/shared/widgets/authenticated_image.dart';
+import 'package:fs_hub/shared/widgets/luxury/luxury_status_dialog.dart';
 
 /// Conversation list screen
 /// 
@@ -772,3 +772,6 @@ class _NewConversationDialogState extends State<_NewConversationDialog> {
     );
   }
 }
+
+
+

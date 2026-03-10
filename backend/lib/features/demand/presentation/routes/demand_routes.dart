@@ -21,12 +21,14 @@ class DemandRoutes {
     try {
       final type = request.url.queryParameters['type'];
       final status = request.url.queryParameters['status'];
+      final queryRequesterId = request.url.queryParameters['requesterId'];
       
       final result = await DemandService.getAllDemands(
         type: type, 
         status: status,
-        requesterId: request.authUserId,
+        requesterId: queryRequesterId,
         userRole: request.authUserRole,
+        callerId: request.authUserId,
       );
 
       // Ensure 'data' is always a list for the frontend

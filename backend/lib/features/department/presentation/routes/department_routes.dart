@@ -3,17 +3,18 @@ import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 import '../../domain/services/department_service.dart';
 import '../../../../core/middleware/auth_middleware.dart';
+import '../../../../core/middleware/permission_middleware.dart';
 
 class DepartmentRoutes {
   late final Router router;
 
   DepartmentRoutes() {
     router = Router()
-      ..get('/', _getAllDepartments)
-      ..get('/<id>', _getDepartmentById)
-      ..post('/', _createDepartment)
-      ..put('/<id>', _updateDepartment)
-      ..delete('/<id>', _deleteDepartment);
+      ..get('/', Pipeline().addMiddleware(requirePermission('view_employees')).addHandler(_getAllDepartments))
+      ..get('/<id>', (Request request, String id) => Pipeline().addMiddleware(requirePermission('view_employees')).addHandler((req) => _getDepartmentById(req, id))(request))
+      ..post('/', Pipeline().addMiddleware(requirePermission('manage_system')).addHandler(_createDepartment))
+      ..put('/<id>', (Request request, String id) => Pipeline().addMiddleware(requirePermission('manage_system')).addHandler((req) => _updateDepartment(req, id))(request))
+      ..delete('/<id>', (Request request, String id) => Pipeline().addMiddleware(requirePermission('manage_system')).addHandler((req) => _deleteDepartment(req, id))(request));
   }
 
   Future<Response> _getAllDepartments(Request request) async {

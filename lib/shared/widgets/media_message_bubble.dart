@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/message_model.dart';
-import '../../../core/utils/url_utils.dart';
-import '../../shared/widgets/authenticated_image.dart';
+import 'package:fs_hub/core/utils/url_utils.dart';
+import 'package:fs_hub/shared/widgets/authenticated_image.dart';
 
 class MediaMessageBubble extends StatelessWidget {
   final Message message;
@@ -39,3 +39,4 @@ class MediaMessageBubble extends StatelessWidget {
     );
   }
 }
+

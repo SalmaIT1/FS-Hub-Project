@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import '../../data/chat_repository.dart';
-import '../../domain/entities/chat_entities.dart';
+import 'package:fs_hub/features/chat/domain/entities/chat_entities.dart';
 
 /// Controller/Provider for chat UI state
 /// 
@@ -396,6 +396,28 @@ class ChatController extends ChangeNotifier {
     }
   }
 
+  /// Create a group conversation with multiple participants
+  Future<ConversationEntity?> createGroupConversation({
+    required List<String> participantIds,
+    required String name,
+    String type = 'group',
+  }) async {
+    try {
+      _lastError = null;
+      final conversation = await repository.createGroupConversation(
+        participantIds: participantIds,
+        name: name,
+        type: type,
+      );
+      notifyListeners();
+      return conversation;
+    } catch (e) {
+      _lastError = e.toString();
+      notifyListeners();
+      rethrow;
+    }
+  }
+
   /// Get current user ID from JWT token
   Future<String?> getCurrentUserId() async {
     try {
@@ -598,3 +620,4 @@ class ChatController extends ChangeNotifier {
     super.dispose();
   }
 }
+

@@ -275,7 +275,7 @@ class ChatRepository {
           INSERT INTO messages (conversation_id, sender_id, content, type, reply_to_id, created_at, updated_at)
           VALUES (:conversationId, :senderId, :content, :type, :replyToId, NOW(), NOW())
         ''', {'conversationId': conversationId, 'senderId': senderId, 'content': content, 'type': type, 'replyToId': replyToId});
-        final messageId = insert.lastInsertID;
+        final messageId = insert.lastInsertID.toInt();
 
         // bind attachments
         if (uploadIds != null && uploadIds.isNotEmpty) {
@@ -371,7 +371,7 @@ class ChatRepository {
         INSERT INTO messages (conversation_id, sender_id, content, type, reply_to_id, created_at, updated_at)
         VALUES (:conversationId, :senderId, :content, :type, :replyToId, NOW(), NOW())
       ''', {'conversationId': conversationId, 'senderId': senderId, 'content': content, 'type': type, 'replyToId': replyToId});
-      final messageId = insert.lastInsertID;
+      final messageId = insert.lastInsertID.toInt();
 
       if (uploadIds != null && uploadIds.isNotEmpty) {
         for (final uploadId in uploadIds) {
@@ -474,9 +474,27 @@ class ChatRepository {
     }
   }
 
-  Future<List<Map<String, dynamic>>> getTypingUsers(String conversationId) async {
-    final res = await _db.execute('''SELECT te.user_id, u.username, te.last_seen_at FROM typing_events te JOIN users u ON te.user_id = u.id WHERE te.conversation_id = :conversationId AND te.is_typing = TRUE AND te.last_seen_at > DATE_SUB(NOW(), INTERVAL 30 SECOND) ORDER BY te.last_seen_at DESC''', {'conversationId': conversationId});
-    return res.rows.map<Map<String, dynamic>>((r) => {'userId': r.colByName('user_id')?.toString(), 'username': r.colByName('username'), 'lastSeenAt': r.colByName('last_seen_at')?.toString()}).toList();
+  Future<List<Map<String, dynamic>>> getTypingUsers(String conversationId, String userId) async {
+    // Check membership first
+    final member = await _db.execute('''
+      SELECT id FROM conversation_members WHERE conversation_id = :conversationId AND user_id = :userId AND left_at IS NULL
+    ''', {'conversationId': conversationId, 'userId': userId});
+    if (member.rows.isEmpty) return [];
+
+    final res = await _db.execute('''
+      SELECT te.user_id, u.username, te.last_seen_at FROM typing_events te 
+      JOIN users u ON te.user_id = u.id 
+      WHERE te.conversation_id = :conversationId 
+      AND te.user_id != :userId
+      AND te.is_typing = TRUE 
+      AND te.last_seen_at > DATE_SUB(NOW(), INTERVAL 30 SECOND) 
+      ORDER BY te.last_seen_at DESC
+    ''', {'conversationId': conversationId, 'userId': userId});
+    return res.rows.map<Map<String, dynamic>>((r) => {
+      'userId': r.colByName('user_id')?.toString(),
+      'username': r.colByName('username'),
+      'lastSeenAt': r.colByName('last_seen_at')?.toString()
+    }).toList();
   }
 
   Future<Map<String, dynamic>> createConversation({
@@ -531,7 +549,7 @@ class ChatRepository {
       'createdBy': creatorId
     });
     
-    final conversationId = insert.lastInsertID;
+    final conversationId = insert.lastInsertID.toInt();
     if (conversationId == null) throw Exception('Failed to create conversation record');
 
     for (final userId in allParticipants) {
@@ -589,3 +607,4 @@ class ChatRepository {
     return '/media/$relativePath';
   }
 }
+

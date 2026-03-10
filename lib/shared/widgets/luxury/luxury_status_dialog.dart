@@ -1,6 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import '../../../../core/theme/app_theme.dart';
+import 'package:fs_hub/core/theme/app_theme.dart';
 
 class LuxuryStatusDialog extends StatefulWidget {
   final bool isSuccess;
@@ -235,3 +235,4 @@ class _LuxuryStatusDialogState extends State<LuxuryStatusDialog> with TickerProv
     );
   }
 }
+

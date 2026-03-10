@@ -19,10 +19,19 @@ import 'package:fs_hub_backend/features/project/presentation/routes/project_rout
 import 'package:fs_hub_backend/features/sprint/presentation/routes/sprint_routes.dart';
 import 'package:fs_hub_backend/features/task/presentation/routes/task_routes.dart';
 import 'package:fs_hub_backend/features/finance/presentation/routes/finance_routes.dart';
+import 'package:fs_hub_backend/features/finance/presentation/routes/credit_routes.dart';
+import 'package:fs_hub_backend/features/finance/presentation/routes/project_expenses_routes.dart';
+import 'package:fs_hub_backend/features/finance/presentation/routes/company_expenses_routes.dart';
+import 'package:fs_hub_backend/features/auth/presentation/routes/role_permission_routes.dart';
+import 'package:fs_hub_backend/features/hr/presentation/routes/hr_routes.dart';
+
+import 'package:fs_hub_backend/features/email/domain/services/email_service.dart';
+import 'package:fs_hub_backend/features/employees/presentation/routes/poste_routes.dart';
 import 'package:fs_hub_backend/features/chat/presentation/websocket/websocket_server.dart';
 import 'package:fs_hub_backend/core/services/data_integrity_service.dart';
 import 'package:fs_hub_backend/features/auth/domain/services/auth_service.dart';
 import 'package:fs_hub_backend/core/middleware/auth_middleware.dart';
+import 'package:fs_hub_backend/core/middleware/permission_middleware.dart';
 
 // Import database initialization
 import 'package:fs_hub_backend/shared/database/migrations.dart';
@@ -30,6 +39,9 @@ import 'package:fs_hub_backend/shared/database/migrations.dart';
 void main(List<String> args) async {
   // Initialize JWT secret FIRST — throws if missing.
   AuthService.initSecret();
+  
+  // Initialize Email service to load SMTP settings.
+  EmailService.initialize();
 
   // Initialize database with migrations.
   await Migrations.initializeDatabase();
@@ -45,6 +57,18 @@ void main(List<String> args) async {
   Handler secured(Router r) =>
       Pipeline().addMiddleware(requireAuth()).addHandler(r.call);
 
+  Handler adminOnly(Router r) =>
+      Pipeline().addMiddleware(requireAuth()).addMiddleware(requireAdmin()).addHandler(r.call);
+
+  Handler requireManageUsers(Router r) =>
+      Pipeline().addMiddleware(requireAuth()).addMiddleware(requirePermission('manage_users')).addHandler(r.call);
+
+  Handler requireManageRoles(Router r) =>
+      Pipeline().addMiddleware(requireAuth()).addMiddleware(requirePermission('manage_roles')).addHandler(r.call);
+
+  Handler requireFinanceAccess(Router r) =>
+      Pipeline().addMiddleware(requireAuth()).addMiddleware(requireRoleOrPermission(['Admin', 'Comptable', 'Manager'], ['manage_finance', 'view_finances'])).addHandler(r.call);
+
   // Create router with versioned API paths.
   // Auth routes manage their own public/protected split internally.
   // All other v1 routes are secured globally here.
@@ -53,14 +77,20 @@ void main(List<String> args) async {
     ..mount('/v1/demands', secured(DemandRoutes().router))
     ..mount('/v1/notifications', secured(NotificationRoutes().router))
     ..mount('/v1/employees', secured(EmployeeRoutes().router))
+    ..mount('/v1/postes', secured(PosteRoutes().router))
+    ..mount('/v1/roles', requireManageRoles(RolePermissionRoutes().router))  // FIX: was secured() — any user could mutate roles
     ..mount('/v1/departments', secured(DepartmentRoutes().router))
     ..mount('/v1/projects', secured(ProjectRoutes().router))
     ..mount('/v1/sprints', secured(SprintRoutes().router))
     ..mount('/v1/tasks', secured(TaskRoutes().router))
-    ..mount('/v1/clients', secured(ClientRoutes().router))
+    ..mount('/v1/clients', requireFinanceAccess(ClientRoutes().router))  // FIX: was secured() — now requires finance access
+    ..mount('/v1/hr', secured(HrRoutes().router))
     ..mount('/v1/email', secured(EmailRoutes().router))
     ..mount('/v1/conversations', secured(ConversationRoutes().router))
-    ..mount('/v1/finance', secured(FinanceRoutes().router))
+    ..mount('/v1/finance', requireFinanceAccess(FinanceRoutes().router))
+    ..mount('/v1/credits', requireFinanceAccess(CreditRoutes().router))
+    ..mount('/v1/project-expenses', requireFinanceAccess(ProjectExpensesRoutes().router))
+    ..mount('/v1/company-expenses', requireFinanceAccess(CompanyExpensesRoutes().router))
     ..mount('/v1/uploads', secured(UploadRoutes().router))
     ..mount('/media', secured(MediaRoutes().router))
     ..mount('/voice', secured(VoiceRoutes().router))
@@ -74,6 +104,8 @@ void main(List<String> args) async {
     final isAllowed = origin.startsWith('http://localhost') ||
         origin.startsWith('https://localhost') ||
         origin.startsWith('http://127.0.0.1') ||
+        origin.contains('.ngrok-free.app') ||
+        origin.contains('.ngrok.io') ||
         origin.isEmpty; // same-origin requests may omit Origin
     return {
       'Access-Control-Allow-Origin': isAllowed && origin.isNotEmpty ? origin : 'http://localhost',

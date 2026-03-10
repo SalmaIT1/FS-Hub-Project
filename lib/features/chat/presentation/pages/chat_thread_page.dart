@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../domain/entities/chat_entities.dart';
+import 'package:fs_hub/features/chat/domain/entities/chat_entities.dart';
 import '../providers/chat_provider.dart';
 import 'package:fs_hub/shared/models/chat_models.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/composer_bar.dart';
 import '../widgets/attachment_preview_tray.dart';
-import '../../../../core/state/settings_controller.dart';
-import '../../../../shared/widgets/luxury/luxury_app_bar.dart';
-import '../../../../core/theme/app_theme.dart';
+import 'package:fs_hub/core/state/settings_controller.dart';
+import 'package:fs_hub/shared/widgets/luxury/luxury_app_bar.dart';
+import 'package:fs_hub/core/theme/app_theme.dart';
 
 class ChatThreadPage extends StatefulWidget {
   final String conversationId;
@@ -311,3 +311,6 @@ class _ChatThreadPageState extends State<ChatThreadPage> {
     }
   }
 }
+
+
+

@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
-import '../../../shared/models/message_model.dart';
-import '../../../core/services/rest_fallback_client.dart';
+import 'package:fs_hub/shared/models/message_model.dart';
+import 'package:fs_hub/core/services/rest_fallback_client.dart';
 import './message_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -112,3 +112,4 @@ class MessageQueue {
     _running = false;
   }
 }
+

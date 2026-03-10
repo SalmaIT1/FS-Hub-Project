@@ -3,22 +3,23 @@ import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 import '../../domain/services/finance_service.dart';
 import '../../../../core/middleware/auth_middleware.dart';
+import '../../../../core/middleware/permission_middleware.dart';
 
 class FinanceRoutes {
   late final Router router;
 
   FinanceRoutes() {
     router = Router()
-      ..get('/invoices', (Request req) => req.isRH ? _getAllInvoices(req) : Response.forbidden(jsonEncode({'error': 'Admin/RH only'})))
-      ..get('/invoices/project/<projectId>', (Request req, String pid) => req.isRH ? _getInvoicesByProject(req, pid) : Response.forbidden(jsonEncode({'error': 'Admin/RH only'})))
-      ..get('/invoices/<id>', (Request req, String id) => req.isRH ? _getInvoiceById(req, id) : Response.forbidden(jsonEncode({'error': 'Admin/RH only'})))
-      ..post('/invoices', (Request req) => req.isAdmin ? _createInvoice(req) : Response.forbidden(jsonEncode({'error': 'Admin only'})))
-      ..put('/invoices/<id>', (Request req, String id) => req.isAdmin ? _updateInvoice(req, id) : Response.forbidden(jsonEncode({'error': 'Admin only'})))
-      ..delete('/invoices/<id>', (Request req, String id) => req.isAdmin ? _deleteInvoice(req, id) : Response.forbidden(jsonEncode({'error': 'Admin only'})))
-      ..get('/summary', (Request req) => req.isRH ? _getFinanceSummary(req) : Response.forbidden(jsonEncode({'error': 'Admin/RH only'})))
-      ..get('/payments/invoice/<invoiceId>', (Request req, String iid) => req.isRH ? _getPaymentsByInvoice(req, iid) : Response.forbidden(jsonEncode({'error': 'Admin/RH only'})))
-      ..post('/payments', (Request req) => req.isAdmin ? _createPayment(req) : Response.forbidden(jsonEncode({'error': 'Admin only'})))
-      ..delete('/payments/<id>', (Request req, String id) => req.isAdmin ? _deletePayment(req, id) : Response.forbidden(jsonEncode({'error': 'Admin only'})));
+      ..get('/invoices', Pipeline().addMiddleware(requirePermission('view_invoices')).addHandler(_getAllInvoices))
+      ..get('/invoices/project/<projectId>', (Request request, String projectId) => Pipeline().addMiddleware(requirePermission('view_invoices')).addHandler((req) => _getInvoicesByProject(req, projectId))(request))
+      ..get('/invoices/<id>', (Request request, String id) => Pipeline().addMiddleware(requirePermission('view_invoices')).addHandler((req) => _getInvoiceById(req, id))(request))
+      ..post('/invoices', Pipeline().addMiddleware(requirePermission('manage_invoices')).addHandler(_createInvoice))
+      ..put('/invoices/<id>', (Request request, String id) => Pipeline().addMiddleware(requirePermission('manage_invoices')).addHandler((req) => _updateInvoice(req, id))(request))
+      ..delete('/invoices/<id>', (Request request, String id) => Pipeline().addMiddleware(requirePermission('manage_invoices')).addHandler((req) => _deleteInvoice(req, id))(request))
+      ..get('/summary', Pipeline().addMiddleware(requirePermission('view_revenue')).addHandler(_getFinanceSummary))
+      ..get('/payments/invoice/<invoiceId>', (Request request, String invoiceId) => Pipeline().addMiddleware(requirePermission('view_invoices')).addHandler((req) => _getPaymentsByInvoice(req, invoiceId))(request))
+      ..post('/payments', Pipeline().addMiddleware(requirePermission('manage_payments')).addHandler(_createPayment))
+      ..delete('/payments/<id>', (Request request, String id) => Pipeline().addMiddleware(requirePermission('manage_payments')).addHandler((req) => _deletePayment(req, id))(request));
   }
 
   Future<Response> _getFinanceSummary(Request request) async {

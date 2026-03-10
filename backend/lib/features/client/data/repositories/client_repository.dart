@@ -67,6 +67,6 @@ class ClientRepository {
 
   Future<bool> deleteClient(int id) async {
     final result = await _db.execute('DELETE FROM clients WHERE id = :id', {'id': id});
-    return result.affectedRows > 0;
+    return (result.affectedRows.toInt()) > 0;
   }
 }

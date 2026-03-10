@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../domain/entities/chat_entities.dart';
+import 'package:fs_hub/features/chat/domain/entities/chat_entities.dart';
 import 'package:fs_hub/shared/models/chat_models.dart';
 import 'media_components.dart';
-import '../../../../core/state/settings_controller.dart';
-import '../../../../core/utils/url_utils.dart';
-import '../../../../shared/widgets/authenticated_image.dart';
+import 'package:fs_hub/core/state/settings_controller.dart';
+import 'package:fs_hub/core/utils/url_utils.dart';
+import 'package:fs_hub/shared/widgets/authenticated_image.dart';
 import 'avatar_helper.dart';
 
 /// Message bubble widget
@@ -260,5 +260,8 @@ class MessageBubble extends StatelessWidget {
   String _formatTime(DateTime dt) => _formatDateTime(dt);
  
 }
+
+
+
 
 

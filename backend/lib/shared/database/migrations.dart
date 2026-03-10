@@ -44,6 +44,9 @@ class Migrations {
 
       // 3. Apply incremental migrations (idempotent)
       await _runIncrementalMigrations(conn, dbName);
+
+      // 3b. Seed missing permissions for existing databases
+      await _seedMissingPermissions(conn);
       
       // 4. Reset all users to offline on startup (in case of previous crash)
       print('Resetting user presence states...');
@@ -138,6 +141,8 @@ class Migrations {
       )
     ''');
 
+    await _ensureColumn(conn, dbName, 'file_uploads', 'is_completed', 'BOOLEAN DEFAULT FALSE');
+
     // FD. Revoked Tokens
     await _ensureTable(conn, dbName, 'revoked_tokens', '''
       CREATE TABLE revoked_tokens (
@@ -178,6 +183,8 @@ class Migrations {
       )
     ''');
 
+    await _ensureColumn(conn, dbName, 'audit_log', 'created_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP');
+
     // H. Departements
     await _ensureTable(conn, dbName, 'departements', '''
       CREATE TABLE departements (
@@ -188,6 +195,24 @@ class Migrations {
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       )
     ''');
+
+    // HH. Postes (Positions)
+    await _ensureTable(conn, dbName, 'postes', '''
+      CREATE TABLE postes (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          nom VARCHAR(100) NOT NULL UNIQUE,
+          description TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    ''');
+
+    // Check if postes is empty, if so, seed it
+    final posteCountRes = await conn.execute('SELECT COUNT(*) as count FROM postes');
+    final posteCount = int.tryParse(posteCountRes.rows.first.colByName('count').toString()) ?? 0;
+    if (posteCount == 0) {
+      print('Seeding default postes...');
+      await conn.execute("INSERT IGNORE INTO postes (nom, description) VALUES ('Directeur', 'Responsable de la direction générale'), ('Manager de projet', 'Gère les projets'), ('Team Lead', 'Encadre une équipe technique'), ('Développeur', 'Développe des applications'), ('Designer', 'Crée les interfaces'), ('Responsable RH', 'Gère les ressources humaines'), ('Comptable', 'Gère la comptabilité'), ('Support technique', 'Assiste les utilisateurs')");
+    }
 
     // I. Clients
     await _ensureTable(conn, dbName, 'clients', '''
@@ -398,6 +423,143 @@ class Migrations {
       final col = (table == 'users') ? 'id' : (table == 'conversations' ? 'created_by' : (table == 'messages' ? 'sender_id' : 'user_id'));
       await _fixIdColumnType(conn, dbName, table, col);
     }
+    
+    // V. Apply Audit Fixes
+    await _applyAuditFixes(conn, dbName);
+  }
+
+  static Future<void> _applyAuditFixes(_DBProxy conn, String dbName) async {
+    print('Checking and applying Architectural Audit Fixes...');
+    
+    // 1. Soft Delete Flags
+    await _ensureColumn(conn, dbName, 'users', 'is_deleted', 'BOOLEAN DEFAULT FALSE');
+    await _ensureColumn(conn, dbName, 'employees', 'is_deleted', 'BOOLEAN DEFAULT FALSE');
+    await _ensureColumn(conn, dbName, 'projets', 'is_deleted', 'BOOLEAN DEFAULT FALSE');
+    await _ensureColumn(conn, dbName, 'taches', 'is_deleted', 'BOOLEAN DEFAULT FALSE');
+
+    // Remove CASCADE deletes from core tables (employees -> user, projet_membres -> user, etc)
+    // We can run safe alters to drop the constraint then re-add it as RESTRICT, but that requires finding constraint names.
+    // So we'll run a custom script for employees and users to ensure they aren't CASCADE.
+    await _replaceCascadeWithRestrict(conn, dbName, 'employees');
+    await _replaceCascadeWithRestrict(conn, dbName, 'projet_membres');
+    await _replaceCascadeWithRestrict(conn, dbName, 'taches');
+    await _replaceCascadeWithRestrict(conn, dbName, 'projets');
+    
+    // 2. Enforced Foreign Keys for Employees (Departement & Poste)
+    await _ensureColumn(conn, dbName, 'employees', 'departement_id', 'INT NULL');
+    await _ensureColumn(conn, dbName, 'employees', 'poste_id', 'INT NULL');
+    await _ensureForeignKey(conn, dbName, 'employees', 'fk_emp_dept', 'departement_id', 'departements', 'id', 'ON DELETE SET NULL');
+    await _ensureForeignKey(conn, dbName, 'employees', 'fk_emp_poste', 'poste_id', 'postes', 'id', 'ON DELETE SET NULL');
+
+    // 3. Enforced Foreign Key for Demands -> Handled By
+    await _ensureForeignKey(conn, dbName, 'demands', 'fk_demands_handler', 'handled_by', 'users', 'id', 'ON DELETE SET NULL');
+
+    // 4. Audit Trail Triggers
+    try {
+      await conn.execute('DROP TRIGGER IF EXISTS trg_audit_salaries_update');
+      await conn.execute('''
+        CREATE TRIGGER trg_audit_salaries_update
+        AFTER UPDATE ON salaries
+        FOR EACH ROW
+        BEGIN
+            IF OLD.base_salary != NEW.base_salary OR OLD.net_salary != NEW.net_salary THEN
+                INSERT INTO audit_log (user_id, action, details)
+                VALUES (NEW.employee_id, 'SALARY_UPDATED', JSON_OBJECT('old_base', OLD.base_salary, 'new_base', NEW.base_salary));
+            END IF;
+        END
+      ''');
+    } catch(e) { print('Salary trigger info: $e'); }
+
+    try {
+      await conn.execute('DROP TRIGGER IF EXISTS trg_audit_bonuses_insert');
+      await conn.execute('''
+        CREATE TRIGGER trg_audit_bonuses_insert
+        AFTER INSERT ON bonuses
+        FOR EACH ROW
+        BEGIN
+            INSERT INTO audit_log (user_id, action, details)
+            VALUES (NEW.employee_id, 'BONUS_GRANTED', JSON_OBJECT('amount', NEW.amount, 'type', NEW.bonus_type));
+        END
+      ''');
+    } catch(e) { print('Bonus trigger info: $e'); }
+
+    // 5. Clean up expired tokens (Immediate cleanup during startup)
+    // 6. Expense Approval & Multi-level chain
+    await _ensureColumn(conn, dbName, 'depenses_projets', 'status', "ENUM('pending', 'approved_manager', 'approved_hr', 'approved_finance', 'rejected') DEFAULT 'pending'");
+    await _ensureColumn(conn, dbName, 'depenses_entreprise', 'status', "ENUM('pending', 'approved_manager', 'approved_hr', 'approved_finance', 'rejected') DEFAULT 'pending'");
+    await _ensureColumn(conn, dbName, 'depenses_projets', 'manager_id', 'VARCHAR(50) NULL');
+    await _ensureColumn(conn, dbName, 'depenses_projets', 'hr_id', 'VARCHAR(50) NULL');
+    await _ensureColumn(conn, dbName, 'depenses_projets', 'finance_id', 'VARCHAR(50) NULL');
+    await _ensureColumn(conn, dbName, 'depenses_entreprise', 'manager_id', 'VARCHAR(50) NULL');
+    await _ensureColumn(conn, dbName, 'depenses_entreprise', 'hr_id', 'VARCHAR(50) NULL');
+    await _ensureColumn(conn, dbName, 'depenses_entreprise', 'finance_id', 'VARCHAR(50) NULL');
+
+    // 7. Audit log for project deletion (Safety Trigger)
+    try {
+      await conn.execute('DROP TRIGGER IF EXISTS trg_audit_projets_delete');
+      await conn.execute('''
+        CREATE TRIGGER trg_audit_projets_delete
+        AFTER UPDATE ON projets
+        FOR EACH ROW
+        BEGIN
+            IF OLD.is_deleted = FALSE AND NEW.is_deleted = TRUE THEN
+                INSERT INTO audit_log (user_id, action, details)
+                VALUES ('SYSTEM', 'PROJECT_DELETED_SOFT', JSON_OBJECT('id', OLD.id, 'name', OLD.nom));
+            END IF;
+        END
+      ''');
+    } catch(e) {}
+  }
+
+  static Future<void> _replaceCascadeWithRestrict(_DBProxy conn, String dbName, String tableName) async {
+    final constraintsReq = await conn.execute(
+      '''
+      SELECT CONSTRAINT_NAME, REFERENCED_TABLE_NAME 
+      FROM information_schema.REFERENTIAL_CONSTRAINTS 
+      WHERE CONSTRAINT_SCHEMA = :db AND TABLE_NAME = :table AND DELETE_RULE = 'CASCADE'
+      ''',
+      {'db': dbName, 'table': tableName},
+    );
+    
+    for (var row in constraintsReq.rows) {
+      final constraintName = row.colAt(0).toString();
+      final refTable = row.colAt(1).toString();
+      
+      final cols = await conn.execute(
+         "SELECT COLUMN_NAME, REFERENCED_COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE CONSTRAINT_NAME = :cname AND TABLE_SCHEMA = :db",
+         {'cname': constraintName, 'db': dbName}
+      );
+      
+      if (cols.rows.isNotEmpty) {
+        final colName = cols.rows.first.colByName('COLUMN_NAME').toString();
+        final refColName = cols.rows.first.colByName('REFERENCED_COLUMN_NAME').toString();
+        
+        print('Patching CASCADE constraint $constraintName on $tableName...');
+        try {
+           await conn.execute("ALTER TABLE $tableName DROP FOREIGN KEY $constraintName");
+           
+           // If it's something like employees.user_id, we might want NO ACTION. Let's use RESTRICT.
+           await conn.execute("ALTER TABLE $tableName ADD CONSTRAINT $constraintName FOREIGN KEY ($colName) REFERENCES $refTable($refColName) ON DELETE RESTRICT");
+        } catch (e) {
+           print('Failed to patch constraint $constraintName: $e');
+        }
+      }
+    }
+  }
+
+  static Future<void> _ensureForeignKey(_DBProxy conn, String dbName, String tableName, String constraintName, String column, String refTable, String refColumn, String rule) async {
+    final check = await conn.execute(
+      "SELECT COUNT(*) as cnt FROM information_schema.table_constraints WHERE table_schema = :db AND table_name = :table AND constraint_name = :cname",
+      {'db': dbName, 'table': tableName, 'cname': constraintName},
+    );
+    if ((int.tryParse(check.rows.first.colByName('cnt').toString()) ?? 0) == 0) {
+      print('Adding foreign key $constraintName to $tableName');
+      try {
+        await conn.execute("ALTER TABLE $tableName ADD CONSTRAINT $constraintName FOREIGN KEY ($column) REFERENCES $refTable($refColumn) $rule");
+      } catch (e) {
+        print('Skipping FK addition due to missing target table or column: $e');
+      }
+    }
   }
 
   static Future<void> _ensureTable(_DBProxy conn, String dbName, String tableName, String createSql) async {
@@ -436,6 +598,59 @@ class Migrations {
         await conn.execute('SET FOREIGN_KEY_CHECKS = 1');
       }
     }
+  }
+
+  /// Seeds new granular permissions that older databases may be missing.
+  /// Safe to run multiple times — uses INSERT IGNORE.
+  static Future<void> _seedMissingPermissions(_DBProxy conn) async {
+    print('Seeding missing permissions into database...');
+    final newPermissions = [
+      // Employees self-service HR permissions
+      {'nom': 'log_own_attendance', 'module': 'HR', 'description': 'Enregistrer sa propre présence (check-in/check-out)'},
+      {'nom': 'submit_leave', 'module': 'HR', 'description': 'Soumettre une demande de congé'},
+      {'nom': 'submit_remote_work', 'module': 'HR', 'description': 'Soumettre une demande de télétravail'},
+      // Finance split
+      {'nom': 'view_finances', 'module': 'Finance', 'description': 'Consulter les données financières'},
+      {'nom': 'manage_finance', 'module': 'Finance', 'description': 'Gérer les opérations financières'},
+    ];
+
+    for (final perm in newPermissions) {
+      try {
+        await conn.execute(
+          "INSERT IGNORE INTO permissions (nom, module, description) VALUES (:nom, :module, :description)",
+          perm,
+        );
+      } catch (e) {
+        print('Permission seed warning [${perm['nom']}]: $e');
+      }
+    }
+
+    // Auto-assign ALL permissions to Admin role
+    try {
+      await conn.execute('''
+        INSERT IGNORE INTO role_permissions (role_id, permission_id)
+        SELECT r.id, p.id FROM roles r, permissions p WHERE r.nom = 'Admin'
+      ''');
+    } catch (e) {
+      print('Admin role permission re-sync error: $e');
+    }
+
+    // Auto-assign employee self-service permissions to "Employé" role
+    try {
+      await conn.execute('''
+        INSERT IGNORE INTO role_permissions (role_id, permission_id)
+        SELECT r.id, p.id FROM roles r, permissions p
+        WHERE r.nom = 'Employé' AND p.nom IN (
+          'log_own_attendance', 'submit_leave', 'submit_remote_work',
+          'view_tasks', 'execute_tasks', 'update_task_progress',
+          'send_messages', 'view_messages', 'view_projects'
+        )
+      ''');
+    } catch (e) {
+      print('Employé permission auto-assignment error: $e');
+    }
+
+    print('Permission seeding complete.');
   }
 }
 

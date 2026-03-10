@@ -3,10 +3,10 @@ import 'dart:ui';
 import 'package:provider/provider.dart';
 import '../models/client_model.dart';
 import '../services/client_service.dart';
-import '../../../shared/widgets/luxury/luxury_app_bar.dart';
-import '../../../core/theme/app_theme.dart';
-import '../../../core/state/settings_controller.dart';
-import '../../../shared/widgets/luxury/luxury_status_dialog.dart';
+import 'package:fs_hub/shared/widgets/luxury/luxury_app_bar.dart';
+import 'package:fs_hub/core/theme/app_theme.dart';
+import 'package:fs_hub/core/state/settings_controller.dart';
+import 'package:fs_hub/shared/widgets/luxury/luxury_status_dialog.dart';
 
 class ClientFormPage extends StatefulWidget {
   final Client? client;
@@ -419,3 +419,5 @@ class _ClientFormPageState extends State<ClientFormPage> with TickerProviderStat
     );
   }
 }
+
+

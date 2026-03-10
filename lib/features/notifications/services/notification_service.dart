@@ -1,6 +1,6 @@
 import 'dart:convert';
-import '../../../shared/models/notification_model.dart';
-import '../../../core/services/api_service.dart';
+import 'package:fs_hub/shared/models/notification_model.dart';
+import 'package:fs_hub/core/services/api_service.dart';
 
 class NotificationService {
   /// Get all notifications for a specific user

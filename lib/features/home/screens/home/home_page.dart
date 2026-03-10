@@ -1,15 +1,16 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'dart:ui';
-import '../../../../shared/widgets/luxury/luxury_app_bar.dart';
+import 'package:fs_hub/shared/widgets/luxury/luxury_app_bar.dart';
 import '../../../auth/data/services/auth_service.dart';
 import '../../../employees/services/employee_service.dart';
 import '../../../notifications/services/notification_service.dart';
-import '../../../../core/routes/app_routes.dart';
+import 'package:fs_hub/core/routes/app_routes.dart';
 import '../../../../navigation/chat_router.dart';
 
 import 'package:provider/provider.dart';
-import '../../../../core/state/settings_controller.dart';
+import 'package:fs_hub/core/state/settings_controller.dart';
+import 'package:fs_hub/core/state/location_controller.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -339,60 +340,70 @@ class _HeroBannerPremium extends StatelessWidget {
               ),
             ],
           ),
-          child: Row(
+          child: Column(
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      isFr ? 'ESPACE EXÉCUTIF' : 'EXECUTIVE WORKSPACE',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 4.0,
-                        color: isDark ? const Color(0xFFC9A24D) : const Color(0xFF90712B),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      '$name.',
-                      style: TextStyle(
-                        fontSize: 42,
-                        fontWeight: FontWeight.w300,
-                        height: 1.1,
-                        letterSpacing: -1.0,
-                        color: isDark ? Colors.white : const Color(0xFF111111),
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-                    Wrap(
-                      spacing: 16,
-                      runSpacing: 16,
+              // Clock and Date Section (only on smaller screens)
+              if (MediaQuery.of(context).size.width <= 600)
+                _ClockSection(isDark: isDark, isFr: isFr),
+              if (MediaQuery.of(context).size.width <= 600)
+                const SizedBox(height: 24),
+              // Main Content
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        _LuxStatPill(
-                          isDark: isDark,
-                          icon: Icons.hourglass_top_rounded,
-                          value: '$pendingCount',
-                          label: isFr ? 'En attente' : 'Pending',
-                          accent: const Color(0xFFC9A24D),
+                        Text(
+                          isFr ? 'ESPACE EXÉCUTIF' : 'EXECUTIVE WORKSPACE',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 4.0,
+                            color: isDark ? const Color(0xFFC9A24D) : const Color(0xFF90712B),
+                          ),
                         ),
-                        _LuxStatPill(
-                          isDark: isDark,
-                          icon: Icons.notifications_active_outlined,
-                          value: '$notifCount',
-                          label: isFr ? 'Notifications' : 'Alerts',
-                          accent: isDark ? Colors.white70 : Colors.black87,
+                        const SizedBox(height: 16),
+                        Text(
+                          '$name.',
+                          style: TextStyle(
+                            fontSize: 42,
+                            fontWeight: FontWeight.w300,
+                            height: 1.1,
+                            letterSpacing: -1.0,
+                            color: isDark ? Colors.white : const Color(0xFF111111),
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                        Wrap(
+                          spacing: 16,
+                          runSpacing: 16,
+                          children: [
+                            _LuxStatPill(
+                              isDark: isDark,
+                              icon: Icons.hourglass_top_rounded,
+                              value: '$pendingCount',
+                              label: isFr ? 'En attente' : 'Pending',
+                              accent: const Color(0xFFC9A24D),
+                            ),
+                            _LuxStatPill(
+                              isDark: isDark,
+                              icon: Icons.notifications_active_outlined,
+                              value: '$notifCount',
+                              label: isFr ? 'Notifications' : 'Alerts',
+                              accent: isDark ? Colors.white70 : Colors.black87,
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                  ],
-                ),
+                  ),
+                  // Inline Clock (only on larger screens)
+                  if (MediaQuery.of(context).size.width > 600)
+                    _InlineClock(isDark: isDark, isFr: isFr),
+                ],
               ),
-              // Inline Clock
-              if (MediaQuery.of(context).size.width > 600)
-                _InlineClock(isDark: isDark, isFr: isFr),
             ],
           ),
         ),
@@ -449,6 +460,140 @@ class _LuxStatPill extends StatelessWidget {
               fontWeight: FontWeight.w600,
               letterSpacing: 1.5,
               color: isDark ? Colors.white54 : Colors.black54,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// CLOCK SECTION (visible on all screen sizes)
+// ══════════════════════════════════════════════════════════════
+class _ClockSection extends StatefulWidget {
+  final bool isDark;
+  final bool isFr;
+
+  const _ClockSection({required this.isDark, required this.isFr});
+
+  @override
+  State<_ClockSection> createState() => _ClockSectionState();
+}
+
+class _ClockSectionState extends State<_ClockSection> {
+  late DateTime _now;
+  late Timer _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _now = DateTime.now();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() => _now = DateTime.now());
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final timeStr = '${_now.hour.toString().padLeft(2, '0')}:${_now.minute.toString().padLeft(2, '0')}';
+    final months = widget.isFr
+        ? ['JAN','FÉV','MAR','AVR','MAI','JUN','JUL','AOÛ','SEP','OCT','NOV','DÉC']
+        : ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+    final days = widget.isFr
+        ? ['DIM','LUN','MAR','MER','JEU','VEN','SAM']
+        : ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+    final dateStr = '${days[_now.weekday % 7]}, ${months[_now.month - 1]} ${_now.day}, ${_now.year}';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      decoration: BoxDecoration(
+        color: widget.isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: widget.isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.08),
+          width: 0.8,
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            flex: 3,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  timeStr,
+                  style: TextStyle(
+                    fontFamily: 'Courier',
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 2.0,
+                    color: widget.isDark ? const Color(0xFFC9A24D) : const Color(0xFF90712B),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  dateStr,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1.0,
+                    color: widget.isDark ? Colors.white38 : Colors.black45,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Flexible(
+            flex: 4,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: widget.isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.04),
+                borderRadius: BorderRadius.circular(100),
+                border: Border.all(
+                  color: widget.isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.05),
+                  width: 0.5,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.location_on_rounded,
+                    size: 12,
+                    color: widget.isDark ? const Color(0xFFC9A24D) : const Color(0xFF90712B),
+                  ),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      context.watch<LocationController>().locationLabel.isNotEmpty
+                          ? context.watch<LocationController>().locationLabel
+                          : (widget.isFr
+                              ? 'Siège Principal'
+                              : 'Main Headquarters'),
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.8,
+                        color: widget.isDark ? Colors.white54 : Colors.black54,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -551,7 +696,11 @@ class _InlineClockState extends State<_InlineClock> {
               ),
               const SizedBox(width: 6),
               Text(
-                widget.isFr ? 'Siège Principal — Opérations' : 'Main Headquarters — Operations',
+                context.watch<LocationController>().locationLabel.isNotEmpty
+                    ? context.watch<LocationController>().locationLabel
+                    : (widget.isFr
+                        ? 'Siège Principal — Opérations'
+                        : 'Main Headquarters — Operations'),
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
@@ -593,6 +742,12 @@ class _PrimaryGrid extends StatelessWidget {
         route: '/employees',
       ),
       _Module(
+        title: isFr ? 'Espace RH' : 'HR Portal',
+        caption: isFr ? 'Pointage, Congés, Paie' : 'Attendance, Leaves, Payroll',
+        icon: Icons.assignment_ind_outlined,
+        route: AppRoutes.hrDashboard,
+      ),
+      _Module(
         title: settings.translate('projects'),
         caption: isFr ? 'Labos actifs' : 'Active Labs',
         icon: Icons.science_outlined,
@@ -610,6 +765,24 @@ class _PrimaryGrid extends StatelessWidget {
         caption: isFr ? 'Capital & Rendement' : 'Capital Yield',
         icon: Icons.account_balance_wallet_outlined,
         route: '/finance',
+      ),
+      _Module(
+        title: 'Credits',
+        caption: isFr ? 'Gestion des Crédits' : 'Credit Management',
+        icon: Icons.credit_card_outlined,
+        route: AppRoutes.credits,
+      ),
+      _Module(
+        title: 'Expenses',
+        caption: isFr ? 'Dépenses & Budgets' : 'Expenses & Budgets',
+        icon: Icons.receipt_long_outlined,
+        route: AppRoutes.expenses,
+      ),
+      _Module(
+        title: 'Roles & Permissions',
+        caption: isFr ? 'Gestion des Accès' : 'Access Management',
+        icon: Icons.admin_panel_settings_outlined,
+        route: AppRoutes.roles,
       ),
     ];
 
@@ -657,7 +830,7 @@ class _SecondaryGrid extends StatelessWidget {
       _Module(title: settings.translate('tasks'), caption: 'Pipeline', icon: Icons.rule_outlined, route: AppRoutes.myTasks),
       _Module(title: settings.translate('clients'), caption: 'Partnerships', icon: Icons.handshake_outlined, route: '/clients'),
       _Module(title: settings.translate('invoices'), caption: 'Settlements', icon: Icons.receipt_long_outlined, route: '/invoices'),
-      _Module(title: settings.translate('reports'), caption: 'Analytics', icon: Icons.insert_chart_outlined, route: '/notifications'),
+      _Module(title: settings.translate('reports'), caption: 'Analytics', icon: Icons.insert_chart_outlined, route: AppRoutes.reports),
       _Module(title: settings.translate('messages'), caption: 'Collaboration', icon: Icons.mail_outline, isChat: true),
       _Module(title: settings.translate('profile'), caption: 'My Account', icon: Icons.person_outline, route: '/profile'),
       _Module(title: 'Departments', caption: 'Structure', icon: Icons.domain_outlined, route: AppRoutes.departments),
@@ -681,7 +854,7 @@ class _SecondaryGrid extends StatelessWidget {
             height: 100,
             isPrimary: false,
             onTap: item.isChat
-                ? () => Navigator.of(context).push(ChatRouter.buildHome())
+                ? () => Navigator.pushNamed(context, '/chat')
                 : () => Navigator.pushNamed(context, item.route ?? '/'),
           );
         }).toList(),
@@ -918,3 +1091,5 @@ class _Module {
     this.isChat = false,
   });
 }
+
+

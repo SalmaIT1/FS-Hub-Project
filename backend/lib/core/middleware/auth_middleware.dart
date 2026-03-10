@@ -71,10 +71,13 @@ Middleware requireAuth() {
       }
 
       // Attach identity to context for downstream handlers.
+      final permissions = await AuthService.getUserPermissions(userId);
+
       final updatedRequest = request.change(context: {
         ...request.context,
         'userId': userId,
         'userRole': userRole,
+        'userPermissions': permissions,
       });
 
       return innerHandler(updatedRequest);
@@ -82,12 +85,16 @@ Middleware requireAuth() {
   };
 }
 
+
+/// Middleware to enforce specific roles for a group of routes.
+/// Must be placed AFTER [requireAuth] in the pipeline.
+
 /// Middleware to enforce specific roles for a group of routes.
 /// Must be placed AFTER [requireAuth] in the pipeline.
 Middleware requireRole(List<String> allowedRoles) {
   return (innerHandler) {
     return (Request request) async {
-      final userRole = request.context['userRole'] as String? ?? 'Employé';
+      final userRole = request.authUserRole;
 
       if (!allowedRoles.contains(userRole)) {
         return Response(
@@ -105,10 +112,40 @@ Middleware requireRole(List<String> allowedRoles) {
   };
 }
 
+/// Middleware to enforce specific permissions for a route.
+/// Must be placed AFTER [requireAuth] in the pipeline.
+Middleware checkPermission(String permission) {
+  return (innerHandler) {
+    return (Request request) async {
+      final permissions = request.authUserPermissions;
+
+      if (!permissions.contains(permission)) {
+        return Response(
+          403,
+          body: jsonEncode({
+            'success': false,
+            'message': 'Permission denied: $permission'
+          }),
+          headers: {'Content-Type': 'application/json'},
+        );
+      }
+
+      return innerHandler(request);
+    };
+  };
+}
+
 /// Convenience extension: retrieve the authenticated user's ID from context.
 extension AuthContext on Request {
   String get authUserId => context['userId'] as String? ?? '';
   String get authUserRole => context['userRole'] as String? ?? 'Employé';
+  List<String> get authUserPermissions {
+    final perms = context['userPermissions'];
+    if (perms is List<String>) return perms;
+    if (perms is List) return perms.map((e) => e.toString()).toList().cast<String>();
+    return [];
+  }
   bool get isAdmin => authUserRole == 'Admin';
   bool get isRH => authUserRole == 'RH' || authUserRole == 'Admin';
+  bool hasPermission(String perm) => authUserPermissions.contains(perm);
 }

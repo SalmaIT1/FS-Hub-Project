@@ -112,13 +112,47 @@ class EmployeeRepository {
         'role': data['role'] ?? 'Employé',
       });
 
+      // RBAC: Link user to role in user_roles table
+      final roleName = data['role'] ?? 'Employé';
+      final roleResult = await tx.execute(
+        'SELECT id FROM roles WHERE nom = :role',
+        {'role': roleName},
+      );
+      
+      if (roleResult.rows.isNotEmpty) {
+        final roleId = roleResult.rows.first.colAt(0);
+        await tx.execute('''
+          INSERT INTO user_roles (user_id, role_id, assigned_at)
+          VALUES (:userId, :roleId, NOW())
+        ''', {
+          'userId': userId,
+          'roleId': roleId,
+        });
+      }
+
+      // Find departement_id
+      int? deptId;
+      if (data['departement'] != null && data['departement'].toString().trim().isNotEmpty) {
+        final dRes = await tx.execute('SELECT id FROM departements WHERE nom = :nom', {'nom': data['departement']});
+        if (dRes.rows.isNotEmpty) deptId = int.tryParse(dRes.rows.first.colAt(0).toString());
+      }
+
+      // Find poste_id
+      int? posteId;
+      if (data['poste'] != null && data['poste'].toString().trim().isNotEmpty) {
+        final pRes = await tx.execute('SELECT id FROM postes WHERE nom = :nom', {'nom': data['poste']});
+        if (pRes.rows.isNotEmpty) posteId = int.tryParse(pRes.rows.first.colAt(0).toString());
+      }
+
       await tx.execute('''
         INSERT INTO employees (id, user_id, matricule, nom, prenom, dateNaissance,
                                sexe, photo, email, telephone, adresse, ville,
-                               poste, departement, dateEmbauche, typeContrat, statut)
+                               poste, departement, poste_id, departement_id, 
+                               dateEmbauche, typeContrat, statut)
         VALUES (:id, :user_id, :matricule, :nom, :prenom, :dateNaissance,
                 :sexe, :photo, :email, :telephone, :adresse, :ville,
-                :poste, :departement, :dateEmbauche, :typeContrat, :statut)
+                :poste, :departement, :poste_id, :departement_id,
+                :dateEmbauche, :typeContrat, :statut)
       ''', {
         'id': userId,
         'user_id': userId,
@@ -134,6 +168,8 @@ class EmployeeRepository {
         'ville': data['ville'],
         'poste': data['poste'],
         'departement': data['departement'],
+        'poste_id': posteId,
+        'departement_id': deptId,
         'dateEmbauche': data['dateEmbauche'],
         'typeContrat': data['typeContrat'],
         'statut': data['statut'] ?? 'actif',
@@ -144,32 +180,48 @@ class EmployeeRepository {
   }
 
   Future<void> updateEmployee(String id, Map<String, dynamic> data) async {
-    await _db.execute('''
-      UPDATE employees
-      SET matricule = :matricule, nom = :nom, prenom = :prenom,
-          dateNaissance = :dateNaissance, sexe = :sexe,
-          photo = :photo, email = :email, telephone = :telephone,
-          adresse = :adresse, ville = :ville, poste = :poste,
-          departement = :departement, dateEmbauche = :dateEmbauche,
-          typeContrat = :typeContrat, statut = :statut, updated_at = NOW()
-      WHERE id = :id
-    ''', {
-      'matricule': data['matricule'],
-      'nom': data['nom'],
-      'prenom': data['prenom'],
-      'dateNaissance': data['dateNaissance'],
-      'sexe': data['sexe'],
-      'photo': data['photo'],
-      'email': data['email'],
-      'telephone': data['telephone'],
-      'adresse': data['adresse'],
-      'ville': data['ville'],
-      'poste': data['poste'],
-      'departement': data['departement'],
-      'dateEmbauche': data['dateEmbauche'],
-      'typeContrat': data['typeContrat'],
-      'statut': data['statut'],
-      'id': id,
+    await _db.transaction((tx) async {
+      int? deptId;
+      if (data['departement'] != null && data['departement'].toString().trim().isNotEmpty) {
+        final dRes = await tx.execute('SELECT id FROM departements WHERE nom = :nom', {'nom': data['departement']});
+        if (dRes.rows.isNotEmpty) deptId = int.tryParse(dRes.rows.first.colAt(0).toString());
+      }
+
+      int? posteId;
+      if (data['poste'] != null && data['poste'].toString().trim().isNotEmpty) {
+        final pRes = await tx.execute('SELECT id FROM postes WHERE nom = :nom', {'nom': data['poste']});
+        if (pRes.rows.isNotEmpty) posteId = int.tryParse(pRes.rows.first.colAt(0).toString());
+      }
+
+      await tx.execute('''
+        UPDATE employees
+        SET matricule = :matricule, nom = :nom, prenom = :prenom,
+            dateNaissance = :dateNaissance, sexe = :sexe,
+            photo = :photo, email = :email, telephone = :telephone,
+            adresse = :adresse, ville = :ville, poste = :poste,
+            departement = :departement, poste_id = :poste_id, departement_id = :departement_id,
+            dateEmbauche = :dateEmbauche, typeContrat = :typeContrat, statut = :statut, updated_at = NOW()
+        WHERE id = :id
+      ''', {
+        'matricule': data['matricule'],
+        'nom': data['nom'],
+        'prenom': data['prenom'],
+        'dateNaissance': data['dateNaissance'],
+        'sexe': data['sexe'],
+        'photo': data['photo'],
+        'email': data['email'],
+        'telephone': data['telephone'],
+        'adresse': data['adresse'],
+        'ville': data['ville'],
+        'poste': data['poste'],
+        'departement': data['departement'],
+        'poste_id': posteId,
+        'departement_id': deptId,
+        'dateEmbauche': data['dateEmbauche'],
+        'typeContrat': data['typeContrat'],
+        'statut': data['statut'],
+        'id': id,
+      });
     });
   }
 

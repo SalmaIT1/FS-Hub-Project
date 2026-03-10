@@ -1,8 +1,8 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
-import '../../../shared/models/employee_model.dart';
-import '../../auth/data/services/auth_service.dart';
+import 'package:fs_hub/shared/models/employee_model.dart';
+import 'package:fs_hub/features/auth/data/services/auth_service.dart';
+import 'package:fs_hub/core/config/app_config.dart';
 
 class EmployeeService {
   /// Base URL for the backend.
@@ -11,7 +11,7 @@ class EmployeeService {
   ///   proxied to the `backend` container on port 8080 (see `nginx.conf`).
   /// - On mobile/desktop during local development, the backend is usually
   ///   reachable on `http://localhost:8080/v1`.
-  static final String baseUrl = 'http://localhost:8080/v1';
+  static final String baseUrl = AppConfig.apiV1BaseUrl;
 
   static Future<List<Employee>> getAllEmployees() async {
     try {
@@ -126,16 +126,36 @@ class EmployeeService {
 
   static Future<Map<String, dynamic>> deleteEmployee(String id) async {
     try {
-      final response = await AuthService.authenticatedRequest('/employees/$id', 'DELETE');
+      // First, get the employee details to find the associated username
+      final employee = await getEmployeeById(id);
+      String? username;
+      
+      if (employee != null && employee.username != null) {
+        username = employee.username;
+      }
 
+      // Delete the employee
+      final response = await AuthService.authenticatedRequest('/employees/$id', 'DELETE');
       final jsonData = jsonDecode(response.body);
 
       if (response.statusCode == 200 &&
           jsonData is Map<String, dynamic> &&
           (jsonData['success'] == true)) {
+        
+        // If employee had a username, also delete the associated user account
+        if (username != null && username.isNotEmpty) {
+          try {
+            final userDeleteResponse = await AuthService.authenticatedRequest('/auth/users/$username', 'DELETE');
+            print('User account deletion status: ${userDeleteResponse.statusCode}');
+          } catch (e) {
+            print('Warning: Failed to delete associated user account: $e');
+            // Don't fail the employee deletion if user deletion fails
+          }
+        }
+
         return {
           'success': true,
-          'message': jsonData['message'] ?? 'Employee deleted successfully',
+          'message': jsonData['message'] ?? 'Employee and associated user account deleted successfully',
         };
       }
 

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:mime/mime.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
+import 'package:uuid/uuid.dart';
 import '../../domain/services/media_service.dart';
 import '../../../../core/middleware/auth_middleware.dart';
 
@@ -35,11 +36,10 @@ class UploadRoutes {
       final uploadDir = Directory('uploads');
       if (!await uploadDir.exists()) await uploadDir.create(recursive: true);
 
-      final extension = media.storedFilename.contains('.') ? media.storedFilename.split('.').last : 'bin';
-      final actualStoredFilename = '$uploadId.$extension';
+      final actualStoredFilename = media.storedFilename;
       final filePath = '${uploadDir.path}/$actualStoredFilename';
 
-      // SECURE STREAMING: Read request stream and write directly to disk to avoid Memory DoS
+      // SECURE STREAMING
       final file = File(filePath);
       final sink = file.openWrite();
       int totalBytes = 0;
@@ -59,7 +59,6 @@ class UploadRoutes {
       }
 
       await MediaService.updateMedia(uploadId, {
-        'stored_filename': actualStoredFilename,
         'file_path': filePath,
         'file_size': totalBytes,
       });
@@ -71,8 +70,6 @@ class UploadRoutes {
   }
 
   Future<Response> _uploadFile(Request request) async {
-    // This handler uses MimeMultipartTransformer which also streams,
-    // but we ensure we don't buffer the whole thing in memory.
     try {
       final userId = request.authUserId;
       final contentType = request.headers['content-type'] ?? '';
@@ -85,7 +82,7 @@ class UploadRoutes {
       final boundary = boundaryMatch.group(1)!.trim();
 
       final transformer = MimeMultipartTransformer(boundary);
-      final parts = transformer.bind(request.read()); // Stream from request directly
+      final parts = transformer.bind(request.read());
 
       String? filename;
       String? mimeType;
@@ -105,10 +102,13 @@ class UploadRoutes {
             return Response(415, body: jsonEncode({'success': false, 'message': 'File extension not allowed'}));
           }
 
-          // Create record pending
+          final uniqueId = const Uuid().v4();
+          final actualStoredFilename = '$uniqueId.$extension';
+
+          // Create record
           final newId = await MediaService.insertMedia({
             'original_filename': filename,
-            'stored_filename': 'pending',
+            'stored_filename': actualStoredFilename,
             'file_path': 'pending',
             'file_size': 0,
             'mime_type': mimeType ?? 'application/octet-stream',
@@ -121,7 +121,6 @@ class UploadRoutes {
           final uploadDir = Directory('uploads');
           if (!await uploadDir.exists()) await uploadDir.create(recursive: true);
           
-          final actualStoredFilename = '$uploadId.$extension';
           filePath = '${uploadDir.path}/$actualStoredFilename';
           final file = File(filePath);
           final sink = file.openWrite();
@@ -145,7 +144,6 @@ class UploadRoutes {
           }
 
           await MediaService.updateMedia(uploadId.toString(), {
-            'stored_filename': actualStoredFilename,
             'file_path': filePath,
             'file_size': totalBytes,
           });
@@ -189,21 +187,19 @@ class UploadRoutes {
         return Response(415, body: jsonEncode({'success': false, 'message': 'File extension not allowed'}));
       }
 
+      final uniqueId = const Uuid().v4();
+      final actualStoredFilename = '$uniqueId.$extension';
       final expiresAt = DateTime.now().add(const Duration(minutes: 15));
+
       final uploadId = await MediaService.insertMedia({
         'original_filename': safeFilename,
-        'stored_filename': 'pending.$extension',
-        'file_path': 'pending',
+        'stored_filename': actualStoredFilename,
+        'file_path': 'uploads/$actualStoredFilename',
         'file_size': fileSize,
         'mime_type': mimeType,
         'uploaded_by': userId,
         'is_public': false,
         'expires_at': expiresAt.toIso8601String(),
-      });
-
-      await MediaService.updateMedia(uploadId.toString(), {
-        'stored_filename': '$uploadId.$extension',
-        'file_path': 'uploads/$uploadId.$extension',
       });
 
       final baseUrl = '${request.requestedUri.scheme}://${request.requestedUri.host}:${request.requestedUri.port}';

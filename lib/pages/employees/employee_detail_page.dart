@@ -1,9 +1,9 @@
 import 'dart:ui';
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import '../../shared/models/employee_model.dart';
-import '../../core/routes/app_routes.dart';
-import '../../shared/widgets/luxury/luxury_app_bar.dart';
+import 'package:fs_hub/shared/models/employee_model.dart';
+import 'package:fs_hub/core/routes/app_routes.dart';
+import 'package:fs_hub/shared/widgets/luxury/luxury_app_bar.dart';
 
 class EmployeeDetailPage extends StatelessWidget {
   final Employee employee;
@@ -374,3 +374,4 @@ class EmployeeDetailPage extends StatelessWidget {
     return '${date.day}/${date.month}/${date.year}';
   }
 }
+

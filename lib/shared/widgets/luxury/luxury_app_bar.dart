@@ -6,8 +6,8 @@ import '../../../features/auth/data/services/auth_service.dart';
 import '../../../features/employees/services/employee_service.dart';
 import '../../../features/notifications/services/notification_service.dart';
 import '../../../features/chat/presentation/providers/chat_provider.dart';
-import '../../../core/theme/app_theme.dart';
-import '../../../core/state/settings_controller.dart';
+import 'package:fs_hub/core/theme/app_theme.dart';
+import 'package:fs_hub/core/state/settings_controller.dart';
 import '../../../features/chat/presentation/widgets/avatar_helper.dart';
 
 class LuxuryAppBar extends StatefulWidget implements PreferredSizeWidget {
@@ -24,6 +24,7 @@ class LuxuryAppBar extends StatefulWidget implements PreferredSizeWidget {
   final String? avatarUrl;
   final String? initials;
   final bool isGroup;
+  final PreferredSizeWidget? bottom;
 
   const LuxuryAppBar({
     super.key,
@@ -40,10 +41,12 @@ class LuxuryAppBar extends StatefulWidget implements PreferredSizeWidget {
     this.avatarUrl,
     this.initials,
     this.isGroup = false,
+    this.bottom,
   });
 
   @override
-  Size get preferredSize => Size.fromHeight(isPremium ? 80.0 : 56.0);
+  Size get preferredSize => Size.fromHeight(
+      (isPremium ? 90.0 : 56.0) + (bottom?.preferredSize.height ?? 0.0));
 
   @override
   State<LuxuryAppBar> createState() => _LuxuryAppBarState();
@@ -139,7 +142,7 @@ class _LuxuryAppBarState extends State<LuxuryAppBar> with TickerProviderStateMix
       opacity: _isVisible ? 1.0 : 0.0,
       duration: const Duration(milliseconds: 300),
       child: Container(
-        height: 80.0,
+        height: widget.preferredSize.height,
         margin: widget.floating ? const EdgeInsets.fromLTRB(12, 12, 12, 0) : EdgeInsets.zero,
         decoration: BoxDecoration(
           borderRadius: widget.floating 
@@ -193,11 +196,13 @@ class _LuxuryAppBarState extends State<LuxuryAppBar> with TickerProviderStateMix
               sigmaX: _blurAnimation.value * 1.5,
               sigmaY: _blurAnimation.value * 1.5,
             ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 12.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 12.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
                   // Top divider line
                   Container(
                     height: 1,
@@ -330,6 +335,7 @@ class _LuxuryAppBarState extends State<LuxuryAppBar> with TickerProviderStateMix
                       ],
                     ),
                   ),
+                  if (widget.bottom != null) widget.bottom!,
                   // Bottom divider line
                   Container(
                     height: 1,
@@ -349,15 +355,16 @@ class _LuxuryAppBarState extends State<LuxuryAppBar> with TickerProviderStateMix
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildStandardAppBar(BuildContext context, bool isDark) {
     return AnimatedOpacity(
       opacity: _isVisible ? 1.0 : 0.0,
       duration: const Duration(milliseconds: 200),
       child: Container(
-        height: 56.0,
+        height: widget.preferredSize.height,
         margin: widget.floating ? const EdgeInsets.fromLTRB(8, 8, 8, 0) : EdgeInsets.zero,
         decoration: BoxDecoration(
           borderRadius: widget.floating 
@@ -382,26 +389,34 @@ class _LuxuryAppBarState extends State<LuxuryAppBar> with TickerProviderStateMix
             ),
           ),
         ),
-        child: ClipRRect(
-          borderRadius: widget.floating 
-            ? const BorderRadius.vertical(bottom: Radius.circular(16))
-            : const BorderRadius.vertical(bottom: Radius.circular(12)),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(
-              sigmaX: _blurAnimation.value,
-              sigmaY: _blurAnimation.value,
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: Row(
-                children: [
-                  _buildLeading(context, isDark),
-                  _buildTitleSection(isDark),
-                  _buildActions(isDark),
-                ],
+        child: Column(
+          mainAxisSize: MainAxisSize.max,
+          children: [
+            Expanded(
+              child: ClipRRect(
+                borderRadius: widget.floating 
+                  ? const BorderRadius.vertical(bottom: Radius.circular(16))
+                  : const BorderRadius.vertical(bottom: Radius.circular(12)),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(
+                    sigmaX: _blurAnimation.value,
+                    sigmaY: _blurAnimation.value,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: Row(
+                      children: [
+                        _buildLeading(context, isDark),
+                        _buildTitleSection(isDark),
+                        _buildActions(isDark),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
-          ),
+            if (widget.bottom != null) widget.bottom!,
+          ],
         ),
       ),
     );
@@ -1184,7 +1199,10 @@ class LuxuryScaffold extends StatelessWidget {
   final bool floatingAppBar;
   final ScrollController? scrollController;
   final Widget? bottomNavigationBar;
-  final bool isPremium; // New premium flag
+  final bool isPremium;
+  final bool extendBody;
+  final PreferredSizeWidget? bottom;
+  final Widget? floatingActionButton;
 
   const LuxuryScaffold({
     super.key,
@@ -1198,15 +1216,20 @@ class LuxuryScaffold extends StatelessWidget {
     this.floatingAppBar = false,
     this.scrollController,
     this.bottomNavigationBar,
-    this.isPremium = true, // Default to premium for enhanced pages
+    this.isPremium = true,
+    this.extendBody = false,
+    this.bottom,
+    this.floatingActionButton,
   });
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).brightness == Brightness.dark
-        ? const Color(0xFF0A0A0A)
-        : const Color(0xFFF4F4F4),
+        ? const Color(0xFF121212)
+        : const Color(0xFFF8F8F8),
+      extendBody: extendBody,
+      extendBodyBehindAppBar: true,
       appBar: LuxuryAppBar(
         title: title,
         subtitle: subtitle,
@@ -1217,9 +1240,11 @@ class LuxuryScaffold extends StatelessWidget {
         floating: floatingAppBar,
         scrollController: scrollController,
         isPremium: isPremium,
+        bottom: bottom,
       ),
       body: body,
       bottomNavigationBar: bottomNavigationBar,
+      floatingActionButton: floatingActionButton,
     );
   }
 }
@@ -1478,3 +1503,4 @@ class _UserMenuDropdownOverlay extends StatelessWidget {
     );
   }
 }
+

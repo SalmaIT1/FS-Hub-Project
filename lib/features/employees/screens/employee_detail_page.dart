@@ -2,15 +2,94 @@ import 'dart:ui';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import '../../../shared/models/employee_model.dart';
-import '../../../core/routes/app_routes.dart';
-import '../../../shared/widgets/luxury/luxury_app_bar.dart';
-import '../../../shared/widgets/authenticated_image.dart';
+import 'package:fs_hub/shared/models/employee_model.dart';
+import 'package:fs_hub/core/routes/app_routes.dart';
+import 'package:fs_hub/shared/widgets/luxury/luxury_app_bar.dart';
+import 'package:fs_hub/shared/widgets/authenticated_image.dart';
 
-class EmployeeDetailPage extends StatelessWidget {
+import '../../auth/data/services/auth_service.dart';
+import '../../../shared/widgets/luxury/luxury_status_dialog.dart';
+
+class EmployeeDetailPage extends StatefulWidget {
   final Employee employee;
 
   const EmployeeDetailPage({super.key, required this.employee});
+
+  @override
+  State<EmployeeDetailPage> createState() => _EmployeeDetailPageState();
+}
+
+class _EmployeeDetailPageState extends State<EmployeeDetailPage> {
+  String? _currentUserRole;
+  bool _isAdminResetting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserInfo();
+  }
+
+  Future<void> _loadUserInfo() async {
+    final user = await AuthService.getCurrentUser();
+    if (mounted) {
+      setState(() {
+        _currentUserRole = user?['role'];
+      });
+    }
+  }
+
+  Future<void> _handleAdminResetPassword() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Protocol: Force Reset'),
+        content: Text('Are you sure you want to generate a new password for ${widget.employee.fullName}? A secure transmission will be sent to ${widget.employee.email}.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abort')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Confirm Reset'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() => _isAdminResetting = true);
+      try {
+        final result = await AuthService.adminResetUserPassword(widget.employee.id ?? '0');
+        if (mounted) {
+          setState(() => _isAdminResetting = false);
+          if (result['success']) {
+            LuxuryStatusDialog.show(
+              context,
+              isSuccess: true,
+              title: 'Reset Completed',
+              message: 'Security protocol executed. New credentials have been transmitted to the user.',
+            );
+          } else {
+            LuxuryStatusDialog.show(
+              context,
+              isSuccess: false,
+              title: 'Protocol Failed',
+              message: result['message'] ?? 'Unable to complete force reset.',
+            );
+          }
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() => _isAdminResetting = false);
+          LuxuryStatusDialog.show(
+            context,
+            isSuccess: false,
+            title: 'System Error',
+            message: e.toString(),
+          );
+        }
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -18,7 +97,7 @@ class EmployeeDetailPage extends StatelessWidget {
 
     return LuxuryScaffold(
       title: 'Employee Details',
-      subtitle: employee.fullName,
+      subtitle: widget.employee.fullName,
       isPremium: true,
       actions: [
         LuxuryAppBarAction(
@@ -27,7 +106,7 @@ class EmployeeDetailPage extends StatelessWidget {
             Navigator.pushNamed(
               context,
               AppRoutes.editEmployee,
-              arguments: employee,
+              arguments: widget.employee,
             );
           },
         ),
@@ -43,7 +122,7 @@ class EmployeeDetailPage extends StatelessWidget {
           ),
         ),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.only(top: 20, left: 20, right: 20, bottom: 40),
+          padding: const EdgeInsets.only(top: 100, left: 20, right: 20, bottom: 40),
           child: Column(
             children: [
               _buildAvatarSection(isDark),
@@ -51,12 +130,12 @@ class EmployeeDetailPage extends StatelessWidget {
               _buildInfoSection(
                 'Personal Information',
                 [
-                  _buildInfoRow('Matricule', employee.matricule, isDark),
-                  _buildInfoRow('Full Name', employee.fullName, isDark),
-                  _buildInfoRow('Date of Birth', _formatDate(employee.dateNaissance), isDark),
-                  _buildInfoRow('Gender', employee.sexe, isDark),
-                  _buildInfoRow('Email', employee.email, isDark),
-                  _buildInfoRow('Phone', employee.telephone, isDark),
+                  _buildInfoRow('Matricule', widget.employee.matricule, isDark),
+                  _buildInfoRow('Full Name', widget.employee.fullName, isDark),
+                  _buildInfoRow('Date of Birth', _formatDate(widget.employee.dateNaissance), isDark),
+                  _buildInfoRow('Gender', widget.employee.sexe, isDark),
+                  _buildInfoRow('Email', widget.employee.email, isDark),
+                  _buildInfoRow('Phone', widget.employee.telephone, isDark),
                 ],
                 isDark,
               ),
@@ -64,8 +143,8 @@ class EmployeeDetailPage extends StatelessWidget {
               _buildInfoSection(
                 'Address',
                 [
-                  _buildInfoRow('Address', employee.adresse, isDark),
-                  _buildInfoRow('City', employee.ville, isDark),
+                  _buildInfoRow('Address', widget.employee.adresse, isDark),
+                  _buildInfoRow('City', widget.employee.ville, isDark),
                 ],
                 isDark,
               ),
@@ -73,11 +152,11 @@ class EmployeeDetailPage extends StatelessWidget {
               _buildInfoSection(
                 'Professional Information',
                 [
-                  _buildInfoRow('Position', employee.poste, isDark),
-                  _buildInfoRow('Department', employee.departement, isDark),
-                  _buildInfoRow('Hire Date', _formatDate(employee.dateEmbauche), isDark),
-                  _buildInfoRow('Contract Type', employee.typeContrat, isDark),
-                  _buildInfoRow('Status', employee.statut, isDark, isStatus: true),
+                  _buildInfoRow('Position', widget.employee.poste, isDark),
+                  _buildInfoRow('Department', widget.employee.departement, isDark),
+                  _buildInfoRow('Hire Date', _formatDate(widget.employee.dateEmbauche), isDark),
+                  _buildInfoRow('Contract Type', widget.employee.typeContrat, isDark),
+                  _buildInfoRow('Status', widget.employee.statut, isDark, isStatus: true),
                 ],
                 isDark,
               ),
@@ -85,10 +164,29 @@ class EmployeeDetailPage extends StatelessWidget {
               _buildInfoSection(
                 'Account Information',
                 [
-                  _buildInfoRow('Username', employee.username ?? 'N/A', isDark),
-                  _buildInfoRow('Role', employee.role ?? 'N/A', isDark),
-                  if (employee.permissions != null && employee.permissions!.isNotEmpty)
-                    _buildPermissionsRow(employee.permissions!, isDark),
+                  _buildInfoRow('Username', widget.employee.username ?? 'N/A', isDark),
+                  _buildInfoRow('Role', widget.employee.role ?? 'N/A', isDark),
+                  if (widget.employee.permissions != null && widget.employee.permissions!.isNotEmpty)
+                    _buildPermissionsRow(widget.employee.permissions!, isDark),
+                  
+                  if (_currentUserRole == 'Admin') ...[
+                    const Divider(height: 32, thickness: 0.5),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _isAdminResetting ? null : _handleAdminResetPassword,
+                        icon: _isAdminResetting 
+                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) 
+                            : const Icon(Icons.lock_reset, color: Colors.red),
+                        label: Text(_isAdminResetting ? 'Processing...' : 'Reset User Password', style: const TextStyle(color: Colors.red)),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Colors.red),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
                 isDark,
               ),
@@ -120,14 +218,14 @@ class EmployeeDetailPage extends StatelessWidget {
             ],
           ),
           child: ClipOval(
-            child: employee.avatarUrl != null
-                ? _buildImageWidget(employee.avatarUrl!, isDark)
+            child: widget.employee.avatarUrl != null
+                ? _buildImageWidget(widget.employee.avatarUrl!, isDark)
                 : _buildAvatarPlaceholder(isDark),
           ),
         ),
         const SizedBox(height: 16),
         Text(
-          employee.fullName,
+          widget.employee.fullName,
           style: TextStyle(
             color: isDark ? Colors.white : Colors.black,
             fontSize: 24,
@@ -137,7 +235,7 @@ class EmployeeDetailPage extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          employee.poste,
+          widget.employee.poste,
           style: TextStyle(
             color: isDark ? Colors.white60 : Colors.black54,
             fontSize: 16,
@@ -155,7 +253,7 @@ class EmployeeDetailPage extends StatelessWidget {
           : Colors.black.withOpacity(0.04),
       child: Center(
         child: Text(
-          employee.prenom[0].toUpperCase() + employee.nom[0].toUpperCase(),
+          widget.employee.prenom[0].toUpperCase() + widget.employee.nom[0].toUpperCase(),
           style: const TextStyle(
             color: Color(0xFFD4AF37),
             fontSize: 40,
@@ -361,3 +459,4 @@ class EmployeeDetailPage extends StatelessWidget {
     return '${date.day}/${date.month}/${date.year}';
   }
 }
+

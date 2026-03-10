@@ -2,6 +2,7 @@ import 'package:bcrypt/bcrypt.dart';
 import 'dart:math';
 import '../../data/repositories/demand_repository.dart';
 import '../../../notification/domain/services/notification_service.dart';
+import '../../../../shared/services/audit_service.dart';
 
 const Set<String> _allowedDemandTypes = {
   'password_reset', 'hardware', 'administrative', 'custom', 'other',
@@ -30,7 +31,7 @@ class DemandService {
     });
 
     await _notifyAdmins('New Demand', 'A new $type demand was submitted.', 'demand_created');
-    await _repository.auditLog(requesterId, 'demand_created', {'demandId': id, 'type': type});
+    await AuditService.log(requesterId, 'DEMAND_CREATED', {'demandId': id, 'type': type});
 
     return {'success': true, 'message': 'Demand created', 'data': {'demandId': id.toString()}};
   }
@@ -40,13 +41,15 @@ class DemandService {
     String? status,
     String? requesterId,
     String? userRole,
+    String? callerId,
   }) async {
     try {
+      final isAdmin = userRole == 'Admin' || userRole == 'RH' || userRole == 'Manager';
       final demands = await _repository.getAllDemands(
         type: type,
         status: status,
-        requesterId: requesterId,
-        isAdmin: userRole == 'Admin',
+        requesterId: isAdmin ? requesterId : callerId,
+        isAdmin: isAdmin,
       );
       return {'success': true, 'data': demands.map((d) => d.toJson()).toList()};
     } catch (e, stack) {
@@ -84,8 +87,16 @@ class DemandService {
     String currentUserId,
     String currentUserRole,
   ) async {
-    if (currentUserRole != 'Admin') {
-      return {'success': false, 'message': 'Admin role required'};
+    if (currentUserRole != 'Admin' && currentUserRole != 'RH' && currentUserRole != 'Manager') {
+      return {'success': false, 'message': 'Permission denied: Manager, RH or Admin role required'};
+    }
+
+    final demand = await _repository.getDemandById(id);
+    if (demand == null) return {'success': false, 'message': 'Demand not found'};
+
+    // Guard: Admin/RH/Manager cannot approve their own demand (Audit integrity)
+    if (demand.requesterId == currentUserId && currentUserRole != 'Admin') {
+      return {'success': false, 'message': 'You cannot resolve your own demand for audit purposes.'};
     }
 
     final status = data['status']?.toString();
@@ -93,11 +104,16 @@ class DemandService {
       return {'success': false, 'message': 'Invalid status'};
     }
 
-    final demand = await _repository.getDemandById(id);
-    if (demand == null) return {'success': false, 'message': 'Demand not found'};
-
     await _repository.updateStatus(id, status, currentUserId, data['resolution_notes'] ?? '');
-    await _repository.auditLog(currentUserId, 'demand_status_changed', {'demandId': id, 'newStatus': status});
+    await AuditService.log(currentUserId, 'DEMAND_STATUS_CHANGED', {'demandId': id, 'newStatus': status});
+
+    // Notify requester
+    await NotificationService.createNotification(
+      userId: demand.requesterId,
+      title: 'Demand Status Updated',
+      message: 'Your demand ($id) has been $status.',
+      type: 'demand_status_updated',
+    );
 
     if (status == 'resolved' && demand.type == 'password_reset') {
       return await handlePasswordResetDemand(id, currentUserId);

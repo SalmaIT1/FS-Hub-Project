@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
-import '../../../shared/models/department_model.dart';
+import 'package:fs_hub/shared/models/department_model.dart';
 import '../services/department_service.dart';
-import '../../../core/theme/app_theme.dart';
-import '../../../shared/widgets/luxury/luxury_status_dialog.dart';
+import 'package:fs_hub/core/theme/app_theme.dart';
+import 'package:fs_hub/shared/widgets/luxury/luxury_status_dialog.dart';
 
 class AddEditDepartmentDialog extends StatefulWidget {
   final Department? department;
@@ -266,3 +266,4 @@ class _AddEditDepartmentDialogState extends State<AddEditDepartmentDialog> {
     );
   }
 }
+

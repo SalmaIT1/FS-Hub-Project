@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import '../../shared/database/connection.dart';
 import '../../features/notification/domain/services/notification_service.dart';
 
@@ -21,11 +22,29 @@ class DataIntegrityService {
   /// Deletes upload records and files that were never completed
   static Future<void> _cleanupExpiredUploads() async {
     try {
+      // 1. Fetch expired file paths
+      final expired = await _db.execute(
+        "SELECT id, file_path FROM file_uploads WHERE is_completed = FALSE AND expires_at < NOW()"
+      );
+
+      // 2. Physically delete from disk
+      for (final row in expired.rows) {
+        final path = row.colByName('file_path')?.toString();
+        if (path != null) {
+          final file = File(path);
+          if (await file.exists()) {
+            await file.delete();
+            print('[DataIntegrityService] Deleted physical file: \$path');
+          }
+        }
+      }
+
+      // 3. Clean up DB records
       await _db.execute(
         "DELETE FROM file_uploads WHERE is_completed = FALSE AND expires_at < NOW()"
       );
     } catch (e) {
-      print('Cleanup error: $e');
+      print('Cleanup error: \$e');
     }
   }
 

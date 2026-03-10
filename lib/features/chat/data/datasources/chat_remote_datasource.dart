@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:convert' show base64Url, utf8;
 import 'package:http/http.dart' as http;
 import 'package:fs_hub/features/chat/domain/entities/chat_entities.dart';
 import 'package:fs_hub/shared/models/chat_models.dart';
@@ -182,6 +183,32 @@ class ChatRemoteDatasource {
       return ConversationEntity.fromJson(data['conversation'] ?? data);
     }
     throw Exception('Failed to create conversation: ${response.statusCode}');
+  }
+
+  Future<ConversationEntity> createGroupConversation({
+    required List<String> participantIds,
+    required String name,
+    String type = 'group',
+  }) async {
+    final token = await tokenProvider();
+    final response = await http.post(
+      Uri.parse('$baseUrl/v1/conversations'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'participantIds': participantIds,
+        'name': name,
+        'type': type,
+      }),
+    );
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final data = jsonDecode(response.body);
+      return ConversationEntity.fromJson(data['conversation'] ?? data);
+    }
+    throw Exception('Failed to create group conversation: ${response.statusCode}');
   }
 
   Future<String?> getCurrentUserId() async {

@@ -1,5 +1,7 @@
 import '../../data/repositories/client_repository.dart';
 import '../../../../core/services/credit_score_service.dart';
+import '../../../../shared/services/audit_service.dart';
+import '../../../../core/middleware/auth_middleware.dart';
 
 class ClientService {
   static final _repository = ClientRepository();
@@ -14,20 +16,40 @@ class ClientService {
     return client?.toJson();
   }
 
-  static Future<Map<String, dynamic>> createClient(Map<String, dynamic> data) async {
+  static Future<Map<String, dynamic>> createClient(Map<String, dynamic> data, {String? callerId}) async {
     final id = await _repository.createClient(data);
     final client = await _repository.getClientById(id);
+    if (callerId != null) {
+      await AuditService.log(callerId, 'CLIENT_CREATED', {
+        'clientId': id,
+        'nom': data['nom'],
+      });
+    }
     return client?.toJson() ?? {};
   }
 
-  static Future<Map<String, dynamic>> updateClient(int id, Map<String, dynamic> data) async {
+  static Future<Map<String, dynamic>> updateClient(int id, Map<String, dynamic> data, {String? callerId}) async {
     await _repository.updateClient(id, data);
     final client = await _repository.getClientById(id);
+    if (callerId != null) {
+      await AuditService.log(callerId, 'CLIENT_UPDATED', {
+        'clientId': id,
+        'fields': data.keys.toList(),
+      });
+    }
     return client?.toJson() ?? {};
   }
 
-  static Future<bool> deleteClient(int id) async {
-    return await _repository.deleteClient(id);
+  static Future<bool> deleteClient(int id, {String? callerId}) async {
+    final client = await _repository.getClientById(id);
+    final ok = await _repository.deleteClient(id);
+    if (ok && callerId != null) {
+      await AuditService.log(callerId, 'CLIENT_DELETED', {
+        'clientId': id,
+        'nom': client?.nom,
+      });
+    }
+    return ok;
   }
 
   static Future<Map<String, dynamic>> getClientCreditScore(int id) async {

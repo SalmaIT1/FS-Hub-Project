@@ -3,20 +3,22 @@ import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 import '../../domain/services/task_service.dart';
 import '../../../../core/middleware/auth_middleware.dart';
+import '../../../../core/middleware/permission_middleware.dart';
 
 class TaskRoutes {
   late final Router router;
 
   TaskRoutes() {
     router = Router()
-      ..get('/', _getAllTasks)
-      ..get('/my-tasks', _getMyTasks)
-      ..get('/sprint/<sprintId>', _getTasksBySprint)
-      ..get('/<id>', _getTaskById)
-      ..get('/sprint/<sprintId>/burndown', _getBurndownData)
-      ..post('/', _createTask)
-      ..put('/<id>', _updateTask)
-      ..delete('/<id>', _deleteTask);
+      ..get('/', Pipeline().addMiddleware(requirePermission('view_tasks')).addHandler(_getAllTasks))
+      ..get('/my-tasks', Pipeline().addMiddleware(requirePermission('execute_tasks')).addHandler(_getMyTasks))
+      ..get('/sprint/<sprintId>', (Request request, String sprintId) => Pipeline().addMiddleware(requirePermission('view_tasks')).addHandler((req) => _getTasksBySprint(req, sprintId))(request))
+      ..get('/<id>', (Request request, String id) => Pipeline().addMiddleware(requirePermission('view_tasks')).addHandler((req) => _getTaskById(req, id))(request))
+      ..get('/sprint/<sprintId>/burndown', (Request request, String sprintId) => Pipeline().addMiddleware(requirePermission('view_tasks')).addHandler((req) => _getBurndownData(req, sprintId))(request))
+      ..post('/', Pipeline().addMiddleware(requirePermission('manage_tasks')).addHandler(_createTask))
+      ..post('/bulk-assign', Pipeline().addMiddleware(requirePermission('manage_tasks')).addHandler(_bulkAssignTasks))
+      ..put('/<id>', (Request request, String id) => Pipeline().addMiddleware(requireRoleOrPermission([], ['manage_tasks', 'update_task_progress'])).addHandler((req) => _updateTask(req, id))(request))
+      ..delete('/<id>', (Request request, String id) => Pipeline().addMiddleware(requirePermission('manage_tasks')).addHandler((req) => _deleteTask(req, id))(request));
   }
 
   Future<Response> _getAllTasks(Request request) async {
@@ -69,8 +71,23 @@ class TaskRoutes {
       if (data['sprintId'] == null || data['titre'] == null) {
         return Response(400, body: jsonEncode({'error': 'Sprint ID and Title are required'}));
       }
-      await TaskService.createTask(data);
+      await TaskService.createTask(data, callerId: request.authUserId);
       return Response(201, body: jsonEncode({'success': true, 'message': 'Task created'}));
+    } catch (e) {
+      return Response.internalServerError(body: jsonEncode({'error': e.toString()}));
+    }
+  }
+
+  Future<Response> _bulkAssignTasks(Request request) async {
+    try {
+      final data = jsonDecode(await request.readAsString());
+      final taskIds = List<int>.from(data['taskIds'] ?? []);
+      final employeeId = data['employeeId'];
+      
+      if (employeeId == null) return Response.badRequest(body: jsonEncode({'error': 'employeeId is required'}));
+      
+      final res = await TaskService.bulkAssignTasks(taskIds, employeeId, callerId: request.authUserId);
+      return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json'});
     } catch (e) {
       return Response.internalServerError(body: jsonEncode({'error': e.toString()}));
     }
@@ -82,9 +99,12 @@ class TaskRoutes {
       if (id == null) return Response.badRequest(body: jsonEncode({'error': 'Invalid ID'}));
       
       final data = jsonDecode(await request.readAsString());
-      await TaskService.updateTask(id, data);
+      await TaskService.updateTask(id, data, request.authUserId, request.authUserPermissions, request.isAdmin);
       return Response.ok(jsonEncode({'success': true, 'message': 'Task updated'}));
     } catch (e) {
+      if (e.toString().contains('Permission denied')) {
+        return Response.forbidden(jsonEncode({'error': e.toString().replaceAll('Exception: ', '')}));
+      }
       return Response.internalServerError(body: jsonEncode({'error': e.toString()}));
     }
   }
@@ -93,7 +113,7 @@ class TaskRoutes {
     try {
       final id = int.tryParse(idString);
       if (id == null) return Response.badRequest(body: jsonEncode({'error': 'Invalid ID'}));
-      await TaskService.deleteTask(id);
+      await TaskService.deleteTask(id, callerId: request.authUserId);
       return Response.ok(jsonEncode({'success': true, 'message': 'Task deleted'}));
     } catch (e) {
       return Response.internalServerError(body: jsonEncode({'error': e.toString()}));

@@ -3,10 +3,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:uuid/uuid.dart';
 import 'package:http/http.dart' as http;
-import '../../../shared/models/message_model.dart';
+import 'package:fs_hub/shared/models/message_model.dart';
 import './message_queue.dart';
-import '../../../core/network/http_client.dart';
-import '../../../core/network/websocket_client.dart';
+import 'package:fs_hub/core/network/http_client.dart';
+import 'package:fs_hub/core/network/websocket_client.dart';
 import './message_store.dart';
 
 class MessageService {
@@ -163,3 +163,4 @@ class MessageService {
     ws.send({'type': 'typing', 'payload': {'conversationId': conversationId, 'userId': userId, 'state': typing ? 'typing' : 'stopped'}});
   }
 }
+

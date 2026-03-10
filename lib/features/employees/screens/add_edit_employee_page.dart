@@ -3,15 +3,17 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import '../../../shared/models/employee_model.dart';
+import 'package:fs_hub/shared/models/employee_model.dart';
 import '../services/employee_service.dart';
-import '../../../shared/widgets/glass_avatar_picker.dart';
-import '../../../shared/widgets/glass_text_field.dart';
-import '../../../shared/widgets/luxury/luxury_app_bar.dart';
-import '../../../shared/widgets/glass_button.dart';
+import '../services/poste_service.dart';
+import '../../auth/services/role_service.dart';
+import 'package:fs_hub/shared/widgets/glass_avatar_picker.dart';
+import 'package:fs_hub/shared/widgets/glass_text_field.dart';
+import 'package:fs_hub/shared/widgets/luxury/luxury_app_bar.dart';
+import 'package:fs_hub/shared/widgets/glass_button.dart';
 import '../../departments/services/department_service.dart';
-import '../../../shared/models/department_model.dart';
-import '../../../shared/widgets/luxury/luxury_status_dialog.dart';
+import 'package:fs_hub/shared/models/department_model.dart';
+import 'package:fs_hub/shared/widgets/luxury/luxury_status_dialog.dart';
 
 class AddEditEmployeePage extends StatefulWidget {
   final Employee? employee;
@@ -34,20 +36,42 @@ class _AddEditEmployeePageState extends State<AddEditEmployeePage> {
   late TextEditingController _telephoneController;
   late TextEditingController _adresseController;
   late TextEditingController _villeController;
-  late TextEditingController _posteController;
   late TextEditingController _usernameController;
   late TextEditingController _passwordController;
 
   DateTime? _dateNaissance;
   DateTime? _dateEmbauche;
   String _sexe = 'Homme';
-  String _departement = 'IT';
+
+  // Department
+  Department? _selectedDepartment;
   List<Department> _availableDepartments = [];
   bool _isDeptsLoading = true;
+
+  // Poste - filtered by department
+  String? _selectedPoste;
+  List<Map<String, dynamic>> _availablePostes = [];
+  bool _isPostesLoading = false;
+
+  // Role
+  String _role = 'Employé';
+  List<Map<String, dynamic>> _availableRoles = [];
+  bool _isRolesLoading = true;
+
+  // Poste→Role default mapping
+  static const Map<String, String> _posteToRoleMap = {
+    'Directeur': 'Admin',
+    'Manager de projet': 'Manager',
+    'Team Lead': 'Team Lead',
+    'Développeur': 'Employé',
+    'Designer': 'Employé',
+    'Responsable RH': 'RH',
+    'Comptable': 'Comptable',
+    'Support technique': 'Employé',
+  };
+
   String _typeContrat = 'CDI';
   String _statut = 'Actif';
-  String _role = 'Employé';
-  List<String> _selectedPermissions = [];
 
   bool get _isEditMode => widget.employee != null;
 
@@ -56,6 +80,7 @@ class _AddEditEmployeePageState extends State<AddEditEmployeePage> {
     super.initState();
     _initializeControllers();
     _loadDepartments();
+    _loadRoles();
   }
 
   Future<void> _loadDepartments() async {
@@ -66,22 +91,86 @@ class _AddEditEmployeePageState extends State<AddEditEmployeePage> {
         setState(() {
           _availableDepartments = depts;
           _isDeptsLoading = false;
-          
-          // If we have depts and current selection isn't in the list, 
-          // default to the first one or keep as is if creating
-          if (depts.isNotEmpty) {
-            final deptNames = depts.map((d) => d.nom).toList();
-            if (!deptNames.contains(_departement)) {
-              _departement = deptNames.first;
+          if (widget.employee != null && _selectedDepartment == null) {
+            try {
+              _selectedDepartment = depts.firstWhere((d) => d.nom == widget.employee!.departement);
+            } catch (e) {
+              _selectedDepartment = depts.isNotEmpty ? depts.first : null;
             }
+          } else if (depts.isNotEmpty && _selectedDepartment == null) {
+            _selectedDepartment = depts.first;
+          }
+          
+          if (_selectedDepartment != null && _selectedDepartment!.id != null) {
+            _loadPostesByDepartment(_selectedDepartment!.id!);
           }
         });
       }
     } catch (e) {
       print('Error loading departments: $e');
+      if (mounted) setState(() => _isDeptsLoading = false);
+    }
+  }
+
+  Future<void> _loadPostesByDepartment(int departmentId) async {
+    final oldPoste = _selectedPoste;
+    setState(() {
+      _isPostesLoading = true;
+    });
+    try {
+      final postes = await PosteService.getPostesByDepartment(departmentId);
       if (mounted) {
-        setState(() => _isDeptsLoading = false);
+        setState(() {
+          _availablePostes = postes;
+          _isPostesLoading = false;
+          
+          if (postes.isNotEmpty) {
+            bool hasOldPoste = oldPoste != null && postes.any((p) => p['nom'] == oldPoste);
+            if (hasOldPoste) {
+              _selectedPoste = oldPoste;
+            } else {
+              _selectedPoste = postes.first['nom'] as String?;
+              _autoSuggestRole(_selectedPoste);
+            }
+          } else {
+            _selectedPoste = null;
+          }
+        });
       }
+    } catch (e) {
+      print('Error loading postes: $e');
+      if (mounted) setState(() => _isPostesLoading = false);
+    }
+  }
+
+  void _autoSuggestRole(String? posteName) {
+    if (posteName == null) return;
+    final suggestedRole = _posteToRoleMap[posteName];
+    if (suggestedRole != null) {
+      final roleExists = _availableRoles.any((r) => r['nom'] == suggestedRole);
+      if (roleExists && mounted) {
+        setState(() => _role = suggestedRole);
+      }
+    }
+  }
+
+  Future<void> _loadRoles() async {
+    setState(() => _isRolesLoading = true);
+    try {
+      final roles = await RoleService.getAllRoles();
+      if (mounted) {
+        setState(() {
+          _availableRoles = roles;
+          _isRolesLoading = false;
+          if (roles.isNotEmpty) {
+            final roleExists = roles.any((r) => r['nom'] == _role);
+            if (!roleExists) _role = roles.first['nom'] as String;
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading roles: $e');
+      if (mounted) setState(() => _isRolesLoading = false);
     }
   }
 
@@ -94,7 +183,6 @@ class _AddEditEmployeePageState extends State<AddEditEmployeePage> {
     _telephoneController = TextEditingController(text: emp?.telephone);
     _adresseController = TextEditingController(text: emp?.adresse);
     _villeController = TextEditingController(text: emp?.ville);
-    _posteController = TextEditingController(text: emp?.poste);
     _usernameController = TextEditingController(text: emp?.username);
     _passwordController = TextEditingController();
 
@@ -102,11 +190,10 @@ class _AddEditEmployeePageState extends State<AddEditEmployeePage> {
       _dateNaissance = emp.dateNaissance;
       _dateEmbauche = emp.dateEmbauche;
       _sexe = emp.sexe;
-      _departement = emp.departement;
+      _selectedPoste = emp.poste;
       _typeContrat = emp.typeContrat;
       _statut = emp.statut;
       _role = emp.role ?? 'Employé';
-      _selectedPermissions = emp.permissions ?? [];
     }
   }
 
@@ -153,16 +240,8 @@ class _AddEditEmployeePageState extends State<AddEditEmployeePage> {
     try {
       String? photoBase64;
       if (_selectedImage != null) {
-        if (kIsWeb) {
-          // For web: convert XFile bytes to base64
-          final bytes = await (_selectedImage as XFile).readAsBytes();
-          photoBase64 = base64Encode(bytes);
-        } else {
-          // For mobile: read file and convert to base64
-          // _selectedImage is already a file path string
-          // This would need to be implemented with File I/O
-          // For now, we'll handle web only
-        }
+        final bytes = await (_selectedImage as XFile).readAsBytes();
+        photoBase64 = base64Encode(bytes);
       }
 
       final employeeData = Employee(
@@ -176,14 +255,13 @@ class _AddEditEmployeePageState extends State<AddEditEmployeePage> {
         telephone: _telephoneController.text,
         adresse: _adresseController.text,
         ville: _villeController.text,
-        poste: _posteController.text,
-        departement: _departement,
+        poste: _selectedPoste ?? '',
+        departement: _selectedDepartment?.nom ?? '',
         dateEmbauche: _dateEmbauche!,
         typeContrat: _typeContrat,
         statut: _statut,
         username: _usernameController.text,
         role: _role,
-        permissions: _selectedPermissions.isNotEmpty ? _selectedPermissions : null,
         photo: photoBase64, // Base64 encoded image
         password: _passwordController.text, // Pass the password from the controller
       );
@@ -249,7 +327,7 @@ class _AddEditEmployeePageState extends State<AddEditEmployeePage> {
         child: Form(
           key: _formKey,
           child: SingleChildScrollView(
-            padding: const EdgeInsets.only(top: 20, left: 20, right: 20, bottom: 40),
+            padding: const EdgeInsets.only(top: 100, left: 20, right: 20, bottom: 40),
             child: Column(
               children: [
                 GlassAvatarPicker(
@@ -335,26 +413,21 @@ class _AddEditEmployeePageState extends State<AddEditEmployeePage> {
                 _buildSection(
                   'Professional Information',
                   [
-                    GlassTextField(
-                      label: 'Poste',
-                      controller: _posteController,
-                      validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
-                    ),
-                    const SizedBox(height: 14),
-                    _isDeptsLoading 
+                    // Step 1: Department (loads first)
+                    _isDeptsLoading
                       ? const Padding(
                           padding: EdgeInsets.symmetric(vertical: 8.0),
                           child: LinearProgressIndicator(color: Color(0xFFD4AF37)),
                         )
-                      : _buildDropdown(
-                          'Département',
-                          _departement,
-                          _availableDepartments.map((d) => d.nom).toList().isEmpty 
-                              ? ['IT'] 
-                              : _availableDepartments.map((d) => d.nom).toList(),
-                          (v) => setState(() => _departement = v!),
-                          isDark,
-                        ),
+                      : _buildDepartmentDropdown(isDark),
+                    const SizedBox(height: 14),
+                    // Step 2: Poste (filtered by selected department)
+                    _isPostesLoading
+                      ? const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 8.0),
+                          child: LinearProgressIndicator(color: Color(0xFFD4AF37)),
+                        )
+                      : _buildPosteDropdown(),
                     const SizedBox(height: 14),
                     _buildDateField('Date d\'Embauche', _dateEmbauche, false, isDark),
                     const SizedBox(height: 14),
@@ -394,15 +467,13 @@ class _AddEditEmployeePageState extends State<AddEditEmployeePage> {
                         validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
                       ),
                     if (!_isEditMode) const SizedBox(height: 14),
-                    _buildDropdown(
-                      'Role',
-                      _role,
-                      ['Admin', 'RH', 'Employé'],
-                      (v) => setState(() => _role = v!),
-                      isDark,
-                    ),
-                    const SizedBox(height: 14),
-                    _buildPermissionsChips(isDark),
+                    _isRolesLoading 
+                      ? const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 8.0),
+                          child: LinearProgressIndicator(color: Color(0xFFD4AF37)),
+                        )
+                      : _buildRoleDropdown(),
+
                   ],
                   isDark,
                 ),
@@ -544,18 +615,29 @@ class _AddEditEmployeePageState extends State<AddEditEmployeePage> {
     ValueChanged<String?> onChanged,
     bool isDark,
   ) {
+    // Clone and ensure current value is in the items to prevent crash
+    final List<String> safeItems = List<String>.from(items);
+    if (value.isNotEmpty && !safeItems.contains(value)) {
+      safeItems.add(value);
+    }
+    
+    // Ensure value is not null if we have items
+    final String? selectedValue = value.isEmpty && safeItems.isNotEmpty ? safeItems.first : (value.isEmpty ? null : value);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            color: isDark ? Colors.white60 : Colors.black54,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: isDark ? Colors.white70 : Colors.black87,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
-        const SizedBox(height: 8),
         ClipRRect(
           borderRadius: BorderRadius.circular(12),
           child: BackdropFilter(
@@ -573,7 +655,8 @@ class _AddEditEmployeePageState extends State<AddEditEmployeePage> {
                 ),
               ),
               child: DropdownButtonFormField<String>(
-                initialValue: value,
+                value: selectedValue,
+                isExpanded: true,
                 decoration: const InputDecoration(
                   border: InputBorder.none,
                   contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -583,7 +666,7 @@ class _AddEditEmployeePageState extends State<AddEditEmployeePage> {
                   color: isDark ? Colors.white : Colors.black,
                   fontSize: 14,
                 ),
-                items: items.map((item) {
+                items: safeItems.map((item) {
                   return DropdownMenuItem(
                     value: item,
                     child: Text(item),
@@ -598,71 +681,276 @@ class _AddEditEmployeePageState extends State<AddEditEmployeePage> {
     );
   }
 
-  Widget _buildPermissionsChips(bool isDark) {
-    final permissions = ['Read', 'Write', 'Delete', 'Manage Users', 'Reports'];
-    
+  Widget _buildDepartmentDropdown(bool isDark) {
+    if (_availableDepartments.isEmpty) {
+      return const Text('No departments found', style: TextStyle(color: Colors.red));
+    }
+
+    // Ensure selected dept is valid
+    final validDept = _availableDepartments.any((d) => d.id == _selectedDepartment?.id)
+        ? _selectedDepartment
+        : _availableDepartments.first;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Permissions',
-          style: TextStyle(
-            color: isDark ? Colors.white60 : Colors.black54,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(
+            'Département',
+            style: TextStyle(
+              color: isDark ? Colors.white70 : Colors.black87,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: permissions.map((perm) {
-            final isSelected = _selectedPermissions.contains(perm);
-            return GestureDetector(
-              onTap: () {
-                setState(() {
-                  if (isSelected) {
-                    _selectedPermissions.remove(perm);
-                  } else {
-                    _selectedPermissions.add(perm);
-                  }
-                });
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? const Color(0xFFD4AF37).withValues(alpha: 0.15)
-                      : isDark
-                          ? Colors.white.withValues(alpha: 0.05)
-                          : Colors.black.withValues(alpha: 0.03),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: isSelected
-                        ? const Color(0xFFD4AF37)
-                        : isDark
-                            ? Colors.white.withValues(alpha: 0.12)
-                            : Colors.black.withValues(alpha: 0.08),
-                  ),
-                ),
-                child: Text(
-                  perm,
-                  style: TextStyle(
-                    color: isSelected
-                        ? const Color(0xFFD4AF37)
-                        : isDark
-                            ? Colors.white
-                            : Colors.black,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              decoration: BoxDecoration(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.08)
+                    : Colors.black.withValues(alpha: 0.04),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.12)
+                      : Colors.black.withValues(alpha: 0.08),
                 ),
               ),
-            );
-          }).toList(),
+              child: DropdownButtonFormField<Department>(
+                value: validDept,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                ),
+                dropdownColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                style: TextStyle(
+                  color: isDark ? Colors.white : Colors.black,
+                  fontSize: 14,
+                ),
+                items: _availableDepartments.map((dept) {
+                  return DropdownMenuItem<Department>(
+                    value: dept,
+                    child: Text(dept.nom, overflow: TextOverflow.ellipsis),
+                  );
+                }).toList(),
+                onChanged: (dept) {
+                  if (dept != null && dept.id != null) {
+                    setState(() => _selectedDepartment = dept);
+                    _loadPostesByDepartment(dept.id!);
+                  }
+                },
+              ),
+            ),
+          ),
         ),
       ],
     );
+  }
+
+  Widget _buildPosteDropdown() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final posteNames = _availablePostes.map((p) => p['nom'] as String).toList();
+
+    if (posteNames.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        child: Text(
+          _selectedDepartment != null
+              ? 'No postes found for ${_selectedDepartment!.nom}'
+              : 'Select a department first',
+          style: TextStyle(color: isDark ? Colors.white54 : Colors.black54, fontSize: 13),
+        ),
+      );
+    }
+
+    // Ensure selection is valid
+    String? selectedValue = _selectedPoste;
+    if (selectedValue != null && !posteNames.contains(selectedValue)) {
+      selectedValue = posteNames.first;
+    }
+    selectedValue ??= posteNames.first;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(
+            'Poste / Fonction',
+            style: TextStyle(
+              color: isDark ? Colors.white70 : Colors.black87,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              decoration: BoxDecoration(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.08)
+                    : Colors.black.withValues(alpha: 0.04),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.12)
+                      : Colors.black.withValues(alpha: 0.08),
+                ),
+              ),
+              child: DropdownButtonFormField<String>(
+                value: selectedValue,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                ),
+                dropdownColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                style: TextStyle(
+                  color: isDark ? Colors.white : Colors.black,
+                  fontSize: 14,
+                ),
+                items: posteNames.map((posteName) {
+                  return DropdownMenuItem(
+                    value: posteName,
+                    child: Text(posteName, overflow: TextOverflow.ellipsis),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() => _selectedPoste = value);
+                    _autoSuggestRole(value);
+                  }
+                },
+                validator: (value) => value == null || value.isEmpty ? 'Required' : null,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRoleDropdown() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final roleNames = _availableRoles.map((r) => r['nom'] as String).toList();
+    
+    // Ensure current value is in the list
+    if (_role.isNotEmpty && !roleNames.contains(_role)) {
+      roleNames.add(_role);
+    }
+    
+    String? selectedValue = _role;
+    if (selectedValue.isEmpty && roleNames.isNotEmpty) {
+      selectedValue = roleNames.first;
+      _role = selectedValue;
+    } else if (selectedValue.isEmpty) {
+      selectedValue = null;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(
+            'Rôle',
+            style: TextStyle(
+              color: isDark ? Colors.white70 : Colors.black87,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              decoration: BoxDecoration(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.08)
+                    : Colors.black.withValues(alpha: 0.04),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.12)
+                      : Colors.black.withValues(alpha: 0.08),
+                ),
+              ),
+              child: DropdownButtonFormField<String>(
+                value: selectedValue,
+                isExpanded: true,
+                itemHeight: null, // Allow custom height for multiline items
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                ),
+                dropdownColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                style: TextStyle(
+                  color: isDark ? Colors.white : Colors.black,
+                  fontSize: 14,
+                ),
+                items: roleNames.map((roleName) {
+                  final role = _availableRoles.firstWhere((r) => r['nom'] == roleName, orElse: () => {'description': ''});
+                  return DropdownMenuItem(
+                    value: roleName,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(roleName, style: const TextStyle(fontWeight: FontWeight.w600)),
+                          if (role['description']?.isNotEmpty == true) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              role['description'],
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: isDark ? Colors.white54 : Colors.black54,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+                selectedItemBuilder: (context) {
+                  return roleNames.map((roleName) {
+                    return Text(roleName, style: TextStyle(color: isDark ? Colors.white : Colors.black));
+                  }).toList();
+                },
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() => _role = value);
+                  }
+                },
+                validator: (value) => value?.isEmpty ?? true ? 'Required' : null,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+
+
+  String _capitalize(String s) {
+    if (s.isEmpty) return s;
+    return s[0].toUpperCase() + s.substring(1);
   }
 
   @override
@@ -674,9 +962,9 @@ class _AddEditEmployeePageState extends State<AddEditEmployeePage> {
     _telephoneController.dispose();
     _adresseController.dispose();
     _villeController.dispose();
-    _posteController.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 }
+

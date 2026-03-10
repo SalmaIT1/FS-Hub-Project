@@ -1,7 +1,7 @@
 import 'dart:convert';
 import '../../../features/auth/data/services/auth_service.dart';
-import '../../../shared/models/project_model.dart';
-import '../../../shared/models/project_member_model.dart';
+import 'package:fs_hub/shared/models/project_model.dart';
+import 'package:fs_hub/shared/models/project_member_model.dart';
 import '../../clients/models/client_model.dart';
 
 class ProjectService {
@@ -181,3 +181,4 @@ class ProjectService {
     }
   }
 }
+

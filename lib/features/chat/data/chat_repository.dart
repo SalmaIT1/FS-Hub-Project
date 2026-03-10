@@ -38,6 +38,11 @@ abstract class ChatRepository {
   Future<void> processOfflineQueue();
   Future<List<Map<String, dynamic>>> getAvailableUsers();
   Future<ConversationEntity?> createConversation({required String user2Id});
+  Future<ConversationEntity?> createGroupConversation({
+    required List<String> participantIds,
+    required String name,
+    String type = 'group',
+  });
   Future<String?> getCurrentUserId();
   Future<void> markConversationAsRead(String conversationId);
   Future<void> deleteConversation(String conversationId);
@@ -62,6 +67,7 @@ class ChatRepositoryImpl implements ChatRepository {
 
   final List<ChatMessage> _offlineQueue = [];
   bool _isOnline = true;
+  final List<StreamSubscription> _subscriptions = [];
 
   ChatRepositoryImpl({
     required this.rest,
@@ -88,28 +94,30 @@ class ChatRepositoryImpl implements ChatRepository {
   Future<void> init() async {
     await socket.connect();
     
-    socket.messageStream.listen((msg) {
-      _messageController.add(msg);
-    });
+    _subscriptions.add(socket.messageStream.listen((msg) {
+      if (!_messageController.isClosed) _messageController.add(msg);
+    }));
 
-    socket.onlineStream.listen((isOnline) {
+    _subscriptions.add(socket.onlineStream.listen((isOnline) {
       _isOnline = isOnline;
-      _onlineController.add(isOnline);
-    });
+      if (!_onlineController.isClosed) _onlineController.add(isOnline);
+    }));
     
-    socket.presenceStream.listen((data) {
-      _presenceController.add(data);
-    });
+    _subscriptions.add(socket.presenceStream.listen((data) {
+      if (!_presenceController.isClosed) _presenceController.add(data);
+    }));
     
-    socket.typingStream.listen((data) {
-      _typingController.add(data);
-    });
+    _subscriptions.add(socket.typingStream.listen((data) {
+      if (!_typingController.isClosed) _typingController.add(data);
+    }));
 
-    socket.conversationEventStream.listen((event) {
+    _subscriptions.add(socket.conversationEventStream.listen((event) {
       if (event['type'] == 'deleted' && event['conversationId'] != null) {
-        _conversationDeletedController.add(event['conversationId'].toString());
+        if (!_conversationDeletedController.isClosed) {
+          _conversationDeletedController.add(event['conversationId'].toString());
+        }
       }
-    });
+    }));
   }
 
   @override
@@ -230,6 +238,19 @@ class ChatRepositoryImpl implements ChatRepository {
   }
 
   @override
+  Future<ConversationEntity?> createGroupConversation({
+    required List<String> participantIds,
+    required String name,
+    String type = 'group',
+  }) {
+    return rest.createGroupConversation(
+      participantIds: participantIds,
+      name: name,
+      type: type,
+    );
+  }
+
+  @override
   Future<String?> getCurrentUserId() {
     return rest.getCurrentUserId();
   }
@@ -247,9 +268,17 @@ class ChatRepositoryImpl implements ChatRepository {
   @override
   void dispose() {
     socket.disconnect();
+    for (final sub in _subscriptions) {
+      sub.cancel();
+    }
+    _subscriptions.clear();
+    
     _messageController.close();
     _conversationController.close();
     _queueController.close();
     _onlineController.close();
+    _typingController.close();
+    _presenceController.close();
+    _conversationDeletedController.close();
   }
 }

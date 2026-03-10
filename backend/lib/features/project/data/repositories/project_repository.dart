@@ -9,8 +9,36 @@ class ProjectRepository {
       SELECT p.*, c.nom as client_nom, c.prenom as client_prenom, c.raison_sociale as client_raison_sociale
       FROM projets p
       LEFT JOIN clients c ON p.client_id = c.id
+      WHERE p.is_deleted = FALSE
       ORDER BY p.id DESC
     ''');
+
+    return result.rows.map<ProjectModel>((row) => ProjectModel.fromMap(row.assoc())).toList();
+  }
+
+  /// Returns only projects associated with a client whose user_id matches [userId].
+  Future<List<ProjectModel>> getProjectsByUserId(String userId) async {
+    final result = await _db.execute('''
+      SELECT p.*, c.nom as client_nom, c.prenom as client_prenom, c.raison_sociale as client_raison_sociale
+      FROM projets p
+      INNER JOIN clients c ON p.client_id = c.id
+      WHERE c.user_id = :userId AND p.is_deleted = FALSE
+      ORDER BY p.id DESC
+    ''', {'userId': userId});
+
+    return result.rows.map<ProjectModel>((row) => ProjectModel.fromMap(row.assoc())).toList();
+  }
+
+  /// Returns only projects where the employee is a member.
+  Future<List<ProjectModel>> getProjectsByEmployeeId(String employeeId) async {
+    final result = await _db.execute('''
+      SELECT p.*, c.nom as client_nom, c.prenom as client_prenom, c.raison_sociale as client_raison_sociale
+      FROM projets p
+      INNER JOIN projet_membres pm ON p.id = pm.projet_id
+      LEFT JOIN clients c ON p.client_id = c.id
+      WHERE pm.employee_id = :employeeId AND p.is_deleted = FALSE
+      ORDER BY p.id DESC
+    ''', {'employeeId': employeeId});
 
     return result.rows.map<ProjectModel>((row) => ProjectModel.fromMap(row.assoc())).toList();
   }
@@ -20,7 +48,7 @@ class ProjectRepository {
       SELECT p.*, c.nom as client_nom, c.prenom as client_prenom, c.raison_sociale as client_raison_sociale
       FROM projets p
       LEFT JOIN clients c ON p.client_id = c.id
-      WHERE p.id = :id
+      WHERE p.id = :id AND p.is_deleted = FALSE
     ''', {'id': id});
 
     if (result.rows.isEmpty) return null;
@@ -80,11 +108,11 @@ class ProjectRepository {
   }
 
   Future<void> deleteProject(int id) async {
-    await _db.execute('DELETE FROM projets WHERE id = :id', {'id': id});
+    await _db.execute('UPDATE projets SET is_deleted = TRUE WHERE id = :id', {'id': id});
   }
 
   Future<bool> hasActiveSprints(int id) async {
-    final res = await _db.execute('SELECT id FROM sprints WHERE project_id = :id LIMIT 1', {'id': id});
+    final res = await _db.execute('SELECT id FROM sprints WHERE projet_id = :id LIMIT 1', {'id': id});
     return res.rows.isNotEmpty;
   }
 
@@ -148,5 +176,22 @@ class ProjectRepository {
       'proj': projectId,
       'emp': employeeId,
     });
+  }
+
+  Future<bool> isMember(int projectId, String employeeId) async {
+    final res = await _db.execute(
+      'SELECT id FROM projet_membres WHERE projet_id = :proj AND employee_id = :emp LIMIT 1',
+      {'proj': projectId, 'emp': employeeId}
+    );
+    return res.rows.isNotEmpty;
+  }
+
+  Future<bool> isClientOwner(int projectId, String userId) async {
+    final res = await _db.execute('''
+      SELECT p.id FROM projets p
+      JOIN clients c ON p.client_id = c.id
+      WHERE p.id = :proj AND c.user_id = :userId LIMIT 1
+    ''', {'proj': projectId, 'userId': userId});
+    return res.rows.isNotEmpty;
   }
 }

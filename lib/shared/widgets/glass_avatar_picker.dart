@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
@@ -34,11 +35,7 @@ class _GlassAvatarPickerState extends State<GlassAvatarPicker> {
       
       if (image != null) {
         setState(() {
-          if (kIsWeb) {
-            _selectedImage = image;
-          } else {
-            _selectedImage = image.path;
-          }
+          _selectedImage = image;
         });
         widget.onImageSelected(_selectedImage);
       }
@@ -110,33 +107,21 @@ class _GlassAvatarPickerState extends State<GlassAvatarPicker> {
 
   Widget _buildImageWidget(bool isDark) {
     if (_selectedImage != null) {
-      if (kIsWeb) {
-        return FutureBuilder<String>(
-          future: (_selectedImage as XFile).readAsBytes().then((bytes) {
-            return 'data:image/jpeg;base64,${Uri.encodeComponent(String.fromCharCodes(bytes))}';
-          }),
-          builder: (context, snapshot) {
-            if (snapshot.hasData) {
-              return Image.network(
-                snapshot.data!,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return _buildPlaceholder(isDark);
-                },
-              );
-            }
-            return _buildPlaceholder(isDark);
-          },
-        );
-      } else {
-        return Image.network(
-          _selectedImage as String,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) {
-            return _buildPlaceholder(isDark);
-          },
-        );
-      }
+      return FutureBuilder<Uint8List>(
+        future: (_selectedImage as XFile).readAsBytes(),
+        builder: (context, snapshot) {
+          if (snapshot.hasData) {
+            return Image.memory(
+              snapshot.data!,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return _buildPlaceholder(isDark);
+              },
+            );
+          }
+          return _buildPlaceholder(isDark);
+        },
+      );
     }
 
     if (widget.initialImageUrl != null) {

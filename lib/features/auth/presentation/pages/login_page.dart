@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../data/services/auth_service.dart';
 import 'package:fs_hub/core/state/settings_controller.dart';
-import '../../../../core/routes/app_routes.dart';
+import 'package:fs_hub/core/state/location_controller.dart';
+import 'package:fs_hub/core/routes/app_routes.dart';
 import 'package:fs_hub/shared/widgets/glass_widgets.dart';
+import 'package:fs_hub/core/security/permission_guard.dart';
 
 class GlassLoginPage extends StatefulWidget {
   const GlassLoginPage({super.key});
@@ -36,6 +38,8 @@ class _GlassLoginPageState extends State<GlassLoginPage> {
       if (mounted) {
         setState(() => _isLoading = false);
         if (result['success']) {
+          await context.read<LocationController>().refreshFromDevice();
+          await PermissionGuard.initialize();
           Navigator.of(context).pushReplacementNamed(AppRoutes.home);
         } else {
           setState(() => _errorMessage = result['error']);
@@ -192,3 +196,4 @@ class _GlassLoginPageState extends State<GlassLoginPage> {
     );
   }
 }
+

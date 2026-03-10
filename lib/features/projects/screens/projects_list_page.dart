@@ -2,14 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'dart:ui';
 import 'package:provider/provider.dart';
-import '../../../shared/models/project_model.dart';
+import 'package:fs_hub/shared/models/project_model.dart';
 import '../../clients/models/client_model.dart';
 import '../services/project_service.dart';
-import '../../../shared/widgets/luxury/luxury_app_bar.dart';
-import '../../../core/theme/app_theme.dart';
-import '../../../core/state/settings_controller.dart';
-import '../../../core/routes/app_routes.dart';
-import '../../../shared/widgets/luxury/luxury_status_dialog.dart';
+import 'package:fs_hub/shared/widgets/luxury/luxury_app_bar.dart';
+import 'package:fs_hub/core/theme/app_theme.dart';
+import 'package:fs_hub/core/state/settings_controller.dart';
+import 'package:fs_hub/core/routes/app_routes.dart';
+import 'package:fs_hub/shared/widgets/luxury/luxury_status_dialog.dart';
+import 'package:fs_hub/shared/widgets/permission_guard.dart';
 
 class ProjectsListPage extends StatefulWidget {
   const ProjectsListPage({super.key});
@@ -112,17 +113,17 @@ class _ProjectsListPageState extends State<ProjectsListPage> with SingleTickerPr
                               child: child,
                             ),
                           ),
-                          child: _buildProjectCard(_projects[index], isDark),
+                          child: _buildProjectCard(_projects[index], isDark, settings),
                         );
                       },
                     ),
         ),
       ),
-      floatingActionButton: _buildFAB(isDark),
+      floatingActionButton: _buildFAB(isDark, settings),
     );
   }
 
-  Widget _buildProjectCard(Project project, bool isDark) {
+  Widget _buildProjectCard(Project project, bool isDark, SettingsController settings) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -227,7 +228,7 @@ class _ProjectsListPageState extends State<ProjectsListPage> with SingleTickerPr
                           arguments: {'project': project},
                         ),
                         icon: const Icon(Icons.directions_run_rounded, size: 18),
-                        label: const Text('Manage Sprints', style: TextStyle(fontWeight: FontWeight.bold)),
+                        label: Text(settings.translate('manage_sprints') ?? 'Manage Sprints', style: const TextStyle(fontWeight: FontWeight.bold)),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppTheme.accentGold.withOpacity(0.15),
                           foregroundColor: AppTheme.accentGold,
@@ -241,20 +242,23 @@ class _ProjectsListPageState extends State<ProjectsListPage> with SingleTickerPr
                       )
                     else
                       const SizedBox.shrink(),
-                    Row(
-                      children: [
-                        TextButton.icon(
-                          onPressed: () => _showAddEditDialog(project),
-                          icon: const Icon(Icons.edit_rounded, size: 18, color: AppTheme.accentGold),
-                          label: const Text('Edit', style: TextStyle(color: AppTheme.accentGold)),
-                        ),
-                        const SizedBox(width: 8),
-                        TextButton.icon(
-                          onPressed: () => _confirmDelete(project),
-                          icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Colors.redAccent),
-                          label: const Text('Delete', style: TextStyle(color: Colors.redAccent)),
-                        ),
-                      ],
+                    PermissionGuard(
+                      permission: 'projects.manage',
+                      child: Row(
+                        children: [
+                          TextButton.icon(
+                            onPressed: () => _showAddEditDialog(project),
+                            icon: const Icon(Icons.edit_rounded, size: 18, color: AppTheme.accentGold),
+                            label: Text(settings.translate('edit') ?? 'Edit', style: const TextStyle(color: AppTheme.accentGold)),
+                          ),
+                          const SizedBox(width: 8),
+                          TextButton.icon(
+                            onPressed: () => _confirmDelete(project),
+                            icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Colors.redAccent),
+                            label: Text(settings.translate('delete') ?? 'Delete', style: const TextStyle(color: Colors.redAccent)),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -369,26 +373,29 @@ class _ProjectsListPageState extends State<ProjectsListPage> with SingleTickerPr
     );
   }
 
-  Widget _buildFAB(bool isDark) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 20),
-      // Glass effect for FAB
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.accentGold.withOpacity(0.4),
-            blurRadius: 15,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: FloatingActionButton.extended(
-        onPressed: () => _showAddEditDialog(),
-        label: const Text('New Project', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-        icon: const Icon(Icons.add_rounded, color: Colors.white),
-        backgroundColor: AppTheme.accentGold,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+  Widget _buildFAB(bool isDark, SettingsController settings) {
+    return PermissionGuard(
+      permission: 'projects.create',
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 20),
+        // Glass effect for FAB
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.accentGold.withOpacity(0.4),
+              blurRadius: 15,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: FloatingActionButton.extended(
+          onPressed: () => _showAddEditDialog(),
+          label: Text(settings.translate('new_project') ?? 'New Project', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+          icon: const Icon(Icons.add_rounded, color: Colors.white),
+          backgroundColor: AppTheme.accentGold,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        ),
       ),
     );
   }
@@ -404,13 +411,14 @@ class _ProjectsListPageState extends State<ProjectsListPage> with SingleTickerPr
   }
 
   void _confirmDelete(Project project) {
+    final settings = context.read<SettingsController>();
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Project'),
-        content: Text('Are you sure you want to delete "${project.nom}"?'),
+        title: Text(settings.translate('delete_project') ?? 'Delete Project'),
+        content: Text("${settings.translate('confirm_delete_project') ?? 'Are you sure you want to delete this project?'} ${project.nom}?"),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(settings.translate('cancel') ?? 'Cancel')),
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
@@ -422,12 +430,12 @@ class _ProjectsListPageState extends State<ProjectsListPage> with SingleTickerPr
                 LuxuryStatusDialog.show(
                   context,
                   isSuccess: result['success'],
-                  title: result['success'] ? 'Project Purged' : 'Purge Restricted',
-                  message: result['message'] ?? 'The project entity has been successfully decommissioned.',
+                  title: result['success'] ? settings.translate('success') ?? 'Success' : settings.translate('error') ?? 'Error',
+                  message: result['message'],
                 );
               }
             },
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            child: Text(settings.translate('delete') ?? 'Delete', style: const TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -486,6 +494,7 @@ class _AddEditProjectDialogState extends State<AddEditProjectDialog> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final settings = context.watch<SettingsController>();
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -532,7 +541,9 @@ class _AddEditProjectDialogState extends State<AddEditProjectDialog> {
                           ),
                           const SizedBox(width: 14),
                           Text(
-                            widget.project == null ? 'NOUVEAU PROJET' : 'ÉDITION PROJET',
+                            widget.project == null 
+                                ? settings.translate('new_project') ?? 'NEW PROJECT' 
+                                : settings.translate('edit') ?? 'EDIT PROJECT',
                             style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w900,
@@ -544,12 +555,12 @@ class _AddEditProjectDialogState extends State<AddEditProjectDialog> {
                       ),
                       const SizedBox(height: 28),
                       
-                      _buildLabel('IDENTITÉ DU PROJET'),
-                      _buildTextField(_nomController, 'Nom de l\'initiative', isDark, Icons.business_center_rounded, (v) => v?.isEmpty ?? true ? 'Requis' : null),
+                      _buildLabel(settings.translate('project_name') ?? 'PROJECT IDENTITY'),
+                      _buildTextField(_nomController, settings.translate('project_name') ?? 'Name of the initiative', isDark, Icons.business_center_rounded, (v) => v?.isEmpty ?? true ? settings.translate('required') ?? 'Required' : null),
                       
                       const SizedBox(height: 16),
                       
-                      _buildLabel('PORTFOLIO CLIENT'),
+                      _buildLabel(settings.translate('clients') ?? 'CLIENT PORTFOLIO'),
                       _buildDropdownField<int>(
                         value: _selectedClientId,
                         hint: 'Sélectionner un client',
@@ -678,7 +689,7 @@ class _AddEditProjectDialogState extends State<AddEditProjectDialog> {
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                               ),
                               child: Text(
-                                'ANNULER',
+                                settings.translate('cancel') ?? 'CANCEL',
                                 style: TextStyle(
                                   color: isDark ? Colors.white38 : Colors.black38,
                                   fontWeight: FontWeight.bold,
@@ -712,7 +723,9 @@ class _AddEditProjectDialogState extends State<AddEditProjectDialog> {
                                   child: _isSaving 
                                     ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                                     : Text(
-                                        widget.project == null ? 'INITIALISER' : 'METTRE À JOUR',
+                                        widget.project == null 
+                                            ? settings.translate('save') ?? 'INITIALIZE' 
+                                            : settings.translate('update') ?? 'UPDATE',
                                         style: const TextStyle(
                                           color: Colors.white,
                                           fontWeight: FontWeight.bold,
@@ -905,4 +918,6 @@ class _AddEditProjectDialogState extends State<AddEditProjectDialog> {
 }
 
 // Keep the rest of the file...
+
+
 

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../widgets/audio_player_widget.dart';
-import '../services/waveform_generator.dart';
-import '../../chat/domain/chat_entities.dart';
+import 'package:fs_hub/features/voice/widgets/audio_player_widget.dart';
+import 'package:fs_hub/features/voice/services/waveform_generator.dart';
+import 'package:fs_hub/features/chat/domain/entities/chat_entities.dart';
 
 /// Adaptive voice note component that works across platforms
 class AdaptiveVoiceNote extends StatefulWidget {
@@ -29,10 +29,10 @@ class _AdaptiveVoiceNoteState extends State<AdaptiveVoiceNote> {
     return Container(
       constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.55),
       child: AudioPlayerWidget(
-        source: widget.voice.uploadUrl, // Use backend URL for playback
+        source: widget.voice.uploadUrl ?? widget.voice.url, // Use backend URL for playback
         durationMs: widget.voice.durationMs,
-        waveformData: widget.voice.waveformData.isNotEmpty 
-          ? WaveformGenerator.decodeWaveform(widget.voice.waveformData)
+        waveformData: (widget.voice.waveformData != null && widget.voice.waveformData!.isNotEmpty)
+          ? WaveformGenerator.decodeWaveform(widget.voice.waveformData!)
           : null,
         onPlay: () {
           setState(() {
@@ -102,3 +102,4 @@ class WaveformPainter extends CustomPainter {
         oldDelegate.backgroundColor != backgroundColor;
   }
 }
+

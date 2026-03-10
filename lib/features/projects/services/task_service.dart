@@ -4,6 +4,20 @@ import 'package:fs_hub/features/auth/data/services/auth_service.dart';
 
 class TaskService {
   static const String _endpoint = '/tasks';
+  
+  static Future<List<Task>> getAllTasks() async {
+    try {
+      final response = await AuthService.authenticatedRequest('$_endpoint/', 'GET');
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data.map((json) => Task.fromJson(json)).toList();
+      }
+      return [];
+    } catch (e) {
+      print('Error fetching all tasks: $e');
+      return [];
+    }
+  }
 
   static Future<List<Task>> getMyTasks() async {
     try {

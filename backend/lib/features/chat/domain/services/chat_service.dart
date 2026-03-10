@@ -151,9 +151,9 @@ class ChatService {
     }
   }
 
-  static Future<Map<String, dynamic>> getTypingUsers(String conversationId) async {
+  static Future<Map<String, dynamic>> getTypingUsers(String conversationId, String userId) async {
     try {
-      final users = await _repository.getTypingUsers(conversationId);
+      final users = await _repository.getTypingUsers(conversationId, userId);
       return {'success': true, 'typingUsers': users};
     } catch (e) {
       return {'success': false, 'message': 'Failed to get typing users: $e'};

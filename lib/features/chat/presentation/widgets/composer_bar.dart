@@ -3,12 +3,12 @@ import 'package:provider/provider.dart';
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:fs_hub/shared/models/chat_models.dart';
-import '../../domain/entities/chat_entities.dart';
+import 'package:fs_hub/features/chat/domain/entities/chat_entities.dart';
 import '../providers/chat_provider.dart';
 import 'voice_recorder.dart';
-import '../../../../core/state/settings_controller.dart';
-import '../../../../core/utils/url_utils.dart';
-import '../../../../shared/widgets/authenticated_image.dart';
+import 'package:fs_hub/core/state/settings_controller.dart';
+import 'package:fs_hub/core/utils/url_utils.dart';
+import 'package:fs_hub/shared/widgets/authenticated_image.dart';
 
 /// Enhanced composer bar with full attachment support
 /// 
@@ -354,3 +354,6 @@ class _ComposerBarState extends State<ComposerBar> {
     }
   }
 }
+
+
+

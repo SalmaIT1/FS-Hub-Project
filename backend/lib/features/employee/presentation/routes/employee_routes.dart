@@ -3,17 +3,28 @@ import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 import '../../domain/services/employee_service.dart';
 import '../../../../core/middleware/auth_middleware.dart';
+import '../../../../core/middleware/permission_middleware.dart';
 
 class EmployeeRoutes {
   late final Router router;
 
   EmployeeRoutes() {
     router = Router()
-      ..get('/', _getAllEmployees)
-      ..get('/<id>', _getEmployeeById)
-      ..post('/', _createEmployee)
-      ..put('/<id>', _updateEmployee)
-      ..delete('/<id>', _deleteEmployee);
+      ..get('/', Pipeline().addMiddleware(requirePermission('view_employees')).addHandler(_getAllEmployees))
+      ..get('/<id>', (Request request, String id) {
+        if (id == request.authUserId) {
+          return _getEmployeeById(request, id);
+        }
+        return Pipeline().addMiddleware(requirePermission('view_employees')).addHandler((req) => _getEmployeeById(req, id))(request);
+      })
+      ..post('/', Pipeline().addMiddleware(requirePermission('manage_employees')).addHandler(_createEmployee))
+      ..put('/<id>', (Request request, String id) {
+        if (id == request.authUserId) {
+          return _updateEmployee(request, id);
+        }
+        return Pipeline().addMiddleware(requirePermission('manage_employees')).addHandler((req) => _updateEmployee(req, id))(request);
+      })
+      ..delete('/<id>', (Request request, String id) => Pipeline().addMiddleware(requirePermission('manage_employees')).addHandler((req) => _deleteEmployee(req, id))(request));
   }
 
   Future<Response> _getAllEmployees(Request request) async {
@@ -32,15 +43,10 @@ class EmployeeRoutes {
   }
 
   Future<Response> _createEmployee(Request request) async {
-    final callerRole = request.authUserRole;
-    if (callerRole != 'Admin' && callerRole != 'RH') {
-      return Response(403, body: jsonEncode({'success': false, 'message': 'Admin or RH role required'}), headers: {'Content-Type': 'application/json'});
-    }
-
     final body = await request.readAsString();
     final data = jsonDecode(body) as Map<String, dynamic>;
 
-    final res = await EmployeeService.createEmployee(data);
+    final res = await EmployeeService.createEmployee(data, callerId: request.authUserId);
     return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json'});
   }
 
@@ -59,7 +65,7 @@ class EmployeeRoutes {
 
   Future<Response> _deleteEmployee(Request request, String id) async {
     final callerRole = request.authUserRole;
-    final res = await EmployeeService.deactivateEmployee(id, callerRole: callerRole);
+    final res = await EmployeeService.deactivateEmployee(id, callerRole: callerRole, callerId: request.authUserId);
     if (!res['success']) return Response(403, body: jsonEncode(res), headers: {'Content-Type': 'application/json'});
 
     return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json'});

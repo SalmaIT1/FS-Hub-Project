@@ -1,14 +1,13 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../../employees/services/employee_service.dart';
+import 'package:fs_hub/core/state/settings_controller.dart';
+import 'package:fs_hub/shared/widgets/glass_widgets.dart';
+import 'package:fs_hub/shared/widgets/luxury/luxury_app_bar.dart';
+import 'package:fs_hub/shared/widgets/luxury/luxury_status_dialog.dart';
+import '../../../email/services/email_service.dart';
 import '../../data/services/auth_service.dart';
-import '../../../core/state/settings_controller.dart';
-import '../../../core/routes/app_routes.dart';
-import '../../../shared/widgets/glass_widgets.dart';
-import '../../../shared/widgets/luxury/luxury_app_bar.dart';
-import '../../../shared/widgets/luxury/luxury_status_dialog.dart';
-import '../../employees/services/employee_service.dart';
-import '../../../features/notifications/services/email_service.dart';
 
 class ResetPasswordPage extends StatefulWidget {
   const ResetPasswordPage({super.key});
@@ -38,29 +37,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
     });
 
     try {
-      // Find the user by email to get their ID
-      final employee = await EmployeeService.getEmployeeByEmail(_emailController.text.trim());
-      
-      if (employee == null) {
-        setState(() {
-          _isLoading = false;
-          _message = settings.translate('no_account_found');
-          _isError = true;
-        });
-        return;
-      }
-
-      // Create password reset demand with the actual user ID
-      final demandData = {
-        'type': 'password_reset',
-        'description': 'Password reset request for email: ${_emailController.text.trim()}',
-        'requesterId': employee.id ?? '0', // Use the actual user ID, fallback to 0 if null
-        'status': 'pending',
-        'createdAt': DateTime.now().toIso8601String(),
-        'email': _emailController.text.trim(), // Store email for reference
-      };
-
-      final result = await EmployeeService.createDemand(demandData);
+      final result = await AuthService.forgotPassword(_emailController.text.trim());
       
       if (mounted) {
         setState(() => _isLoading = false);
@@ -68,16 +45,13 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
           LuxuryStatusDialog.show(
             context,
             isSuccess: true,
-            title: 'Request Transmitted',
-            message: 'Your password reset protocol has been initiated. An administrator will review the request.',
+            title: 'Protocol Executed',
+            message: result['message'] ?? 'A new password has been generated and sent to your email.',
           );
           _message = settings.translate('reset_request_submitted');
           _isError = false;
         } else {
           String errorMsg = result['message'] ?? settings.translate('failed_submit_reset');
-          if (errorMsg.contains('connection') || errorMsg.contains('MySQL')) {
-            errorMsg = settings.translate('server_technical_difficulties');
-          }
           
           LuxuryStatusDialog.show(
             context,
@@ -91,16 +65,6 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
             _isError = true;
           });
         }
-      }
-
-      // Send notification to admin
-      if (result['success']) {
-        await EmailService.sendPasswordResetRequestNotification(
-          adminEmail: EmailService.adminEmail,
-          userEmail: _emailController.text.trim(),
-          userName: employee.fullName, // Use the actual user name
-          requestId: result['demandId'] ?? 'Unknown',
-        );
       }
     } catch (e) {
       setState(() {
@@ -292,3 +256,5 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
     );
   }
 }
+
+

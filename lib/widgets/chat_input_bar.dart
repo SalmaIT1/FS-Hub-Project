@@ -2,13 +2,13 @@ import 'dart:async';
 import 'dart:io' as io;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:fs_hub/chat/state/chat_controller.dart';
-import 'package:fs_hub/services/real_audio_recorder.dart';
+import 'package:fs_hub/features/chat/presentation/providers/chat_provider.dart';
+import 'package:fs_hub/features/voice/services/real_audio_recorder.dart';
 import 'package:fs_hub/features/voice/services/waveform_generator.dart';
 import 'package:just_audio/just_audio.dart';
-import '../shared/models/message_model.dart';
-import '../core/localization/translations.dart';
-import '../core/state/settings_controller.dart';
+import 'package:fs_hub/shared/models/message_model.dart';
+import 'package:fs_hub/core/localization/translations.dart';
+import 'package:fs_hub/core/state/settings_controller.dart';
 import 'media_picker_sheet.dart';
 import 'upload_progress_overlay.dart';
 
@@ -42,6 +42,8 @@ class _ChatInputBarState extends State<ChatInputBar> {
     final lines = '\n'.allMatches(_ctrl.text).length + 1;
     setState(() => _lines = lines.clamp(1, 5));
   }
+
+  String get languageCode => Provider.of<SettingsController>(context, listen: false).languageCode;
 
   @override
   void initState() {
@@ -121,12 +123,12 @@ class _ChatInputBarState extends State<ChatInputBar> {
           ),
         ),
         if (_showUpload) Positioned.fill(child: UploadProgressOverlay(progress: _uploadProgress, label: Translations.getText('uploading', languageCode))),
-        if (_recording) Positioned.fill(child: _buildRecordingOverlay()),
+        if (_recording) Positioned.fill(child: _buildRecordingOverlay(languageCode)),
       ],
     );
   }
 
-  Widget _buildRecordingOverlay() {
+  Widget _buildRecordingOverlay(String languageCode) {
     return Material(
       color: Colors.black54,
       child: Center(
@@ -423,6 +425,8 @@ class _VoicePreviewDialogState extends State<_VoicePreviewDialog> {
   Duration _totalDuration = Duration.zero;
   String? _error;
 
+  String get languageCode => Provider.of<SettingsController>(context, listen: false).languageCode;
+
   @override
   void initState() {
     super.initState();
@@ -645,3 +649,4 @@ class _VoicePreviewDialogState extends State<_VoicePreviewDialog> {
     );
   }
 }
+

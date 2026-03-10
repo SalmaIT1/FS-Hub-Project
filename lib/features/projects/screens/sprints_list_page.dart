@@ -2,13 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'dart:ui';
 import 'package:provider/provider.dart';
-import '../../../shared/models/project_model.dart';
-import '../../../shared/models/sprint_model.dart';
+import 'package:fs_hub/shared/models/project_model.dart';
+import 'package:fs_hub/shared/models/sprint_model.dart';
 import '../services/sprint_service.dart';
-import '../../../shared/widgets/luxury/luxury_app_bar.dart';
-import '../../../core/theme/app_theme.dart';
-import '../../../core/state/settings_controller.dart';
-import '../../../shared/widgets/luxury/luxury_status_dialog.dart';
+import '../services/task_service.dart';
+import 'package:fs_hub/shared/widgets/reporting/burndown_chart.dart';
+import 'package:fs_hub/shared/widgets/luxury/luxury_app_bar.dart';
+import 'package:fs_hub/core/theme/app_theme.dart';
+import 'package:fs_hub/core/state/settings_controller.dart';
+import 'package:fs_hub/shared/widgets/luxury/luxury_status_dialog.dart';
 
 class SprintsListPage extends StatefulWidget {
   final Project project;
@@ -21,6 +23,7 @@ class SprintsListPage extends StatefulWidget {
 
 class _SprintsListPageState extends State<SprintsListPage> with SingleTickerProviderStateMixin {
   List<Sprint> _sprints = [];
+  Map<int, List<dynamic>> _burndowns = {};
   bool _isLoading = true;
   late AnimationController _listController;
 
@@ -44,9 +47,19 @@ class _SprintsListPageState extends State<SprintsListPage> with SingleTickerProv
     setState(() => _isLoading = true);
     try {
       final sprints = await SprintService.getSprintsByProject(widget.project.id!);
+      
+      final futures = sprints.map((s) => TaskService.getBurndownData(s.id!)).toList();
+      final burndownResults = await Future.wait(futures);
+      
+      final Map<int, List<dynamic>> burndownMap = {};
+      for (int i = 0; i < sprints.length; i++) {
+        burndownMap[sprints[i].id!] = burndownResults[i];
+      }
+
       if (mounted) {
         setState(() {
           _sprints = sprints;
+          _burndowns = burndownMap;
           _isLoading = false;
         });
         _listController.forward(from: 0);
@@ -113,7 +126,7 @@ class _SprintsListPageState extends State<SprintsListPage> with SingleTickerProv
                               child: child,
                             ),
                           ),
-                          child: _buildSprintCard(_sprints[index], isDark),
+                          child: _buildSprintCard(_sprints[index], isDark, settings),
                         );
                       },
                     ),
@@ -123,7 +136,7 @@ class _SprintsListPageState extends State<SprintsListPage> with SingleTickerProv
     );
   }
 
-  Widget _buildSprintCard(Sprint sprint, bool isDark) {
+  Widget _buildSprintCard(Sprint sprint, bool isDark, SettingsController settings) {
     bool isCurrent = sprint.dateDebut != null && 
                     sprint.dateFin != null && 
                     DateTime.now().isAfter(sprint.dateDebut!) && 
@@ -213,6 +226,21 @@ class _SprintsListPageState extends State<SprintsListPage> with SingleTickerProv
                     ),
                   ],
                 ),
+                if (_burndowns.containsKey(sprint.id) && _burndowns[sprint.id]!.isNotEmpty) ...[
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Divider(color: isDark ? Colors.white12 : Colors.black12, height: 1),
+                  ),
+                  Row(
+                    children: [
+                      Icon(Icons.insights_rounded, size: 14, color: AppTheme.accentGold),
+                      SizedBox(width: 6),
+                      Text(settings.translate('burndown_tracker') ?? 'Suivi Burndown', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppTheme.accentGold)),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  BurndownChart(data: _burndowns[sprint.id]!, isDark: isDark),
+                ],
               ],
             ),
           ),
@@ -433,3 +461,5 @@ class _AddEditSprintDialogState extends State<AddEditSprintDialog> {
     }
   }
 }
+
+

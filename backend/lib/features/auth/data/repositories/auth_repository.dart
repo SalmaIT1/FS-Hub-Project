@@ -19,8 +19,11 @@ class AuthRepository {
     if (result.rows.isEmpty) return null;
 
     final row = result.rows.first;
+    final userId = row.colByName('id')?.toString();
+    final permissions = await getUserPermissions(userId ?? '');
+
     return {
-      'id': row.colByName('id')?.toString(),
+      'id': userId,
       'username': row.colByName('username'),
       'password': row.colByName('password'),
       'role': row.colByName('role'),
@@ -28,6 +31,7 @@ class AuthRepository {
       'nom': row.colByName('nom'),
       'prenom': row.colByName('prenom'),
       'email': row.colByName('email'),
+      'permissions': permissions,
     };
   }
 
@@ -113,11 +117,13 @@ class AuthRepository {
     if (result.rows.isEmpty) return null;
 
     final row = result.rows.first;
+    final permissions = await getUserPermissions(userId);
+
     return UserModel.fromMap({
       'id': row.colByName('id'),
       'username': row.colByName('username'),
       'role': row.colByName('role'),
-      'permissions': row.colByName('permissions'),
+      'permissions': permissions,
       'dernierLogin': row.colByName('dernierLogin'),
       'matricule': row.colByName('matricule'),
       'nom': row.colByName('nom'),
@@ -181,5 +187,46 @@ class AuthRepository {
         'userId': userId,
       },
     );
+  }
+
+  Future<List<String>> getUserPermissions(String userId) async {
+    try {
+      // 1. Get primary role from users table
+      final userRoleRes = await _db.execute(
+        'SELECT role, permissions FROM users WHERE id = :userId',
+        {'userId': userId},
+      );
+      
+      if (userRoleRes.rows.isEmpty) return [];
+      
+      final row = userRoleRes.rows.first;
+      final roleName = row.colByName('role')?.toString();
+      final directPermissions = row.colByName('permissions')?.toString();
+      
+      List<String> permissions = [];
+      
+      // 2. Load permissions from role system (via roles table)
+      if (roleName != null) {
+        final rolePermsResult = await _db.execute('''
+          SELECT DISTINCT p.nom 
+          FROM permissions p
+          JOIN role_permissions rp ON p.id = rp.permission_id
+          JOIN roles r ON rp.role_id = r.id
+          WHERE r.nom = :roleName
+        ''', {'roleName': roleName});
+        
+        permissions.addAll(rolePermsResult.rows.map((r) => r.colAt(0).toString()));
+      }
+      
+      // 3. Add direct permissions if any
+      if (directPermissions != null && directPermissions.isNotEmpty) {
+        permissions.addAll(directPermissions.split(',').map((p) => p.trim()));
+      }
+      
+      return permissions.toSet().toList(); // Unique permissions
+    } catch (e) {
+      print('Database error in getUserPermissions: $e');
+      return [];
+    }
   }
 }

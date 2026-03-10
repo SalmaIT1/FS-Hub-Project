@@ -7,7 +7,7 @@ class SettingsService {
 
   static Future<String> getLanguage() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_languageKey) ?? 'en';
+    return prefs.getString(_languageKey) ?? 'fr';
   }
 
   static Future<void> setLanguage(String code) async {

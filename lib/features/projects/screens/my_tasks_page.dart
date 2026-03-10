@@ -10,6 +10,8 @@ import 'package:fs_hub/features/projects/services/sprint_service.dart';
 import 'package:fs_hub/features/projects/services/project_service.dart';
 import 'package:fs_hub/shared/models/project_model.dart';
 import 'package:fs_hub/shared/widgets/luxury/luxury_status_dialog.dart';
+import 'package:provider/provider.dart';
+import 'package:fs_hub/core/state/settings_controller.dart';
 
 class MyTasksPage extends StatefulWidget {
   const MyTasksPage({super.key});
@@ -18,31 +20,44 @@ class MyTasksPage extends StatefulWidget {
   State<MyTasksPage> createState() => _MyTasksPageState();
 }
 
-class _MyTasksPageState extends State<MyTasksPage> {
+class _MyTasksPageState extends State<MyTasksPage> with TickerProviderStateMixin {
   List<Task> _tasks = [];
   List<Sprint> _activeSprints = [];
   bool _isLoading = true;
+  late AnimationController _listController;
 
   @override
   void initState() {
     super.initState();
+    _listController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
     _loadTasks();
+  }
+
+  @override
+  void dispose() {
+    _listController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadTasks() async {
     setState(() => _isLoading = true);
     try {
-      final tasks = await TaskService.getMyTasks();
+      final user = await AuthService.getCurrentUser();
+      final isAdmin = user?['role'] == 'Admin';
       
-      // Update tasks immediately so the user sees them
+      final tasks = isAdmin ? await TaskService.getAllTasks() : await TaskService.getMyTasks();
+      
       if (mounted) {
         setState(() {
           _tasks = tasks;
           _isLoading = false;
         });
+        _listController.forward(from: 0);
       }
 
-      // Load active sprints in the background for the FAB
       _loadActiveSprints();
     } catch (e) {
       print('Error loading tasks: $e');
@@ -86,30 +101,150 @@ class _MyTasksPageState extends State<MyTasksPage> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final settings = Provider.of<SettingsController>(context);
 
     return Scaffold(
-      appBar: const LuxuryAppBar(
-        title: 'Mes Tâches',
-        subtitle: 'Pipeline personnel',
+      backgroundColor: Colors.transparent,
+      appBar: LuxuryAppBar(
+        title: settings.translate('mes_taches'),
+        subtitle: settings.translate('pipeline_personnel'),
+        isPremium: true,
+        showBackButton: false,
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppTheme.accentGold))
-          : RefreshIndicator(
-              onRefresh: _loadTasks,
-              child: _tasks.isEmpty
-                  ? _buildEmptyState(isDark)
-                  : ListView.builder(
-                      padding: const EdgeInsets.all(20),
-                      itemCount: _tasks.length,
-                      itemBuilder: (context, index) => _buildTaskCard(_tasks[index], isDark),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: RadialGradient(
+            center: const Alignment(-0.8, -0.8),
+            radius: 1.2,
+            colors: isDark 
+                ? [const Color(0xFF0F0F0F), Colors.black]
+                : [const Color(0xFFF8F8F8), const Color(0xFFECECEC)],
+          ),
+        ),
+        child: RefreshIndicator(
+          color: AppTheme.accentGold,
+          onRefresh: _loadTasks,
+          child: CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              // Summary Card
+              SliverToBoxAdapter(
+                child: _buildSummaryCard(isDark, settings),
+              ),
+              
+              // Task List
+              if (_isLoading)
+                const SliverFillRemaining(
+                  child: Center(child: CircularProgressIndicator(color: AppTheme.accentGold)),
+                )
+              else if (_tasks.isEmpty)
+                SliverFillRemaining(child: _buildEmptyState(isDark))
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final animation = Tween<double>(begin: 0.0, end: 1.0).animate(
+                          CurvedAnimation(
+                            parent: _listController,
+                            curve: Interval(
+                              (index / 10).clamp(0.0, 1.0),
+                              1.0,
+                              curve: Curves.easeOutCubic,
+                            ),
+                          ),
+                        );
+
+                        return AnimatedBuilder(
+                          animation: animation,
+                          builder: (context, child) => Opacity(
+                            opacity: animation.value,
+                            child: Transform.translate(
+                              offset: Offset(0, 30 * (1 - animation.value)),
+                              child: child,
+                            ),
+                          ),
+                          child: _buildTaskCard(_tasks[index], isDark, settings),
+                        );
+                      },
+                      childCount: _tasks.length,
                     ),
-            ),
-      floatingActionButton: _activeSprints.isNotEmpty ? FloatingActionButton.extended(
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+      floatingActionButton: _activeSprints.isNotEmpty ? _buildFAB(settings) : null,
+    );
+  }
+
+  Widget _buildFAB(SettingsController settings) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 90),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        gradient: const LinearGradient(colors: [AppTheme.accentGold, Color(0xFF8B6914)]),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.accentGold.withOpacity(0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: FloatingActionButton.extended(
+        heroTag: 'fab_tasks',
         onPressed: _showCreateTaskDialog,
-        label: const Text('Nouvelle Tâche', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        icon: const Icon(Icons.add_rounded, color: Colors.white),
-        backgroundColor: AppTheme.accentGold,
-      ) : null,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        icon: const Icon(Icons.add_task_rounded, color: Colors.white),
+        label: Text(settings.translate('new_task'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+
+  Widget _buildSummaryCard(bool isDark, SettingsController settings) {
+    final todo = _tasks.where((t) => t.statut == 'ToDo').length;
+    final inProgress = _tasks.where((t) => t.statut == 'InProgress').length;
+    final done = _tasks.where((t) => t.statut == 'Done').length;
+
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? [AppTheme.accentGold.withOpacity(0.15), Colors.white.withOpacity(0.05)]
+              : [AppTheme.accentGold.withOpacity(0.1), Colors.black.withOpacity(0.02)],
+        ),
+        border: Border.all(color: AppTheme.accentGold.withOpacity(0.2)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildStatItem(settings.translate('todo'), todo.toString(), Icons.pending_actions_rounded),
+          Container(width: 1, height: 40, color: AppTheme.accentGold.withOpacity(0.1)),
+          _buildStatItem(settings.translate('in_progress_short'), inProgress.toString(), Icons.play_circle_outline_rounded),
+          Container(width: 1, height: 40, color: AppTheme.accentGold.withOpacity(0.1)),
+          _buildStatItem(settings.translate('done'), done.toString(), Icons.check_circle_outline_rounded),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatItem(String label, String value, IconData icon) {
+    return Column(
+      children: [
+        Icon(icon, color: AppTheme.accentGold, size: 20),
+        const SizedBox(height: 8),
+        Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+        Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.w600)),
+      ],
     );
   }
 
@@ -129,86 +264,217 @@ class _MyTasksPageState extends State<MyTasksPage> {
     );
   }
 
-  Widget _buildTaskCard(Task task, bool isDark) {
+  Widget _buildTaskCard(Task task, bool isDark, SettingsController settings) {
     Color statusColor;
     switch (task.statut) {
-      case 'Done': statusColor = Colors.green; break;
-      case 'Testing': statusColor = Colors.purple; break;
-      case 'InProgress': statusColor = Colors.blue; break;
-      case 'ToDo': statusColor = Colors.orange; break;
+      case 'Done': statusColor = const Color(0xFF4CAF50); break;
+      case 'Testing': statusColor = const Color(0xFF9C27B0); break;
+      case 'InProgress': statusColor = const Color(0xFF2196F3); break;
+      case 'ToDo': statusColor = const Color(0xFFFF9800); break;
       default: statusColor = Colors.grey;
     }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF252525) : Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05),
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withOpacity(isDark ? 0.2 : 0.05),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ListTile(
-            title: Text(task.titre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            subtitle: Text('${task.projectNom} » ${task.sprintNom}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-            trailing: _buildPriorityChip(task.priorite),
-          ),
-          if (task.description != null && task.description!.isNotEmpty)
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header with Project/Sprint info
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.layers_outlined, size: 14, color: AppTheme.accentGold.withOpacity(0.7)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${task.projectNom} » ${task.sprintNom}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.white38 : Colors.black38,
+                        letterSpacing: 0.5,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  _buildPriorityChip(task.priorite, settings),
+                ],
+              ),
+            ),
+            
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Text(task.description!, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, color: Colors.grey)),
-            ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildStatusBadge(task.statut, statusColor),
-                Row(
-                  children: [
-                    const Icon(Icons.timer_outlined, size: 14, color: Colors.grey),
-                    const SizedBox(width: 4),
-                    Text('${task.heuresReelles}/${task.estimationHeures}h', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          task.titre,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 17,
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                      ),
+                      if (task.heuresReelles > task.estimationHeures && task.statut != 'Done')
+                        Container(
+                          margin: const EdgeInsets.only(left: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            settings.translate('delayed').toUpperCase(),
+                            style: const TextStyle(color: Colors.red, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                          ),
+                        ),
+                    ],
+                  ),
+                  if (task.description != null && task.description!.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      task.description!,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: isDark ? Colors.white54 : Colors.black54,
+                        height: 1.4,
+                      ),
+                    ),
                   ],
-                ),
-                TextButton(
-                  onPressed: () => _updateStatus(task),
-                  child: const Text('Mettre à jour', style: TextStyle(color: AppTheme.accentGold, fontWeight: FontWeight.bold)),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+
+            const Divider(height: 1, indent: 20, endIndent: 20, color: Colors.transparent),
+
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 12, 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      _buildStatusBadge(task.statut, statusColor, settings),
+                      const SizedBox(width: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.04),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.timer_outlined, size: 12, color: AppTheme.accentGold.withOpacity(0.8)),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${task.heuresReelles}/${task.estimationHeures}h',
+                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  TextButton(
+                    onPressed: () => _updateStatus(task),
+                    style: TextButton.styleFrom(
+                      overlayColor: AppTheme.accentGold.withOpacity(0.1),
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: Text(
+                      settings.translate('update').toUpperCase(),
+                      style: const TextStyle(
+                        color: AppTheme.accentGold,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 12,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildPriorityChip(String priority) {
+  Widget _buildPriorityChip(String priority, SettingsController settings) {
     Color color;
     switch (priority) {
-      case 'High': color = Colors.redAccent; break;
-      case 'Medium': color = Colors.orangeAccent; break;
-      default: color = Colors.blueAccent;
+      case 'High': color = const Color(0xFFFF5252); break;
+      case 'Medium': color = const Color(0xFFFFAB40); break;
+      default: color = const Color(0xFF448AFF);
     }
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-      child: Text(priority, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold)),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        settings.translate(priority.toLowerCase()).toUpperCase(),
+        style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+      ),
     );
   }
 
-  Widget _buildStatusBadge(String status, Color color) {
+  Widget _buildStatusBadge(String status, Color color, SettingsController settings) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(20), border: Border.all(color: color.withOpacity(0.2))),
-      child: Text(status, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [color.withOpacity(0.2), color.withOpacity(0.05)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            settings.translate(status.toLowerCase()),
+            style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w800),
+          ),
+        ],
+      ),
     );
   }
 

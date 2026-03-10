@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -8,27 +9,59 @@ class UploadDatasource {
 
   UploadDatasource({required this.baseUrl, required this.tokenProvider});
 
-  Future<String> uploadFile({
-    required String filePath,
+  Future<Map<String, dynamic>> requestSignedUrl({
+    required String filename,
+    required String mimeType,
+    required int fileSize,
+  }) async {
+    final token = await tokenProvider();
+    final response = await http.post(
+      Uri.parse('$baseUrl/v1/uploads/signed-url'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'contentType': mimeType,
+        'filename': filename,
+        'fileSize': fileSize,
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    throw Exception('Failed to get signed URL: ${response.statusCode}');
+  }
+
+  Future<Map<String, dynamic>> uploadFile({
+    required String uploadId,
     required String signedUrl,
-    required String contentType,
+    File? file,
+    List<int>? bytes,
     void Function(double)? onProgress,
   }) async {
-    if (kIsWeb) {
-      // For web, we need to handle this differently
-      // The file should be uploaded via the signed URL
-      throw UnimplementedError('Use uploadBytes for web platform');
+    if (kIsWeb && bytes != null) {
+      // For web, use bytes directly
+      return await uploadBytes(
+        signedUrl: signedUrl,
+        bytes: bytes,
+        contentType: 'application/octet-stream',
+        onProgress: onProgress,
+      ).then((url) => {'uploadId': uploadId, 'serverUrl': url});
     }
 
-    final file = File(filePath);
-    final bytes = await file.readAsBytes();
-    
-    return uploadBytes(
-      signedUrl: signedUrl,
-      bytes: bytes,
-      contentType: contentType,
-      onProgress: onProgress,
-    );
+    if (file != null) {
+      final fileBytes = await file.readAsBytes();
+      return await uploadBytes(
+        signedUrl: signedUrl,
+        bytes: fileBytes,
+        contentType: 'application/octet-stream',
+        onProgress: onProgress,
+      ).then((url) => {'uploadId': uploadId, 'serverUrl': url});
+    }
+
+    throw ArgumentError('Either file or bytes must be provided');
   }
 
   Future<String> uploadBytes({

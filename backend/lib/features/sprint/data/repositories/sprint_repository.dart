@@ -6,7 +6,11 @@ class SprintRepository {
 
   Future<List<SprintModel>> getSprintsByProject(int projectId) async {
     final result = await _db.execute(
-      'SELECT * FROM sprints WHERE projet_id = :pid ORDER BY date_debut ASC',
+      '''SELECT s.* 
+         FROM sprints s
+         JOIN projets p ON s.projet_id = p.id
+         WHERE s.projet_id = :pid AND p.is_deleted = FALSE
+         ORDER BY s.date_debut ASC''',
       {'pid': projectId}
     );
 

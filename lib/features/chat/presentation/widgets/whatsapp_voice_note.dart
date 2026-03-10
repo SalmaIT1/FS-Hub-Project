@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fs_hub/widgets/audio_player_widget.dart';
 import 'package:fs_hub/features/voice/services/waveform_generator.dart';
-import '../../domain/entities/chat_entities.dart';
+import 'package:fs_hub/features/chat/domain/entities/chat_entities.dart';
 
 /// WhatsApp-style voice note component
 class WhatsAppVoiceNote extends StatefulWidget {
@@ -171,3 +171,4 @@ class WhatsAppWaveformPainter extends CustomPainter {
         oldDelegate.isPlaying != isPlaying;
   }
 }
+

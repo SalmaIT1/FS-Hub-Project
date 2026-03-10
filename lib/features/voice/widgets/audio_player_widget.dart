@@ -4,6 +4,8 @@ import 'dart:io' as io;
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:fs_hub/features/auth/data/datasources/auth_remote_datasource.dart';
+import 'package:fs_hub/core/utils/url_utils.dart';
 
 /// Real audio player widget for voice notes
 /// 
@@ -63,6 +65,7 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
   @override
   void initState() {
     super.initState();
+    print('[VoiceAudioPlayer] initState called for source: ${widget.source}');
     _audioPlayer = AudioPlayer();
     _setupAudioPlayer();
   }
@@ -127,9 +130,68 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
           }
         }
       } else if (widget.source.startsWith('http')) {
-        // HTTP URL - use setUrl directly
+        // HTTP URL - use authentication
+        final token = await AuthRemoteDatasource.getAccessToken();
         
-        await _audioPlayer.setUrl(widget.source);
+        print('[VoiceAudioPlayer] Retrieved token: ${token != null ? "Token exists (${token.length} chars)" : "Token is null"}');
+        print('[VoiceAudioPlayer] Source URL: ${widget.source}');
+        
+        if (kIsWeb) {
+          // On web, use token as query parameter
+          final authenticatedUrl = UrlUtils.appendToken(widget.source, token);
+          print('[VoiceAudioPlayer] Web loading with token URL');
+          await _audioPlayer.setUrl(authenticatedUrl);
+        } else {
+          // On mobile platforms, try multiple authentication methods
+          bool loadedSuccessfully = false;
+          
+          // Method 1: Try with Authorization header (preferred)
+          if (!loadedSuccessfully && token != null && token.isNotEmpty) {
+            try {
+              final headers = <String, String>{
+                'Authorization': 'Bearer $token',
+                'User-Agent': 'FS-Hub-Android/1.0',
+                'Accept': 'audio/*, */*;q=0.1',
+              };
+              print('[VoiceAudioPlayer] Mobile loading with Bearer token');
+              await _audioPlayer.setUrl(widget.source, headers: headers);
+              loadedSuccessfully = true;
+              print('[VoiceAudioPlayer] Success with Bearer token');
+            } catch (e) {
+              print('[VoiceAudioPlayer] Bearer token failed: $e');
+            }
+          }
+          
+          // Method 2: Try with token as query parameter (fallback)
+          if (!loadedSuccessfully) {
+            try {
+              final authenticatedUrl = UrlUtils.appendToken(widget.source, token);
+              print('[VoiceAudioPlayer] Mobile loading with token as query parameter');
+              await _audioPlayer.setUrl(authenticatedUrl);
+              loadedSuccessfully = true;
+              print('[VoiceAudioPlayer] Success with query parameter');
+            } catch (e) {
+              print('[VoiceAudioPlayer] Query parameter failed: $e');
+            }
+          }
+          
+          // Method 3: Try without token (for public URLs)
+          if (!loadedSuccessfully) {
+            try {
+              print('[VoiceAudioPlayer] Mobile loading without token (public URL)');
+              await _audioPlayer.setUrl(widget.source);
+              loadedSuccessfully = true;
+              print('[VoiceAudioPlayer] Success without token');
+            } catch (e) {
+              print('[VoiceAudioPlayer] Without token failed: $e');
+            }
+          }
+          
+          // If all methods failed, throw the last error
+          if (!loadedSuccessfully) {
+            throw Exception('All authentication methods failed for audio URL');
+          }
+        }
       } else {
         // Local file
         

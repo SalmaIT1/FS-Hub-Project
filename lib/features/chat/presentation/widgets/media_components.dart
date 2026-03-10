@@ -6,9 +6,9 @@ import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:fs_hub/utils/web_download_stub.dart'
   if (dart.library.html) 'package:fs_hub/utils/web_download_web.dart';
-import '../../domain/entities/chat_entities.dart';
-import 'adaptive_voice_note.dart';
-import 'whatsapp_voice_note.dart';
+import 'package:fs_hub/features/chat/domain/entities/chat_entities.dart';
+import 'package:fs_hub/features/voice/widgets/adaptive_voice_note.dart';
+import 'package:fs_hub/features/voice/widgets/whatsapp_voice_note.dart';
 import 'package:fs_hub/shared/models/chat_models.dart';
 import 'package:fs_hub/core/utils/url_utils.dart';
 import 'package:fs_hub/core/services/api_service.dart';
@@ -211,3 +211,5 @@ class DownloadProgressOverlay extends StatelessWidget {
     );
   }
 }
+
+

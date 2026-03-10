@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
-import '../../../core/theme/app_theme.dart';
+import 'package:fs_hub/core/theme/app_theme.dart';
 
 class CustomTitleBar extends StatelessWidget {
   final Widget child;
@@ -197,3 +197,4 @@ class _TitleBarButtonState extends State<_TitleBarButton> {
     );
   }
 }
+

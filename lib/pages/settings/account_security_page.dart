@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../core/state/settings_controller.dart';
-import '../../shared/widgets/luxury/luxury_app_bar.dart';
-import '../../core/theme/app_theme.dart';
+import 'package:fs_hub/core/state/settings_controller.dart';
+import 'package:fs_hub/shared/widgets/luxury/luxury_app_bar.dart';
+import 'package:fs_hub/core/theme/app_theme.dart';
 import '../../features/auth/data/services/auth_service.dart';
-import '../../shared/widgets/luxury/luxury_status_dialog.dart';
+import 'package:fs_hub/shared/widgets/luxury/luxury_status_dialog.dart';
 
 class AccountSecurityPage extends StatefulWidget {
   const AccountSecurityPage({super.key});
@@ -305,3 +305,4 @@ class _AccountSecurityPageState extends State<AccountSecurityPage> {
     return Divider(height: 1, indent: 68, endIndent: 20, color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03));
   }
 }
+

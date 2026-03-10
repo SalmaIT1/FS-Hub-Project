@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../shared/models/notification_model.dart' as AppNotification;
+import 'package:fs_hub/shared/models/notification_model.dart' as AppNotification;
 import '../features/notifications/services/notification_service.dart';
 
 class NotificationDrawer extends StatefulWidget {

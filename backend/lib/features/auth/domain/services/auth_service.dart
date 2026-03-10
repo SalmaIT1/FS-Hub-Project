@@ -6,6 +6,8 @@ import '../../data/repositories/auth_repository.dart';
 import '../../data/models/user_model.dart';
 import '../../data/models/auth_session_model.dart';
 import 'dart:io';
+import 'dart:math';
+import '../../../email/domain/services/email_service.dart';
 // Just in case it's needed for JSON and crypto.
 
 class AuthService {
@@ -108,6 +110,7 @@ class AuthService {
 
       final accessToken = _generateAccessToken(userId, userRole ?? 'Employé');
       final refreshToken = _generateRefreshToken(userId);
+      print('[DEBUG] Tokens generated for userId: $userId');
 
       try {
         await _repository.saveRefreshToken(
@@ -115,15 +118,20 @@ class AuthService {
           token: refreshToken,
           expiresAt: DateTime.now().add(_refreshTokenExpiry),
         );
+        print('[DEBUG] Refresh token saved');
       } catch (e) {
         print('Failed to persist refresh token: $e');
       }
 
+      print('[DEBUG] Converting userRow to UserModel. userRow keys: ${userRow.keys}');
+      print('[DEBUG] permissions type: ${userRow['permissions'].runtimeType}');
+      
       final session = AuthSessionModel(
         accessToken: accessToken,
         refreshToken: refreshToken,
         user: UserModel.fromMap(userRow),
       );
+      print('[DEBUG] Session created');
 
       return {
         'success': true,
@@ -289,6 +297,92 @@ class AuthService {
     }
   }
 
+  // ── Forgot Password & Admin Reset ─────────────────────────────────────────
+
+  /// Self-service forgot password. 
+  /// In this flow, we generate a new password and send it to the user.
+  static Future<Map<String, dynamic>> forgotPassword(String email) async {
+    try {
+      final userRow = await _repository.findUserByUsernameOrEmail(email);
+      if (userRow == null) {
+        // For security, don't reveal if user exists, but we can't send email if not.
+        // But for internal tool, we can be more explicit.
+        return {'success': false, 'message': 'No account associated with this email'};
+      }
+
+      final userId = userRow['id'].toString();
+      final userName = '${userRow['prenom'] ?? ''} ${userRow['nom'] ?? ''}'.trim();
+      final userEmail = userRow['email'] as String?;
+
+      if (userEmail == null || userEmail.isEmpty) {
+        return {'success': false, 'message': 'Account has no associated email'};
+      }
+
+      final newPassword = _generateRandomPassword();
+      final hashedUrl = BCrypt.hashpw(newPassword, BCrypt.gensalt());
+
+      await _repository.updatePassword(userId, hashedUrl);
+
+      final emailResult = await EmailService.sendPasswordResetEmail(
+        userEmail: userEmail,
+        userName: userName.isEmpty ? (userRow['username'] ?? 'User') : userName,
+        newPassword: newPassword,
+      );
+
+      if (emailResult['success'] == true) {
+        return {'success': true, 'message': 'A new password has been sent to your email'};
+      } else {
+        return {'success': false, 'message': 'Failed to send email: ${emailResult['error']}'};
+      }
+    } catch (e) {
+      print('Forgot password error: $e');
+      return {'success': false, 'message': 'An error occurred during password reset'};
+    }
+  }
+
+  /// Admin-initiated password reset for another user.
+  static Future<Map<String, dynamic>> adminResetUserPassword(String targetUserId) async {
+    try {
+      final profile = await _repository.getProfile(targetUserId);
+      if (profile == null) {
+        return {'success': false, 'message': 'User not found'};
+      }
+
+      final userName = '${profile.prenom} ${profile.nom}'.trim();
+      final userEmail = profile.email;
+
+      if (userEmail == null || userEmail.isEmpty) {
+        return {'success': false, 'message': 'User has no associated email'};
+      }
+
+      final newPassword = _generateRandomPassword();
+      final hashedUrl = BCrypt.hashpw(newPassword, BCrypt.gensalt());
+
+      await _repository.updatePassword(targetUserId, hashedUrl);
+
+      final emailResult = await EmailService.sendPasswordResetEmail(
+        userEmail: userEmail,
+        userName: userName.isEmpty ? profile.username : userName,
+        newPassword: newPassword,
+      );
+
+      return {
+        'success': true, 
+        'message': 'Password has been reset and email sent to $userEmail',
+        'data': {'newPassword': newPassword} // Return to admin just in case
+      };
+    } catch (e) {
+      print('Admin reset password error: $e');
+      return {'success': false, 'message': 'Failed to reset user password'};
+    }
+  }
+
+  static String _generateRandomPassword([int length = 12]) {
+    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#%^&*';
+    final rnd = Random.secure();
+    return List.generate(length, (index) => chars[rnd.nextInt(chars.length)]).join();
+  }
+
   // ── User Settings ────────────────────────────────────────────────────────
   static Future<Map<String, dynamic>> getUserSettings(String userId) async {
     try {
@@ -341,6 +435,16 @@ class AuthService {
       return jwt.payload as Map<String, dynamic>;
     } catch (e) {
       return null;
+    }
+  }
+
+  static Future<List<String>> getUserPermissions(String userId) async {
+    try {
+      final perms = await _repository.getUserPermissions(userId);
+      return List<String>.from(perms);
+    } catch (e) {
+      print('Error getting user permissions: $e');
+      return [];
     }
   }
 }

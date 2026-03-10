@@ -1,32 +1,85 @@
 import '../../data/repositories/project_repository.dart';
+import '../../../../shared/services/audit_service.dart';
 import '../../../../core/services/data_integrity_service.dart';
 
 class ProjectService {
   static final _repository = ProjectRepository();
 
-  static Future<List<Map<String, dynamic>>> getAllProjects() async {
+  static Future<List<Map<String, dynamic>>> getAllProjects({String? callerRole, String? callerId}) async {
+    // FIX: Clients only see projects linked to their client_id, not all company projects
+    if (callerRole == 'Client' && callerId != null) {
+      final projects = await _repository.getProjectsByUserId(callerId);
+      return projects.map((p) => p.toJson()).toList();
+    }
+    // FIX: Employees only see projects they are members of
+    if (callerRole == 'Employé' && callerId != null) {
+      final projects = await _repository.getProjectsByEmployeeId(callerId);
+      return projects.map((p) => p.toJson()).toList();
+    }
+    
     final projects = await _repository.getAllProjects();
     return projects.map((p) => p.toJson()).toList();
   }
 
-  static Future<Map<String, dynamic>?> getProjectById(int id) async {
+  static Future<Map<String, dynamic>?> getProjectById(int id, {String? callerRole, String? callerId}) async {
     final project = await _repository.getProjectById(id);
-    return project?.toJson();
+    if (project == null) return null;
+
+    // RBAC: Admins, Managers, and RH see all
+    if (callerRole == 'Admin' || callerRole == 'Manager' || callerRole == 'RH') {
+      return project.toJson();
+    }
+
+    // RBAC: Clients only see their own projects
+    if (callerRole == 'Client' && callerId != null) {
+      final isOwner = await _repository.isClientOwner(id, callerId);
+      return isOwner ? project.toJson() : null;
+    }
+
+    // RBAC: Employees (and Team Leads) only see projects they are members of
+    if (callerId != null) {
+      final isMember = await _repository.isMember(id, callerId);
+      return isMember ? project.toJson() : null;
+    }
+
+    return null;
   }
 
-  static Future<int> createProject(Map<String, dynamic> data) async {
-    return await _repository.createProject(data);
+  static Future<int> createProject(Map<String, dynamic> data, {String? callerId}) async {
+    final id = await _repository.createProject(data);
+    await AuditService.log(callerId ?? 'SYSTEM', 'PROJECT_CREATED', {
+      'projectId': id,
+      'projectName': data['nom'],
+    });
+    return id;
   }
 
-  static Future<void> updateProject(int id, Map<String, dynamic> data) async {
+  static Future<void> updateProject(int id, Map<String, dynamic> data, {String? callerId}) async {
     await _repository.updateProject(id, data);
+    if (callerId != null) {
+      await AuditService.log(callerId, 'PROJECT_UPDATED', {
+        'projectId': id,
+        'projectName': data['nom'],
+        'fields': data.keys.toList(),
+      });
+    }
   }
 
-  static Future<Map<String, dynamic>> deleteProject(int id) async {
+  static Future<Map<String, dynamic>> deleteProject(int id, {String? callerId}) async {
     if (await _repository.hasActiveSprints(id)) {
       return {'success': false, 'message': 'Cannot delete project with active sprints.'};
     }
+    
+    final project = await _repository.getProjectById(id);
     await _repository.deleteProject(id);
+
+    if (callerId != null) {
+      await AuditService.log(callerId, 'PROJECT_DELETED', {
+        'projectId': id,
+        'projectName': project?.nom,
+      });
+    }
+
     return {'success': true};
   }
 

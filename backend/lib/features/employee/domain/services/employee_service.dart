@@ -1,11 +1,12 @@
 import 'package:bcrypt/bcrypt.dart';
 import '../../data/repositories/employee_repository.dart';
 import '../../data/models/employee_model.dart';
+import '../../../../shared/services/audit_service.dart';
 
 class EmployeeService {
   static final _repository = EmployeeRepository();
 
-  static const allowedRoles = {'Admin', 'Manager', 'Employé', 'RH'};
+  static const allowedRoles = {'Admin', 'Manager', 'Employé', 'RH', 'Team Lead', 'Comptable', 'Client'};
   static const allowedStatuts = {'actif', 'inactif', 'suspendu'};
 
   static Future<Map<String, dynamic>> getAllEmployees({int page = 1, int limit = 50}) async {
@@ -33,7 +34,7 @@ class EmployeeService {
     return {'success': true, 'data': emp.toJson()};
   }
 
-  static Future<Map<String, dynamic>> createEmployee(Map<String, dynamic> data) async {
+  static Future<Map<String, dynamic>> createEmployee(Map<String, dynamic> data, {String? callerId}) async {
     final requiredFields = ['nom', 'prenom', 'email', 'username', 'password'];
     for (final f in requiredFields) {
       if (data[f] == null || data[f].toString().trim().isEmpty) {
@@ -41,14 +42,21 @@ class EmployeeService {
       }
     }
 
-    final role = data['role']?.toString() ?? 'Employé';
-    if (!allowedRoles.contains(role)) return {'success': false, 'message': 'Invalid role'};
+    String role = data['role']?.toString() ?? 'Employé';
+    
+    if (!allowedRoles.contains(role)) return {'success': false, 'message': 'Invalid role: $role'};
+    data['role'] = role;
 
     final hashedPassword = BCrypt.hashpw(data['password'].toString(), BCrypt.gensalt());
     data['hashedPassword'] = hashedPassword;
 
     try {
       final id = await _repository.createEmployee(data);
+      await AuditService.log(callerId ?? 'SYSTEM', 'EMPLOYEE_CREATED', {
+        'employeeId': id,
+        'username': data['username'],
+        'role': role,
+      });
       return {'success': true, 'message': 'Employee created successfully', 'data': {'id': id}};
     } catch (e) {
       return {'success': false, 'message': e.toString().contains('already exists') ? e.toString() : 'Failed to create employee'};
@@ -84,16 +92,50 @@ class EmployeeService {
     };
 
     await _repository.updateEmployee(id, updateData);
+    await AuditService.log(callerId, 'EMPLOYEE_UPDATED', {
+      'targetEmployeeId': id,
+      'fields': data.keys.toList(),
+    });
     return {'success': true, 'message': 'Employee updated successfully'};
   }
 
-  static Future<Map<String, dynamic>> deactivateEmployee(String id, {required String callerRole}) async {
+  static Future<Map<String, dynamic>> deactivateEmployee(String id, {required String callerRole, String? callerId}) async {
     if (callerRole != 'Admin') return {'success': false, 'message': 'Admin role required'};
 
     final existing = await _repository.getEmployeeById(id);
     if (existing == null) return {'success': false, 'message': 'Employee not found'};
 
     await _repository.deactivateEmployee(id, existing.userId);
+    await AuditService.log(callerId ?? 'SYSTEM', 'EMPLOYEE_DEACTIVATED', {
+      'employeeId': id,
+      'userId': existing.userId,
+    });
     return {'success': true, 'message': 'Employee deactivated successfully'};
+  }
+
+  static String _mapPosteToRole(String? poste) {
+    if (poste == null) return 'Employé';
+    final p = poste.toLowerCase();
+    
+    if (p.contains('rh') || p.contains('ressources humaines') || p.contains('recrutement')) {
+      return 'RH';
+    }
+    // Admin should NEVER be assigned automatically via title for security.
+    // It must be explicitly set by an existing administrator.
+    
+    if (p.contains('comptable') || p.contains('finance') || p.contains('tresorier') || p.contains('compta')) {
+      return 'Comptable';
+    }
+    if (p.contains('manager') || p.contains('chef de departement') || p.contains('directeur adjoint')) {
+      return 'Manager';
+    }
+    if (p.contains('chef de projet') || p.contains('team lead') || p.contains('lead')) {
+      return 'Team Lead';
+    }
+    if (p.contains('client') || p.contains('partenaire')) {
+      return 'Client';
+    }
+    
+    return 'Employé';
   }
 }

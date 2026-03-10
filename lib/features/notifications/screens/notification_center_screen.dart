@@ -1,12 +1,12 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import '../../../shared/widgets/luxury/luxury_app_bar.dart';
+import 'package:fs_hub/shared/widgets/luxury/luxury_app_bar.dart';
 import '../../../widgets/glass_notification_card.dart';
 import '../../employees/services/employee_service.dart';
 import '../../auth/data/services/auth_service.dart';
 import '../services/notification_service.dart';
-import '../../../shared/models/notification_model.dart' as AppNotification;
-import '../../../core/theme/app_theme.dart';
+import 'package:fs_hub/shared/models/notification_model.dart' as AppNotification;
+import 'package:fs_hub/core/theme/app_theme.dart';
 
 class NotificationCenterPage extends StatefulWidget {
   const NotificationCenterPage({super.key});
@@ -357,3 +357,4 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> with Ti
     // Logic for routing based on notification payload
   }
 }
+

@@ -24,4 +24,16 @@ class AppRoutes {
   static const String projectDetail = '/project/detail';
   static const String sprints = '/projects/sprints';
   static const String myTasks = '/my-tasks';
+  static const String reports = '/reports';
+  static const String credits = '/credits';
+  static const String expenses = '/expenses';
+  static const String roles = '/roles';
+
+  // HR Routes
+  static const String hrDashboard = '/hr';
+  static const String hrLeaves = '/hr/leaves';
+  static const String hrRemoteWork = '/hr/remote-work';
+  static const String hrSalaries = '/hr/salaries';
+  static const String hrBonuses = '/hr/bonuses';
+  static const String hrAttendance = '/hr/attendance';
 }

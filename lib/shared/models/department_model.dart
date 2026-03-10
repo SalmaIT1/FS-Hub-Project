@@ -15,11 +15,14 @@ class Department {
 
   factory Department.fromJson(Map<String, dynamic> json) {
     return Department(
-      id: json['id'],
-      nom: json['nom'],
-      budgetAnnuel: (json['budgetAnnuel'] ?? 0.0).toDouble(),
-      createdAt: json['createdAt'],
-      updatedAt: json['updatedAt'],
+      id: json['id'] != null ? int.tryParse(json['id'].toString()) : null,
+      nom: json['nom']?.toString() ?? '',
+      // Backend returns snake_case keys (budget_annuel), camelCase is used internally
+      budgetAnnuel: (json['budget_annuel'] ?? json['budgetAnnuel'] ?? 0.0) is String
+          ? double.tryParse((json['budget_annuel'] ?? json['budgetAnnuel']).toString()) ?? 0.0
+          : ((json['budget_annuel'] ?? json['budgetAnnuel'] ?? 0.0) as num).toDouble(),
+      createdAt: (json['created_at'] ?? json['createdAt'])?.toString(),
+      updatedAt: (json['updated_at'] ?? json['updatedAt'])?.toString(),
     );
   }
 

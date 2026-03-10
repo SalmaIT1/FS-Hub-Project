@@ -1,5 +1,5 @@
-import '../../../core/services/api_service.dart';
-import '../../../shared/models/demand_model.dart';
+import 'package:fs_hub/core/services/api_service.dart';
+import 'package:fs_hub/shared/models/demand_model.dart';
 
 class DemandService {
   /// Get all demands with optional filtering
@@ -139,8 +139,8 @@ class DemandService {
     try {
       final updateData = {
         'status': status,
-        'resolutionNotes': ?resolutionNotes,
-        'handledBy': ?handledBy,
+        'resolutionNotes': resolutionNotes,
+        'handledBy': handledBy,
       };
 
       final result = await ApiService.put(

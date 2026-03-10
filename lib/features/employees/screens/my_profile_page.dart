@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../../../shared/models/employee_model.dart';
-import '../../../shared/models/demand_model.dart';
+import 'package:fs_hub/shared/models/employee_model.dart';
+import 'package:fs_hub/shared/models/demand_model.dart';
 import '../services/employee_service.dart';
 import '../../auth/data/services/auth_service.dart';
-import '../../../shared/widgets/luxury/luxury_app_bar.dart';
-import '../../../core/routes/app_routes.dart';
+import 'package:fs_hub/shared/widgets/luxury/luxury_app_bar.dart';
+import 'package:fs_hub/core/routes/app_routes.dart';
 
 import 'package:provider/provider.dart';
-import '../../../core/state/settings_controller.dart';
-import '../../../shared/widgets/authenticated_image.dart';
-import '../../../shared/widgets/luxury/luxury_status_dialog.dart';
+import 'package:fs_hub/core/state/settings_controller.dart';
+import 'package:fs_hub/shared/widgets/authenticated_image.dart';
+import 'package:fs_hub/shared/widgets/luxury/luxury_status_dialog.dart';
 
 class MyProfilePage extends StatefulWidget {
   const MyProfilePage({super.key});
@@ -351,3 +351,5 @@ class _MyProfilePageState extends State<MyProfilePage> {
     );
   }
 }
+
+

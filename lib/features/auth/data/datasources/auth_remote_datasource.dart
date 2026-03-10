@@ -1,9 +1,10 @@
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:fs_hub/core/config/app_config.dart';
 
 class AuthRemoteDatasource {
-  static const String _baseUrl = 'http://localhost:8080/v1';
+  static final String _baseUrl = AppConfig.apiV1BaseUrl;
 
   static Future<String?> getAccessToken() async {
     final prefs = await SharedPreferences.getInstance();

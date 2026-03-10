@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io' as io;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:fs_hub/chat/state/chat_controller.dart';
+import 'package:fs_hub/features/chat/presentation/providers/chat_provider.dart';
 import 'package:fs_hub/services/real_audio_recorder.dart';
 import 'package:fs_hub/features/voice/services/waveform_generator.dart';
 import 'package:just_audio/just_audio.dart';
@@ -634,3 +634,4 @@ class _VoicePreviewDialogState extends State<_VoicePreviewDialog> {
     );
   }
 }
+

@@ -2,6 +2,10 @@ import 'dart:async';
 import 'package:mysql_client/mysql_client.dart';
 import 'package:dotenv/dotenv.dart';
 
+extension ResultSetRowExtension on ResultSetRow {
+  dynamic operator [](String name) => colByName(name);
+}
+
 /// DBConnection wraps a simple connection pool so that DB calls
 /// do not pay the cost of a new TCP handshake on every query.
 ///
@@ -39,7 +43,7 @@ class _PooledConnection {
     await _conn!.connect();
   }
 
-  Future<dynamic> execute(String sql, [Map<String, dynamic>? params]) async {
+  Future<IResultSet> execute(String sql, [Map<String, dynamic>? params]) async {
     await _ensureConnected();
     return _conn!.execute(sql, params ?? {});
   }
@@ -94,7 +98,7 @@ class _DBProxy {
     }
   }
 
-  Future<dynamic> execute(String sql, [Map<String, dynamic>? params]) async {
+  Future<IResultSet> execute(String sql, [Map<String, dynamic>? params]) async {
     final slot = await _acquire();
     try {
       return await slot.execute(sql, params);

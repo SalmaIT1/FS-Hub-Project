@@ -1,9 +1,10 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:fs_hub/core/config/app_config.dart';
 
 class EmailService {
-  static const String _baseUrl = 'http://localhost:8080/v1';
-  static const String adminEmail = 'admin@fshub.com';
+  static final String _baseUrl = AppConfig.apiV1BaseUrl;
+  static const String adminEmail = 'support@foreversoftware.fr';
 
   /// Generate a random password
   static String generateRandomPassword() {
@@ -112,3 +113,4 @@ class EmailService {
     }
   }
 }
+

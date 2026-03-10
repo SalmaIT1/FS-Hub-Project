@@ -49,6 +49,11 @@ class UrlUtils {
     final params = Map<String, dynamic>.from(uri.queryParameters);
     params['token'] = token;
     
+    // Add cache-busting timestamp for audio files
+    if (url.contains('/media/') && (url.endsWith('.aac') || url.endsWith('.m4a') || url.endsWith('.mp3'))) {
+      params['_t'] = DateTime.now().millisecondsSinceEpoch.toString();
+    }
+    
     return uri.replace(queryParameters: params).toString();
   }
 }

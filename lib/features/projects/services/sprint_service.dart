@@ -1,6 +1,6 @@
 import 'dart:convert';
 import '../../../features/auth/data/services/auth_service.dart';
-import '../../../shared/models/sprint_model.dart';
+import 'package:fs_hub/shared/models/sprint_model.dart';
 
 class SprintService {
   static const String _baseUrl = '/sprints/';
@@ -82,3 +82,4 @@ class SprintService {
     }
   }
 }
+

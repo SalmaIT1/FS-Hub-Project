@@ -18,13 +18,25 @@ import 'package:fs_hub/features/projects/screens/projects_list_page.dart';
 import 'package:fs_hub/features/projects/screens/sprints_list_page.dart';
 import 'package:fs_hub/features/projects/screens/project_detail_page.dart';
 import 'package:fs_hub/features/projects/screens/my_tasks_page.dart';
-import 'package:fs_hub/features/finance/screens/finance_dashboard_page.dart';
+import 'package:fs_hub/features/finance/screens/financial_dashboard_page.dart';
+import 'package:fs_hub/features/finance/screens/credits_list_page.dart';
+import 'package:fs_hub/features/finance/screens/expenses_list_page.dart';
+import 'package:fs_hub/features/home/screens/reports/reports_page.dart';
+import 'package:fs_hub/features/auth/presentation/pages/roles_permissions_page.dart';
 import 'package:fs_hub/features/finance/screens/invoices_list_page.dart';
+import 'package:fs_hub/features/hr/presentation/pages/hr_dashboard_page.dart';
+import 'package:fs_hub/features/hr/presentation/pages/hr_attendance_page.dart';
+import 'package:fs_hub/features/hr/presentation/pages/hr_leaves_page.dart';
+import 'package:fs_hub/features/hr/presentation/pages/hr_remote_work_page.dart';
+import 'package:fs_hub/features/hr/presentation/pages/hr_salaries_page.dart';
+import 'package:fs_hub/features/hr/presentation/pages/hr_bonuses_page.dart';
 import 'package:fs_hub/features/auth/data/datasources/auth_remote_datasource.dart';
 import 'package:fs_hub/core/theme/app_theme.dart';
 import 'package:fs_hub/core/routes/app_routes.dart';
 import 'package:fs_hub/shared/widgets/layout/custom_title_bar.dart';
 import 'package:fs_hub/shared/widgets/layout/main_layout.dart';
+import 'package:fs_hub/core/security/permission_guard.dart';
+import 'package:fs_hub/core/security/protected_route.dart';
 
 import 'package:fs_hub/core/state/settings_controller.dart';
 import 'package:fs_hub/pages/settings_page.dart';
@@ -37,6 +49,8 @@ import 'package:fs_hub/features/chat/presentation/pages/conversation_list_page.d
 import 'package:fs_hub/features/chat/presentation/pages/chat_thread_page.dart' as chat_ui;
 import 'package:fs_hub/features/chat/domain/entities/chat_entities.dart';
 import 'package:fs_hub/core/localization/translations.dart';
+import 'package:fs_hub/core/state/location_controller.dart';
+import 'package:fs_hub/core/config/app_config.dart';
 import 'package:window_manager/window_manager.dart';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -46,6 +60,9 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('fr', null);
   await initializeDateFormatting('en', null);
+  
+  // Initialize permission guard
+  await PermissionGuard.initialize();
   await AppTheme.init();
   
   if (!kIsWeb && Platform.isWindows) {
@@ -102,13 +119,16 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Initialize chat services at the root level so they persist across routes
-    const apiBaseUrl = 'http://localhost:8080';
-    const wsBaseUrl = 'ws://localhost:8080/ws';
+    final apiBaseUrl = AppConfig.apiBaseUrl;
+    final wsBaseUrl = AppConfig.wsBaseUrl;
 
     return MultiProvider(
       providers: [
         ChangeNotifierProvider<SettingsController>(
           create: (_) => SettingsController(),
+        ),
+        ChangeNotifierProvider<LocationController>(
+          create: (_) => LocationController(),
         ),
         Provider<ChatRemoteDatasource>(
           create: (_) => ChatRemoteDatasource(baseUrl: apiBaseUrl, tokenProvider: () => getToken()),
@@ -133,8 +153,9 @@ class MyApp extends StatelessWidget {
         valueListenable: AppTheme.themeNotifier,
         builder: (context, currentMode, _) {
           _updateWindowTitleBar(currentMode);
+          final settings = context.watch<SettingsController>();
           return MaterialApp(
-            title: Translations.getText('app_title', 'en'),
+            title: Translations.getText('app_title', settings.languageCode),
             debugShowCheckedModeBanner: false,
             theme: AppTheme.glassLightTheme,
             darkTheme: AppTheme.glassDarkTheme,
@@ -142,19 +163,73 @@ class MyApp extends StatelessWidget {
             home: const SplashScreen(),
             routes: {
               '/login': (context) => const GlassLoginPage(),
-              '/home': (context) => MainLayout(initialIndex: 0),
-              '/employees': (context) => MainLayout(initialIndex: 1),
-              '/demands': (context) => MainLayout(initialIndex: 2),
-              '/chat': (context) => MainLayout(initialIndex: 3),
-              '/profile': (context) => MainLayout(initialIndex: 4),
-              '/clients': (context) => const ClientsListPage(),
-              AppRoutes.departments: (context) => const DepartmentsPage(),
-               AppRoutes.projects: (context) => const ProjectsListPage(),
+              '/home': (context) => const MainLayout(initialRoute: '/'),
+              '/employees': (context) => const MainLayout(initialRoute: '/employees'),
+              '/demands': (context) => const MainLayout(initialRoute: '/demands'),
+              '/chat': (context) => const MainLayout(initialRoute: '/chat'),
+              '/profile': (context) => const MainLayout(initialRoute: '/profile'),
+              AppRoutes.hrDashboard: (context) => ProtectedRoute(
+                requiredPermissions: ['view_employees', 'manage_employees', 'manage_salaries', 'manage_leaves', 'manage_attendance', 'manage_remote_work', 'manage_bonuses'],
+                child: const HrDashboardPage(),
+              ),
+              AppRoutes.hrAttendance: (context) => ProtectedRoute(
+                requiredPermissions: ['view_employees', 'manage_attendance'],
+                child: const HrAttendancePage(),
+              ),
+              AppRoutes.hrLeaves: (context) => ProtectedRoute(
+                requiredPermissions: ['view_employees', 'manage_leaves'],
+                child: const HrLeavesPage(),
+              ),
+              AppRoutes.hrRemoteWork: (context) => ProtectedRoute(
+                requiredPermissions: ['view_employees', 'manage_remote_work'],
+                child: const HrRemoteWorkPage(),
+              ),
+              AppRoutes.hrSalaries: (context) => ProtectedRoute(
+                requiredPermissions: ['view_employees', 'manage_salaries'],
+                child: const HrSalariesPage(),
+              ),
+              AppRoutes.hrBonuses: (context) => ProtectedRoute(
+                requiredPermissions: ['view_employees', 'manage_bonuses'],
+                child: const HrBonusesPage(),
+              ),
+              '/clients': (context) => const MainLayout(
+                initialRoute: '/clients',
+              ),
+              AppRoutes.departments: (context) => ProtectedRoute(
+                requiredPermissions: ['manage_system'],
+                child: DepartmentsPage(),
+              ),
+              AppRoutes.projects: (context) => const MainLayout(initialRoute: '/projects'),
               '/notifications': (context) => const NotificationCenterPage(),
-              '/finance': (context) => const FinanceDashboardPage(),
-              '/invoices': (context) => const InvoicesListPage(),
+              '/finance': (context) => ProtectedRoute(
+                requiredPermissions: ['view_financial_reports', 'view_revenue'],
+                child: FinancialDashboardPage(),
+              ),
+              AppRoutes.credits: (context) => ProtectedRoute(
+                requiredPermissions: ['manage_credits', 'view_financial_reports'],
+                child: CreditsListPage(),
+              ),
+              AppRoutes.expenses: (context) => ProtectedRoute(
+                requiredPermissions: ['manage_payments', 'view_financial_reports'],
+                child: ExpensesListPage(),
+              ),
+              AppRoutes.roles: (context) => ProtectedRoute(
+                requiredPermissions: ['manage_roles', 'manage_permissions'],
+                child: RolesPermissionsPage(),
+              ),
+              AppRoutes.reports: (context) => ProtectedRoute(
+                requiredPermissions: ['view_statistics', 'view_financial_reports'],
+                child: ReportsPage(),
+              ),
+              '/invoices': (context) => ProtectedRoute(
+                requiredPermissions: ['manage_invoices', 'view_financial_reports'],
+                child: InvoicesListPage(),
+              ),
               AppRoutes.settings: (context) => const SettingsPage(),
-              AppRoutes.myTasks: (context) => const MyTasksPage(),
+              AppRoutes.myTasks: (context) => ProtectedRoute(
+                requiredPermissions: ['execute_tasks', 'view_tasks'],
+                child: const MainLayout(initialRoute: '/my-tasks'),
+              ),
             },
             onGenerateRoute: (settings) {
               // Handle routes with parameters
@@ -182,7 +257,7 @@ class MyApp extends StatelessWidget {
                 );
               } else if (settings.name == AppRoutes.createDemand) {
                 return MaterialPageRoute(
-                  builder: (context) => MainLayout(initialIndex: 2),
+                  builder: (context) => const MainLayout(initialRoute: '/demands'),
                 );
               } else if (settings.name == AppRoutes.demandDetail) {
                 final args = settings.arguments as Map<String, dynamic>?;

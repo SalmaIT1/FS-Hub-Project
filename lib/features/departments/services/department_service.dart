@@ -1,5 +1,5 @@
 import 'dart:convert';
-import '../../../shared/models/department_model.dart';
+import 'package:fs_hub/shared/models/department_model.dart';
 import '../../auth/data/services/auth_service.dart';
 
 class DepartmentService {
@@ -136,3 +136,4 @@ class DepartmentService {
     }
   }
 }
+

@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import '../../../shared/models/message_model.dart';
+import 'package:fs_hub/shared/models/message_model.dart';
 
 class MessageStore extends ChangeNotifier {
   final Map<String, List<Message>> _conversations = {};
@@ -64,3 +64,4 @@ class MessageStore extends ChangeNotifier {
     super.dispose();
   }
 }
+

@@ -5,7 +5,7 @@ import '../theme/app_theme.dart';
 import '../localization/translations.dart';
 
 class SettingsController extends ChangeNotifier {
-  String _languageCode = 'en';
+  String _languageCode = 'fr';
   bool _notificationsEnabled = true;
   bool _soundEffectsEnabled = true;
 

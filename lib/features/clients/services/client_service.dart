@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/client_model.dart';
-import '../../../core/services/api_service.dart';
+import 'package:fs_hub/core/services/api_service.dart';
 
 class ClientService {
-  static const String _baseUrl = '${ApiService.baseUrl}/v1/clients';
+  static final String _baseUrl = '${ApiService.baseUrl}/v1/clients';
 
   static Future<Map<String, dynamic>> getAllClients({
     String? type,

@@ -1,7 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../core/state/settings_controller.dart';
+import 'package:fs_hub/core/state/settings_controller.dart';
 
 class GlassNavigationBar extends StatelessWidget {
   final int currentIndex;
@@ -50,10 +50,11 @@ class GlassNavigationBar extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _buildNavItem(context, 0, Icons.home_rounded, settings.translate('home')),
-                _buildNavItem(context, 1, Icons.badge_rounded, settings.languageCode == 'fr' ? 'Équipe' : 'Team'),
-                _buildNavItem(context, 2, Icons.assignment_rounded, settings.translate('demands')),
-                _buildNavItem(context, 3, Icons.chat_bubble_rounded, settings.translate('chat')),
-                _buildNavItem(context, 4, Icons.person_rounded, settings.translate('profile')),
+                _buildNavItem(context, 1, Icons.task_alt_rounded, settings.translate('tasks')),
+                _buildNavItem(context, 2, Icons.badge_rounded, settings.languageCode == 'fr' ? 'Équipe' : 'Team'),
+                _buildNavItem(context, 3, Icons.assignment_rounded, settings.translate('demands')),
+                _buildNavItem(context, 4, Icons.chat_bubble_rounded, settings.translate('chat')),
+                _buildNavItem(context, 5, Icons.person_rounded, settings.translate('profile')),
               ],
             ),
           ),
@@ -109,3 +110,4 @@ class GlassNavigationBar extends StatelessWidget {
     );
   }
 }
+

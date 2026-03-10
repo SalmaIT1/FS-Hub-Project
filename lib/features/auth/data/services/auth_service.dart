@@ -1,9 +1,11 @@
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:fs_hub/core/config/app_config.dart';
+import 'package:fs_hub/features/employees/services/employee_service.dart';
 
 class AuthService {
-  static const String _baseUrl = 'http://localhost:8080/v1';
+  static final String _baseUrl = AppConfig.apiV1BaseUrl;
   
   static Future<Map<String, dynamic>> login(String username, String password) async {
     try {
@@ -59,6 +61,32 @@ class AuthService {
       return jsonDecode(userData) as Map<String, dynamic>;
     }
     return null;
+  }
+
+  static Future<bool> hasPermission(String permission) async {
+    final user = await getCurrentUser();
+    if (user == null) return false;
+    
+    // Check if user is Admin (Admin bypass)
+    final role = user['role']?.toString().toLowerCase();
+    if (role == 'admin') return true;
+
+    final permissions = user['permissions'];
+    if (permissions is List) {
+      return permissions.contains(permission);
+    } else if (permissions is String) {
+      // Fallback for legacy comma-separated string
+      return permissions.split(',').contains(permission);
+    }
+    return false;
+  }
+
+  static Future<bool> hasRole(String roleName) async {
+    final user = await getCurrentUser();
+    if (user == null) return false;
+    
+    final role = user['role']?.toString();
+    return role == roleName || role?.toLowerCase() == 'admin';
   }
 
   static Future<void> logout() async {
@@ -182,6 +210,75 @@ class AuthService {
       }
     } catch (e) {
       return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  static Future<Map<String, dynamic>> deleteUser(String username) async {
+    try {
+      final response = await authenticatedRequest('/auth/users/$username', 'DELETE');
+      final jsonData = jsonDecode(response.body);
+
+      if (response.statusCode == 200 &&
+          jsonData is Map<String, dynamic> &&
+          (jsonData['success'] == true)) {
+        
+        // Also find and delete the associated employee
+        try {
+          final employees = await EmployeeService.getAllEmployees();
+          final associatedEmployee = employees.where((emp) => emp.username == username).firstOrNull;
+          
+          if (associatedEmployee != null && associatedEmployee.id != null) {
+            await EmployeeService.deleteEmployee(associatedEmployee.id!);
+          }
+        } catch (e) {
+          print('Warning: Failed to delete associated employee record: $e');
+          // Don't fail the user deletion if employee deletion fails
+        }
+
+        return {
+          'success': true,
+          'message': jsonData['message'] ?? 'User and associated employee deleted successfully',
+        };
+      }
+
+      return {
+        'success': false,
+        'message': (jsonData is Map<String, dynamic> ? jsonData['message'] : null) ??
+            'Failed to delete user',
+      };
+    } catch (e) {
+      print('Error deleting user: $e');
+      return {
+        'success': false,
+        'message': 'Network error: ${e.toString()}',
+      };
+    }
+  }
+  static Future<Map<String, dynamic>> forgotPassword(String email) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$_baseUrl/auth/forgot-password'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email}),
+      );
+
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  static Future<Map<String, dynamic>> adminResetUserPassword(String userId) async {
+    try {
+      final response = await authenticatedRequest(
+        '/auth/admin/reset-user-password',
+        'POST',
+        body: {'userId': userId},
+      );
+
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
     }
   }
 }

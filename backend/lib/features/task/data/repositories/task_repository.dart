@@ -16,7 +16,7 @@ class TaskRepository {
       FROM taches t
       JOIN sprints s ON t.sprint_id = s.id
       JOIN projets p ON s.projet_id = p.id
-      WHERE t.employee_id = :userId
+      WHERE t.employee_id = :userId AND p.is_deleted = FALSE
       ORDER BY t.priorite DESC, t.updated_at DESC
     ''', {'userId': userId});
     return result.rows.map<TaskModel>((row) => TaskModel.fromMap(row.assoc())).toList();
@@ -26,8 +26,10 @@ class TaskRepository {
     final result = await _db.execute('''
       SELECT t.*, e.nom as employee_nom, e.prenom as employee_prenom 
       FROM taches t
+      JOIN sprints s ON t.sprint_id = s.id
+      JOIN projets p ON s.projet_id = p.id
       LEFT JOIN employees e ON t.employee_id = e.id
-      WHERE t.sprint_id = :sid
+      WHERE t.sprint_id = :sid AND p.is_deleted = FALSE
     ''', {'sid': sprintId});
     return result.rows.map<TaskModel>((row) => TaskModel.fromMap(row.assoc())).toList();
   }
@@ -38,8 +40,8 @@ class TaskRepository {
     return TaskModel.fromMap(result.rows.first.assoc());
   }
 
-  Future<void> createTask(Map<String, dynamic> data) async {
-    await _db.execute('''
+  Future<int> createTask(Map<String, dynamic> data) async {
+    final result = await _db.execute('''
       INSERT INTO taches (sprint_id, employee_id, titre, description, estimation_heures, statut, priorite)
       VALUES (:sid, :eid, :titre, :desc, :est, :stat, :prio)
     ''', {
@@ -51,6 +53,7 @@ class TaskRepository {
       'stat': data['statut'] ?? 'ToDo',
       'prio': data['priorite'] ?? 'Medium',
     });
+    return result.lastInsertID.toInt();
   }
 
   Future<void> updateTask(int id, Map<String, dynamic> data) async {

@@ -1,9 +1,10 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import '../../domain/entities/chat_entities.dart';
-import '../providers/chat_provider.dart';
-import '../../../../core/state/settings_controller.dart';
-import '../../../../shared/widgets/luxury/luxury_status_dialog.dart';
+import 'package:fs_hub/features/chat/domain/entities/chat_entities.dart';
+import 'package:fs_hub/features/chat/presentation/providers/chat_provider.dart';
+import 'package:fs_hub/core/state/settings_controller.dart';
+import 'package:fs_hub/theme/design_tokens.dart';
+import 'package:fs_hub/shared/widgets/luxury/luxury_status_dialog.dart';
 
 class GroupCreationPage extends StatefulWidget {
   final ChatController controller;
@@ -429,3 +430,5 @@ class _UserListTile extends StatelessWidget {
     );
   }
 }
+
+

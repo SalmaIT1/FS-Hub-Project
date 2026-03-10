@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fs_hub/widgets/audio_player_widget.dart';
 import 'package:fs_hub/features/voice/services/waveform_generator.dart';
-import '../../domain/entities/chat_entities.dart';
+import 'package:fs_hub/features/chat/domain/entities/chat_entities.dart';
 
 /// Adaptive voice note component that works across platforms
 class AdaptiveVoiceNote extends StatefulWidget {
@@ -102,3 +102,4 @@ class WaveformPainter extends CustomPainter {
         oldDelegate.backgroundColor != backgroundColor;
   }
 }
+

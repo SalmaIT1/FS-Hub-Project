@@ -22,6 +22,7 @@ class Employee {
   final String? avatarUrl; // For display (URL or base64)
   final String? photo; // For storage (base64 string)
   final bool isOnline;
+  final bool? isActive; // Database field for active/inactive status
   final String? password; // Only used for creation/update, not fetched from backend
 
   Employee({
@@ -46,6 +47,7 @@ class Employee {
     this.avatarUrl,
     this.photo,
     this.isOnline = false,
+    this.isActive,
     this.password,
   });
 
@@ -97,6 +99,7 @@ class Employee {
       avatarUrl: json['avatarUrl'] ?? json['photo'], // Use 'photo' from backend as 'avatarUrl'
       photo: json['photo'],
       isOnline: json['isOnline'] == 1 || json['isOnline'] == true,
+      isActive: json['is_active'] == 1 || json['is_active'] == true,
     );
   }
 
@@ -123,6 +126,7 @@ class Employee {
       'avatarUrl': avatarUrl,
       'photo': photo,
       'isOnline': isOnline,
+      'is_active': isActive,
       'password': password,
     };
   }
@@ -148,6 +152,7 @@ class Employee {
     List<String>? permissions,
     String? avatarUrl,
     bool? isOnline,
+    bool? isActive,
   }) {
     return Employee(
       id: id ?? this.id,
@@ -170,6 +175,7 @@ class Employee {
       permissions: permissions ?? this.permissions,
       avatarUrl: avatarUrl ?? this.avatarUrl,
       isOnline: isOnline ?? this.isOnline,
+      isActive: isActive ?? this.isActive,
     );
   }
 }

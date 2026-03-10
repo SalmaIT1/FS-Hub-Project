@@ -1,7 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../core/theme/app_theme.dart';
+import 'package:fs_hub/core/theme/app_theme.dart';
 
 class GlassNotificationCard extends StatefulWidget {
   final String title;
@@ -273,3 +273,4 @@ class _GlassNotificationCardState extends State<GlassNotificationCard> with Sing
     }
   }
 }
+

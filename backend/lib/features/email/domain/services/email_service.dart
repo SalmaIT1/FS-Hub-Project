@@ -17,6 +17,17 @@ class EmailService {
   static String get _fromName => _env['SMTP_FROM_NAME'] ?? 'FS Hub Support';
   static bool get _emailEnabled => _env['EMAIL_ENABLED'] == 'true';
 
+  static SmtpServer _getSmtpServer() {
+    return SmtpServer(
+      _smtpHost,
+      port: _smtpPort,
+      username: _smtpUsername,
+      password: _smtpPassword,
+      ssl: _smtpPort == 465,
+      allowInsecure: _smtpPort != 465,
+    );
+  }
+
   static Future<Map<String, dynamic>> sendPasswordResetEmail({
     required String userEmail,
     required String userName,
@@ -28,14 +39,7 @@ class EmailService {
       final subject = 'Your FS Hub Password Has Been Reset';
       final body = _buildPasswordResetEmail(userName, newPassword);
 
-      final smtpServer = SmtpServer(
-        _smtpHost,
-        port: _smtpPort,
-        username: _smtpUsername,
-        password: _smtpPassword,
-        ssl: false,
-        allowInsecure: true,
-      );
+      final smtpServer = _getSmtpServer();
 
       final message = Message()
         ..from = Address(_fromEmail, _fromName)
@@ -62,14 +66,7 @@ class EmailService {
       final subject = 'New Password Reset Request - FS Hub';
       final body = _buildPasswordResetRequestEmail(userName, userEmail, requestId);
 
-      final smtpServer = SmtpServer(
-        _smtpHost,
-        port: _smtpPort,
-        username: _smtpUsername,
-        password: _smtpPassword,
-        ssl: false,
-        allowInsecure: true,
-      );
+      final smtpServer = _getSmtpServer();
 
       final message = Message()
         ..from = Address(_fromEmail, _fromName)

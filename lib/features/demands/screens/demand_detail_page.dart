@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
-import '../../../shared/models/demand_model.dart';
+import 'package:fs_hub/shared/models/demand_model.dart';
 import '../services/demand_service.dart';
 import '../../auth/data/services/auth_service.dart';
-import '../../../shared/widgets/luxury/luxury_app_bar.dart';
-import '../../../core/theme/app_theme.dart';
-import '../../../shared/widgets/luxury/luxury_status_dialog.dart';
+import 'package:fs_hub/shared/widgets/luxury/luxury_app_bar.dart';
+import 'package:fs_hub/core/theme/app_theme.dart';
+import 'package:fs_hub/shared/widgets/luxury/luxury_status_dialog.dart';
 
 class DemandDetailPage extends StatefulWidget {
   final Demand demand;
@@ -160,7 +160,7 @@ class _DemandDetailPageState extends State<DemandDetailPage> with TickerProvider
       
       final updateData = {
         'status': status,
-        'handledBy': ?currentUserId,
+        'handledBy': currentUserId,
         'resolutionNotes': resolutionNotes,
       };
       
@@ -439,6 +439,30 @@ class _DemandDetailPageState extends State<DemandDetailPage> with TickerProvider
             ),
           ),
           const SizedBox(height: 24),
+          if (_demand.type == 'password_reset' && _demand.status == 'pending') ...[
+            SizedBox(
+              width: double.infinity,
+              height: 54,
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.red.withOpacity(0.5)),
+                  color: Colors.red.withOpacity(0.1),
+                ),
+                child: ElevatedButton.icon(
+                  onPressed: _adminResetPassword,
+                  icon: const Icon(Icons.lock_reset, color: Colors.red),
+                  label: const Text('Admin Force Reset', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
           SizedBox(
             width: double.infinity,
             height: 54,
@@ -465,6 +489,63 @@ class _DemandDetailPageState extends State<DemandDetailPage> with TickerProvider
         ],
       ),
     );
+  }
+
+  Future<void> _adminResetPassword() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Security Protocol: Force Reset'),
+        content: const Text('This will generate a new randomized password and transmit it immediately to the user. Confirm?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abort')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Execute Reset'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      if (!mounted) return;
+      setState(() => _isLoading = true);
+      try {
+        final result = await AuthService.adminResetUserPassword(_demand.requesterId ?? '0');
+        if (mounted) {
+          if (result['success']) {
+            // Automatically resolve the demand
+            await _updateDemandStatusWithNotes('resolved', 'System Force Reset Protocol executed successfully by admin.');
+            
+            LuxuryStatusDialog.show(
+              context,
+              isSuccess: true,
+              title: 'Reset Successful',
+              message: 'Account security updated. New credentials transmitted.',
+            );
+          } else {
+            setState(() => _isLoading = false);
+            LuxuryStatusDialog.show(
+              context,
+              isSuccess: false,
+              title: 'Protocol Failure',
+              message: result['message'] ?? 'Interference detected in security layer.',
+            );
+          }
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          LuxuryStatusDialog.show(
+            context,
+            isSuccess: false,
+            title: 'System Breach',
+            message: e.toString(),
+          );
+        }
+      }
+    }
   }
 
   Widget _buildStatusDropdown(bool isDark) {
@@ -553,3 +634,4 @@ class _DemandDetailPageState extends State<DemandDetailPage> with TickerProvider
     }
   }
 }
+

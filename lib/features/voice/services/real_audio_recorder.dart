@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
-import '../../../core/platform/html_stub.dart'
+import 'package:fs_hub/core/platform/html_stub.dart'
     if (dart.library.html) '../../../core/platform/html_web.dart' as html;
 
 class RecordingResult {
@@ -239,3 +239,4 @@ class RealAudioRecorder {
 }
 
 enum RecordingState { initial, recording, stopped }
+
