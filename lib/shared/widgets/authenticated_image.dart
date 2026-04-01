@@ -122,9 +122,12 @@ class _AuthenticatedImageState extends State<AuthenticatedImage> {
     final authenticatedUrl =
         kIsWeb ? UrlUtils.appendToken(url, _token) : url;
 
-    final headers = _token != null
-        ? {'Authorization': 'Bearer $_token'}
-        : <String, String>{};
+    final headers = <String, String>{
+      'ngrok-skip-browser-warning': 'true',
+    };
+    if (_token != null) {
+      headers['Authorization'] = 'Bearer $_token';
+    }
 
     return Image.network(
       authenticatedUrl,

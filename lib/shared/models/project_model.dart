@@ -24,7 +24,7 @@ class Project {
     this.dateDebut,
     this.dateFinPrevue,
     this.priorite = 'Moyenne',
-    this.statut = 'Planifié',
+    this.statut = 'Planifie',
     this.createdAt,
     this.updatedAt,
   });
@@ -41,7 +41,7 @@ class Project {
       dateDebut: json['dateDebut'] != null ? DateTime.tryParse(json['dateDebut'].toString()) : null,
       dateFinPrevue: json['dateFinPrevue'] != null ? DateTime.tryParse(json['dateFinPrevue'].toString()) : null,
       priorite: json['priorite'] as String? ?? 'Moyenne',
-      statut: json['statut'] as String? ?? 'Planifié',
+      statut: json['statut'] as String? ?? 'Planifie',
       createdAt: json['createdAt'] != null ? DateTime.tryParse(json['createdAt'].toString()) : null,
       updatedAt: json['updatedAt'] != null ? DateTime.tryParse(json['updatedAt'].toString()) : null,
     );

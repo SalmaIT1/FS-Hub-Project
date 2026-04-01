@@ -25,12 +25,12 @@ class MediaModel {
     this.expiresAt,
   });
 
-  Map<String, dynamic> toJson() {
+  Map<String, dynamic> toJson({bool includePrivate = false}) {
     return {
       'id': id,
       'original_filename': originalFilename,
       'stored_filename': storedFilename,
-      'file_path': filePath,
+      // 'file_path': filePath, // HARSH FIX: Leaks server directory structure
       'file_size': fileSize,
       'mime_type': mimeType,
       'uploaded_by': uploadedBy,

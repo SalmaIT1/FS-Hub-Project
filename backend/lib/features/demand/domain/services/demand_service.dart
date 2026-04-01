@@ -3,6 +3,7 @@ import 'dart:math';
 import '../../data/repositories/demand_repository.dart';
 import '../../../notification/domain/services/notification_service.dart';
 import '../../../../shared/services/audit_service.dart';
+import '../../../email/domain/services/email_service.dart';
 
 const Set<String> _allowedDemandTypes = {
   'password_reset', 'hardware', 'administrative', 'custom', 'other',
@@ -116,7 +117,7 @@ class DemandService {
     );
 
     if (status == 'resolved' && demand.type == 'password_reset') {
-      return await handlePasswordResetDemand(id, currentUserId);
+      return await handlePasswordResetDemand(id, currentUserId, data['new_password']?.toString());
     }
 
     return {'success': true, 'message': 'Status updated'};
@@ -134,24 +135,48 @@ class DemandService {
     return {'success': true, 'message': 'Demand deleted'};
   }
 
-  static Future<Map<String, dynamic>> handlePasswordResetDemand(String demandId, String handledByUserId) async {
+  static Future<Map<String, dynamic>> handlePasswordResetDemand(String demandId, String handledByUserId, [String? manualPassword]) async {
+    print('[DEBUG-RESET] Starting password reset for demand: $demandId');
     final demand = await _repository.getDemandById(demandId);
-    if (demand == null) return {'success': false, 'message': 'Demand not found'};
+    if (demand == null) {
+      print('[DEBUG-RESET] Error: Demand $demandId not found');
+      return {'success': false, 'message': 'Demand not found'};
+    }
 
-    final tempPassword = _generateTempPassword();
-    final hashedPassword = BCrypt.hashpw(tempPassword, BCrypt.gensalt());
+    print('[DEBUG-RESET] Found demand. Type: ${demand.type}, Requester: ${demand.requesterId}');
+    final newPassword = manualPassword ?? _generateTempPassword();
+    final hashedPassword = BCrypt.hashpw(newPassword, BCrypt.gensalt());
 
+    print('[DEBUG-RESET] Hashing password and updating database for user: ${demand.requesterId}');
     await _repository.updateUserPassword(demand.requesterId, hashedPassword);
-    await _repository.updateStatus(demandId, 'resolved', handledByUserId, 'Password reset automatically');
+    await _repository.updateStatus(demandId, 'resolved', handledByUserId, 'Password reset by admin');
     
+    print('[DEBUG-RESET] Status updated to resolved. Creating notification...');
     await NotificationService.createNotification(
       userId: demand.requesterId,
       title: 'Password Reset Completed',
-      message: 'Your temporary password has been set. Please contact your administrator to receive it securely.',
+      message: 'Your new password has been set and sent to your email.',
       type: 'password_reset',
     );
 
-    return {'success': true, 'message': 'Password reset', 'temp_password': tempPassword};
+    print('[DEBUG-RESET] Checking email: "${demand.requesterEmail}"');
+    if (demand.requesterEmail != null && demand.requesterEmail!.trim().isNotEmpty) {
+      print('[DEBUG-RESET] Attempting to send email to ${demand.requesterEmail}...');
+      try {
+        final emailResult = await EmailService.sendNewPasswordEmail(
+          userEmail: demand.requesterEmail!.trim(),
+          userName: demand.requesterName ?? 'User',
+          newPassword: newPassword,
+        );
+        print('[DEBUG-RESET] Email service result: $emailResult');
+      } catch (e) {
+        print('[DEBUG-RESET] FATAL ERROR during EmailService call: $e');
+      }
+    } else {
+      print('[DEBUG-RESET] WARNING: No requesterEmail found for this demand. Email skip.');
+    }
+
+    return {'success': true, 'message': 'Password reset', 'temp_password': newPassword};
   }
 
   static Future<void> _notifyAdmins(String title, String message, String type) async {

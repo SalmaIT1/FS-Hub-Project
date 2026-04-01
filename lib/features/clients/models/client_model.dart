@@ -24,14 +24,14 @@ class Client {
       id: json['id'] == null ? null : int.tryParse(json['id'].toString()),
       nom: json['nom'] as String? ?? '',
       prenom: json['prenom'] as String? ?? '',
-      raisonSociale: json['raison_sociale'] as String?,
+      raisonSociale: json['raisonSociale'] as String? ?? json['raison_sociale'] as String?,
       email: json['email'] as String?,
       telephone: json['telephone'] as String?,
       type: ClientType.values.firstWhere(
-        (e) => e.name == json['type'],
+        (e) => e.name.toLowerCase() == json['type']?.toString().toLowerCase(),
         orElse: () => ClientType.particulier,
       ),
-      scoreCredit: int.tryParse(json['score_credit'].toString()) ?? 0,
+      scoreCredit: int.tryParse((json['scoreCredit'] ?? json['score_credit'])?.toString() ?? '0') ?? 0,
     );
   }
 
@@ -40,11 +40,11 @@ class Client {
       if (id != null) 'id': id,
       'nom': nom,
       'prenom': prenom,
-      'raison_sociale': raisonSociale,
+      'raisonSociale': raisonSociale,
       'email': email,
       'telephone': telephone,
       'type': type.name,
-      'score_credit': scoreCredit,
+      'scoreCredit': scoreCredit,
     };
   }
 

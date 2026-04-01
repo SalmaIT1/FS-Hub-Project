@@ -118,9 +118,12 @@ class ProjectRepository {
 
   Future<List<Map<String, dynamic>>> getAvailableEmployees() async {
     final result = await _db.execute('''
-      SELECT e.* 
+      SELECT DISTINCT e.* 
       FROM employees e
-      WHERE e.id NOT IN (
+      JOIN user_roles ur ON e.id = ur.user_id
+      JOIN roles r ON ur.role_id = r.id
+      WHERE r.nom IN ('Employé', 'Team Lead', 'Manager')
+      AND e.id NOT IN (
         SELECT pm.employee_id 
         FROM projet_membres pm
         JOIN projets p ON pm.projet_id = p.id

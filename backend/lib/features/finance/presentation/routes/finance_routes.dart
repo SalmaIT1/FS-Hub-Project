@@ -25,18 +25,18 @@ class FinanceRoutes {
   Future<Response> _getFinanceSummary(Request request) async {
     try {
       final summary = await FinanceService.getFinanceSummary();
-      return Response.ok(jsonEncode(summary), headers: {'Content-Type': 'application/json'});
+      return Response.ok(jsonEncode(summary), headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'error': e.toString()}));
+      return Response.internalServerError(body: jsonEncode({'error': 'Internal server error'}));
     }
   }
 
   Future<Response> _getAllInvoices(Request request) async {
     try {
       final invoices = await FinanceService.getAllInvoices();
-      return Response.ok(jsonEncode(invoices), headers: {'Content-Type': 'application/json'});
+      return Response.ok(jsonEncode(invoices), headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'error': e.toString()}));
+      return Response.internalServerError(body: jsonEncode({'error': 'Internal server error'}));
     }
   }
 
@@ -44,10 +44,14 @@ class FinanceRoutes {
     try {
       final pid = int.tryParse(projectId);
       if (pid == null) return Response.badRequest(body: jsonEncode({'error': 'Invalid ID'}));
-      final invoices = await FinanceService.getInvoicesByProject(pid);
-      return Response.ok(jsonEncode(invoices), headers: {'Content-Type': 'application/json'});
+      final invoices = await FinanceService.getInvoicesByProject(
+        pid,
+        callerRole: request.authUserRole,
+        callerId: request.authUserId,
+      );
+      return Response.ok(jsonEncode(invoices), headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'error': e.toString()}));
+      return Response.internalServerError(body: jsonEncode({'error': 'Internal server error'}));
     }
   }
 
@@ -55,11 +59,15 @@ class FinanceRoutes {
     try {
       final id = int.tryParse(idString);
       if (id == null) return Response.badRequest(body: jsonEncode({'error': 'Invalid ID'}));
-      final invoice = await FinanceService.getInvoiceById(id);
-      if (invoice == null) return Response.notFound(jsonEncode({'error': 'Invoice not found'}));
-      return Response.ok(jsonEncode(invoice), headers: {'Content-Type': 'application/json'});
+      final invoice = await FinanceService.getInvoiceById(
+        id,
+        callerRole: request.authUserRole,
+        callerId: request.authUserId,
+      );
+      if (invoice == null) return Response.notFound(jsonEncode({'error': 'Invoice not found or access denied'}));
+      return Response.ok(jsonEncode(invoice), headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'error': e.toString()}));
+      return Response.internalServerError(body: jsonEncode({'error': 'Internal server error'}));
     }
   }
 
@@ -69,7 +77,7 @@ class FinanceRoutes {
       await FinanceService.createInvoice(data);
       return Response(201, body: jsonEncode({'success': true, 'message': 'Invoice created'}));
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'error': e.toString()}));
+      return Response.internalServerError(body: jsonEncode({'error': 'Internal server error'}));
     }
   }
 
@@ -81,7 +89,7 @@ class FinanceRoutes {
       await FinanceService.updateInvoice(id, data);
       return Response.ok(jsonEncode({'success': true, 'message': 'Invoice updated'}));
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'error': e.toString()}));
+      return Response.internalServerError(body: jsonEncode({'error': 'Internal server error'}));
     }
   }
 
@@ -92,7 +100,7 @@ class FinanceRoutes {
       await FinanceService.deleteInvoice(id);
       return Response.ok(jsonEncode({'success': true, 'message': 'Invoice deleted'}));
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'error': e.toString()}));
+      return Response.internalServerError(body: jsonEncode({'error': 'Internal server error'}));
     }
   }
 
@@ -100,10 +108,14 @@ class FinanceRoutes {
     try {
       final iid = int.tryParse(invoiceId);
       if (iid == null) return Response.badRequest(body: jsonEncode({'error': 'Invalid ID'}));
-      final payments = await FinanceService.getPaymentsByInvoice(iid);
-      return Response.ok(jsonEncode(payments), headers: {'Content-Type': 'application/json'});
+      final payments = await FinanceService.getPaymentsByInvoice(
+        iid,
+        callerRole: request.authUserRole,
+        callerId: request.authUserId,
+      );
+      return Response.ok(jsonEncode(payments), headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'error': e.toString()}));
+      return Response.internalServerError(body: jsonEncode({'error': 'Internal server error'}));
     }
   }
 
@@ -113,7 +125,7 @@ class FinanceRoutes {
       await FinanceService.createPayment(data);
       return Response(201, body: jsonEncode({'success': true, 'message': 'Payment recorded'}));
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'error': e.toString()}));
+      return Response.internalServerError(body: jsonEncode({'error': 'Internal server error'}));
     }
   }
 
@@ -124,7 +136,7 @@ class FinanceRoutes {
       await FinanceService.deletePayment(id);
       return Response.ok(jsonEncode({'success': true, 'message': 'Payment deleted'}));
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'error': e.toString()}));
+      return Response.internalServerError(body: jsonEncode({'error': 'Internal server error'}));
     }
   }
 }

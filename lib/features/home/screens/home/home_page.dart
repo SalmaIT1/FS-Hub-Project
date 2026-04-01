@@ -908,7 +908,9 @@ class _LuxCardState extends State<_LuxCard> {
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
         onTapDown: (_) => setState(() => _pressed = true),
-        onTapUp: (_) {
+        onTap: () {
+          print('[LuxCard] Tapped on card with route: ${widget.onTap}');
+          // Note: we can't print the callback itself effectively, but let's at least see the event.
           setState(() => _pressed = false);
           widget.onTap();
         },

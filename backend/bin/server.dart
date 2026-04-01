@@ -32,9 +32,52 @@ import 'package:fs_hub_backend/core/services/data_integrity_service.dart';
 import 'package:fs_hub_backend/features/auth/domain/services/auth_service.dart';
 import 'package:fs_hub_backend/core/middleware/auth_middleware.dart';
 import 'package:fs_hub_backend/core/middleware/permission_middleware.dart';
+import 'package:fs_hub_backend/shared/database/connection.dart';
 
 // Import database initialization
 import 'package:fs_hub_backend/shared/database/migrations.dart';
+
+// ── H-4 + H-5 FIX: DB-backed rate limiter (persists across restarts) ─────────
+// Endpoint limits: POST path => [maxAttempts, windowMinutes]
+const _rateLimitConfig = {
+  'v1/auth/login':           [10, 5],   // 10 per 5 min (brute-force guard)
+  'v1/auth/forgot-password': [5,  15],  // 5 per 15 min  (email spam guard)
+  'v1/auth/refresh':         [20, 5],   // 20 per 5 min  (token-stuffing guard)
+};
+
+Future<Response?> _checkRateLimit(Request request, String ip) async {
+  if (request.method != 'POST') return null;
+  final path = request.url.path.replaceAll(RegExp(r'^\/'), '');
+  final entry = _rateLimitConfig[path];
+  if (entry == null) return null;
+
+  final maxAttempts = entry[0];
+  final windowMins  = entry[1];
+  try {
+    final db = DBConnection.getConnection();
+    final res = await db.execute(
+      'SELECT COUNT(*) as cnt FROM rate_limit_attempts '
+      'WHERE endpoint = :ep AND ip_address = :ip '
+      'AND attempted_at > DATE_SUB(NOW(), INTERVAL :win MINUTE)',
+      {'ep': path, 'ip': ip, 'win': windowMins},
+    );
+    final count = int.tryParse(res.rows.first.colByName('cnt')?.toString() ?? '0') ?? 0;
+    if (count >= maxAttempts) {
+      return Response(
+        429,
+        body: jsonEncode({'success': false, 'message': 'Too many requests. Please wait $windowMins minutes.'}),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
+      );
+    }
+    await db.execute(
+      'INSERT INTO rate_limit_attempts (endpoint, ip_address, attempted_at) VALUES (:ep, :ip, NOW())',
+      {'ep': path, 'ip': ip},
+    );
+  } catch (e) {
+    print('[RATE-LIMIT] DB error, falling through for $path: $e');
+  }
+  return null;
+}
 
 void main(List<String> args) async {
   // Initialize JWT secret FIRST — throws if missing.
@@ -50,8 +93,9 @@ void main(List<String> args) async {
   final wsServer = WebSocketServer();
   wsServer.startCleanupTimer();
 
-  // Start data integrity service.
+  // Start data integrity service and run initial checks.
   DataIntegrityService.startPeriodicCleanup();
+  await DataIntegrityService.checkDeadlines();
 
   // Build per-domain secured pipelines.
   Handler secured(Router r) =>
@@ -111,51 +155,43 @@ void main(List<String> args) async {
       'Access-Control-Allow-Origin': isAllowed && origin.isNotEmpty ? origin : 'http://localhost',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
       'Access-Control-Allow-Headers':
-          'Origin, Content-Type, Accept, Authorization, X-User-Id',
+          'Origin, Content-Type, Accept, Authorization, X-User-Id, ngrok-skip-browser-warning',
       'Access-Control-Allow-Private-Network': 'true',
     };
   }
 
-  // 1. Global Request Body Size Limit (2MB for standard requests)
-  // 2. Simple Rate Limiter (Login protection)
-  final loginAttempts = <String, List<DateTime>>{};
-
   final handler = Pipeline()
+      // 1. Global request body size limit (2 MB for standard requests)
       .addMiddleware((innerHandler) {
         return (Request request) async {
           // Skip size check for the actual upload PUT endpoint
           if (request.url.path.contains('/v1/uploads/') && request.method == 'PUT') {
             return innerHandler(request);
           }
-          
           final contentLength = int.tryParse(request.headers['content-length'] ?? '0') ?? 0;
-          if (contentLength > 2 * 1024 * 1024) { // 2MB cap
-            return Response(413, body: jsonEncode({'success': false, 'message': 'Request body too large'}), headers: {'Content-Type': 'application/json'});
+          if (contentLength > 2 * 1024 * 1024) { // 2 MB cap
+            return Response(413, body: jsonEncode({'success': false, 'message': 'Request body too large'}), headers: {'Content-Type': 'application/json; charset=utf-8'});
           }
           return innerHandler(request);
         };
       })
+      // 2. DB-backed rate limiter (H-4 + H-5)
       .addMiddleware((innerHandler) {
         return (Request request) async {
-          final path = request.url.path.replaceAll(RegExp(r'^\/'), '');
-          if (path == 'v1/auth/login' && request.method == 'POST') {
-            final ip = request.context['shelf.io.connection_info'] != null 
-                ? (request.context['shelf.io.connection_info'] as HttpConnectionInfo).remoteAddress.address 
-                : 'unknown';
-            
-            final now = DateTime.now();
-            final attempts = loginAttempts.putIfAbsent(ip, () => []);
-            attempts.removeWhere((d) => now.difference(d).inMinutes > 5);
-            
-            if (attempts.length > 10) { // 10 attempts per 5 minutes
-              return Response(429, body: jsonEncode({'success': false, 'message': 'Too many login attempts. Please wait 5 minutes.'}), headers: {'Content-Type': 'application/json'});
-            }
-            attempts.add(now);
+          // HARSH FIX: Support X-Forwarded-For for proxies
+          String ip = request.headers['x-forwarded-for']?.split(',').first.trim() ?? 'unknown';
+          if (ip == 'unknown' && request.context['shelf.io.connection_info'] != null) {
+            ip = (request.context['shelf.io.connection_info'] as HttpConnectionInfo).remoteAddress.address;
           }
+          
+          final limited = await _checkRateLimit(request, ip);
+          if (limited != null) return limited;
           return innerHandler(request);
         };
       })
+      // 3. Request logger
       .addMiddleware(logRequests())
+      // 4. Global error handler
       .addMiddleware((innerHandler) {
         return (Request request) async {
           try {
@@ -174,11 +210,12 @@ void main(List<String> args) async {
                 'success': false,
                 'message': 'An internal server error occurred'
               }),
-              headers: {'Content-Type': 'application/json'},
+              headers: {'Content-Type': 'application/json; charset=utf-8'},
             );
           }
         };
       })
+      // 5. CORS
       .addMiddleware((innerHandler) {
         return (Request request) async {
           final cors = corsHeaders(request);

@@ -26,10 +26,12 @@ class MediaService {
   }
 
   static String sanitizeFilename(String filename) {
+    // M-3 FIX: Strip null bytes, control characters, path separators,
+    // and other dangerous characters. Then collapse double-dots.
     return filename
-        .replaceAll('/', '')
-        .replaceAll('\\', '')
-        .replaceAll('..', '');
+        .replaceAll(RegExp(r'[\x00-\x1F\x7F/\\?%*:|"<>]'), '_') // control chars + dangerous chars
+        .replaceAll('..', '')   // prevent path traversal like ../../etc
+        .trim();
   }
 
   static String getCorrectMimeType(String extension) {
@@ -80,5 +82,26 @@ class MediaService {
     if (await tryFile.exists()) return tryFile;
 
     return null;
+  }
+
+  /// H-6 FIX: Determine if a user is allowed to access the specified media.
+  static Future<bool> canAccessMedia({
+    required MediaModel media,
+    required String userId,
+    required bool isAdmin,
+  }) async {
+    // 1. Truly public media is accessible by all authenticated users.
+    if (media.isPublic) return true;
+
+    // 2. Administrators can access anything.
+    if (isAdmin) return true;
+
+    // 3. The original uploader can access their own private files.
+    if (media.uploadedBy == userId) return true;
+
+    // 4. If the file is attached to a message, anyone in that conversation can see it.
+    // This allows chat attachments (which are private) to be seen by recipients.
+    final checkRes = await _repository.checkIfFileInUserConversations(media.storedFilename, userId);
+    return checkRes;
   }
 }

@@ -53,7 +53,7 @@ class CreditRoutes {
           'data': credits,
           'message': 'Credits retrieved successfully',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -61,7 +61,7 @@ class CreditRoutes {
           'success': false,
           'message': 'Failed to retrieve credits: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -77,7 +77,7 @@ class CreditRoutes {
             'success': false,
             'message': 'Credit not found',
           }),
-          headers: {'content-type': 'application/json'},
+          headers: {'content-type': 'application/json; charset=utf-8'},
         );
       }
 
@@ -87,7 +87,7 @@ class CreditRoutes {
           'data': credit.toJson(),
           'message': 'Credit retrieved successfully',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -95,7 +95,7 @@ class CreditRoutes {
           'success': false,
           'message': 'Failed to retrieve credit: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -116,7 +116,7 @@ class CreditRoutes {
       return Response(
         result['success'] ? 201 : 400,
         body: jsonEncode(result),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -124,7 +124,7 @@ class CreditRoutes {
           'success': false,
           'message': 'Failed to create credit: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -140,7 +140,7 @@ class CreditRoutes {
       return Response(
         result['success'] ? 200 : 400,
         body: jsonEncode(result),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -148,7 +148,7 @@ class CreditRoutes {
           'success': false,
           'message': 'Failed to update credit: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -161,7 +161,7 @@ class CreditRoutes {
       return Response(
         result['success'] ? 200 : 404,
         body: jsonEncode(result),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -169,7 +169,7 @@ class CreditRoutes {
           'success': false,
           'message': 'Failed to delete credit: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -185,7 +185,7 @@ class CreditRoutes {
           'data': credits.map((credit) => credit?.toJson() ?? {}).toList(),
           'message': 'Project credits retrieved successfully',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -193,7 +193,7 @@ class CreditRoutes {
           'success': false,
           'message': 'Failed to retrieve project credits: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -209,7 +209,7 @@ class CreditRoutes {
           'data': credits.map((credit) => credit?.toJson() ?? {}).toList(),
           'message': 'Client credits retrieved successfully',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -217,7 +217,7 @@ class CreditRoutes {
           'success': false,
           'message': 'Failed to retrieve client credits: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -232,7 +232,7 @@ class CreditRoutes {
           'data': summary,
           'message': 'Credit summary retrieved successfully',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -240,7 +240,7 @@ class CreditRoutes {
           'success': false,
           'message': 'Failed to retrieve credit summary: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -256,7 +256,7 @@ class CreditRoutes {
           'data': summary,
           'message': 'Project credit summary retrieved successfully',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -264,7 +264,7 @@ class CreditRoutes {
           'success': false,
           'message': 'Failed to retrieve project credit summary: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -280,7 +280,7 @@ class CreditRoutes {
           'data': summary,
           'message': 'Client credit summary retrieved successfully',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -288,7 +288,7 @@ class CreditRoutes {
           'success': false,
           'message': 'Failed to retrieve client credit summary: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -304,7 +304,7 @@ class CreditRoutes {
           'data': limit,
           'message': 'Client credit limit retrieved successfully',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -312,7 +312,7 @@ class CreditRoutes {
           'success': false,
           'message': 'Failed to retrieve client credit limit: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -332,7 +332,7 @@ class CreditRoutes {
           'success': success,
           'message': success ? 'Credit limit updated successfully' : 'Failed to update credit limit',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -340,7 +340,7 @@ class CreditRoutes {
           'success': false,
           'message': 'Failed to update client credit limit: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -359,7 +359,7 @@ class CreditRoutes {
       return Response(
         result['success'] ? 200 : 400,
         body: jsonEncode(result),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -367,7 +367,7 @@ class CreditRoutes {
           'success': false,
           'message': 'Failed to apply credit to project: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -386,7 +386,7 @@ class CreditRoutes {
       return Response(
         result['success'] ? 200 : 400,
         body: jsonEncode(result),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -394,7 +394,7 @@ class CreditRoutes {
           'success': false,
           'message': 'Failed to apply credit to invoice: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }

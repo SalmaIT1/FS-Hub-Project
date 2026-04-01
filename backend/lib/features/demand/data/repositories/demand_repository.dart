@@ -28,9 +28,10 @@ class DemandRepository {
     String query = '''
       SELECT d.id, d.type, d.description, d.status, d.requester_id,
              d.handled_by, d.resolution_notes, d.created_at, d.updated_at,
-             u.username as requester_name
+             u.username as requester_name, e.email as requester_email
       FROM demands d
       LEFT JOIN users u ON d.requester_id = u.id
+      LEFT JOIN employees e ON u.id = e.user_id
       WHERE 1=1
     ''';
     final params = <String, dynamic>{};
@@ -58,9 +59,10 @@ class DemandRepository {
     final result = await _db.execute('''
       SELECT d.id, d.type, d.description, d.status, d.requester_id,
              d.handled_by, d.resolution_notes, d.created_at, d.updated_at,
-             u.username as requester_name
+             u.username as requester_name, e.email as requester_email
       FROM demands d
       LEFT JOIN users u ON d.requester_id = u.id
+      LEFT JOIN employees e ON u.id = e.user_id
       WHERE d.id = :id
     ''', {'id': id});
 

@@ -22,15 +22,21 @@ class Attendance {
   });
 
   factory Attendance.fromJson(Map<String, dynamic> json) {
+    // Normalize date to YYYY-MM-DD before parsing if it contains a time component
+    String attendanceDateString = json['attendance_date'].toString();
+    if (attendanceDateString.contains('T')) {
+      attendanceDateString = attendanceDateString.split('T')[0];
+    }
+
     return Attendance(
-      id: json['id'],
+      id: json['id'] != null ? int.tryParse(json['id'].toString()) : null,
       employeeId: json['employee_id'],
-      attendanceDate: DateTime.parse(json['attendance_date']),
+      attendanceDate: DateTime.parse(attendanceDateString),
       checkIn: json['check_in'] != null ? DateTime.parse(json['check_in']) : null,
       checkOut: json['check_out'] != null ? DateTime.parse(json['check_out']) : null,
       status: json['status'],
-      workHours: json['work_hours']?.toDouble(),
-      overtimeHours: json['overtime_hours']?.toDouble(),
+      workHours: json['work_hours'] != null ? double.tryParse(json['work_hours'].toString()) : 0.0,
+      overtimeHours: json['overtime_hours'] != null ? double.tryParse(json['overtime_hours'].toString()) : 0.0,
       notes: json['notes'],
     );
   }
@@ -38,7 +44,7 @@ class Attendance {
   Map<String, dynamic> toJson() {
     return {
       'employee_id': employeeId,
-      'attendance_date': attendanceDate.toIso8601String(),
+      'attendance_date': attendanceDate.toIso8601String().split('T')[0],
       'check_in': checkIn?.toIso8601String(),
       'check_out': checkOut?.toIso8601String(),
       'status': status,

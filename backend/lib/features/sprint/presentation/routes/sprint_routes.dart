@@ -26,7 +26,7 @@ class SprintRoutes {
         callerRole: request.authUserRole,
         callerId: request.authUserId,
       );
-      return Response.ok(jsonEncode(sprints), headers: {'Content-Type': 'application/json'});
+      return Response.ok(jsonEncode(sprints), headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
       return Response.internalServerError(body: jsonEncode({'error': e.toString()}));
     }
@@ -44,7 +44,7 @@ class SprintRoutes {
       );
       if (sprint == null) return Response.notFound(jsonEncode({'error': 'Sprint not found or access denied'}));
 
-      return Response.ok(jsonEncode(sprint), headers: {'Content-Type': 'application/json'});
+      return Response.ok(jsonEncode(sprint), headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
       return Response.internalServerError(body: jsonEncode({'error': e.toString()}));
     }

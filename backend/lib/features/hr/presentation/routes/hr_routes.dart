@@ -11,6 +11,7 @@ class HrRoutes {
   HrRoutes() {
     router = Router()
       // Attendance
+      ..get('/attendance', Pipeline().addMiddleware(requirePermission('manage_attendance')).addHandler(_getAllAttendance))
       // FIX: Employees use 'log_own_attendance' to check in/out themselves. Admins/RH use 'manage_attendance' to log for others.
       ..get('/attendance/<employeeId>', (Request request, String employeeId) => Pipeline().addMiddleware(requireRoleOrPermission([], ['view_employees', 'log_own_attendance'])).addHandler((req) => _getAttendance(req, employeeId))(request))
       ..post('/attendance/self', Pipeline().addMiddleware(requirePermission('log_own_attendance')).addHandler(_logSelfAttendance))
@@ -37,8 +38,10 @@ class HrRoutes {
       ..put('/salaries/<id>', (Request request, String id) => Pipeline().addMiddleware(requirePermission('manage_salaries')).addHandler((req) => _updateSalaryStatus(req, id))(request))
       
       // Bonuses
-      ..get('/bonuses/<employeeId>', _getBonuses)  // internal scoping in service
-      ..post('/bonuses', Pipeline().addMiddleware(requirePermission('manage_bonuses')).addHandler(_grantBonus));
+      ..get('/bonuses', _getBonuses)
+      ..get('/bonuses/<employeeId>', (Request req, String id) => _getBonuses(req, targetEmployeeId: id))
+      ..post('/bonuses', Pipeline().addMiddleware(requirePermission('manage_bonuses')).addHandler(_grantBonus))
+      ..post('/bonuses/bulk', Pipeline().addMiddleware(requirePermission('manage_bonuses')).addHandler(_bulkGrantBonuses));
   }
 
   // --- Attendance ---
@@ -52,16 +55,26 @@ class HrRoutes {
     
     final params = request.url.queryParameters;
     final res = await HrService.getAttendance(employeeId, startDate: params['startDate'], endDate: params['endDate']);
-    if (!res['success']) return Response.internalServerError(body: jsonEncode(res), headers: {'Content-Type': 'application/json'});
-    return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json'});
+    if (!res['success']) return Response.internalServerError(body: jsonEncode(res), headers: {'Content-Type': 'application/json; charset=utf-8'});
+    return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json; charset=utf-8'});
+  }
+
+  Future<Response> _getAllAttendance(Request request) async {
+    final params = request.url.queryParameters;
+    final date = params['date'];
+    if (date == null) return Response.badRequest(body: jsonEncode({'success': false, 'message': 'date parameter is required'}));
+    
+    final res = await HrService.getAllAttendance(date);
+    if (!res['success']) return Response.internalServerError(body: jsonEncode(res), headers: {'Content-Type': 'application/json; charset=utf-8'});
+    return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json; charset=utf-8'});
   }
 
   Future<Response> _logAttendance(Request request) async {
     final body = await request.readAsString();
     final data = jsonDecode(body) as Map<String, dynamic>;
     final res = await HrService.logAttendance(data, callerId: request.authUserId);
-    if (!res['success']) return Response.badRequest(body: jsonEncode(res), headers: {'Content-Type': 'application/json'});
-    return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json'});
+    if (!res['success']) return Response.badRequest(body: jsonEncode(res), headers: {'Content-Type': 'application/json; charset=utf-8'});
+    return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json; charset=utf-8'});
   }
 
   Future<Response> _logSelfAttendance(Request request) async {
@@ -73,8 +86,8 @@ class HrRoutes {
     data['employee_id'] = userId;
     
     final res = await HrService.logAttendance(data);
-    if (!res['success']) return Response.badRequest(body: jsonEncode(res), headers: {'Content-Type': 'application/json'});
-    return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json'});
+    if (!res['success']) return Response.badRequest(body: jsonEncode(res), headers: {'Content-Type': 'application/json; charset=utf-8'});
+    return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json; charset=utf-8'});
   }
 
   Future<Response> _bulkCorrectAttendance(Request request) async {
@@ -87,7 +100,7 @@ class HrRoutes {
     if (date == null || status == null) return Response.badRequest(body: jsonEncode({'success': false, 'message': 'date and status are required'}));
     
     final res = await HrService.bulkCorrectAttendance(ids, date, status, callerId: request.authUserId);
-    return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json'});
+    return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json; charset=utf-8'});
   }
 
   // --- Leaves ---
@@ -98,7 +111,7 @@ class HrRoutes {
     if (userId == null) return Response.forbidden(jsonEncode({'success': false, 'message': 'Unauthorized'}));
     
     final res = await HrService.getLeaveRequests(role, userId);
-    return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json'});
+    return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json; charset=utf-8'});
   }
 
   Future<Response> _submitLeaveRequest(Request request) async {
@@ -108,8 +121,8 @@ class HrRoutes {
     final body = await request.readAsString();
     final data = jsonDecode(body) as Map<String, dynamic>;
     final res = await HrService.submitLeaveRequest(userId, data);
-    if (!res['success']) return Response.badRequest(body: jsonEncode(res), headers: {'Content-Type': 'application/json'});
-    return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json'});
+    if (!res['success']) return Response.badRequest(body: jsonEncode(res), headers: {'Content-Type': 'application/json; charset=utf-8'});
+    return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json; charset=utf-8'});
   }
 
   Future<Response> _updateLeaveStatus(Request request, String id) async {
@@ -123,8 +136,8 @@ class HrRoutes {
     if (status == null) return Response.badRequest(body: jsonEncode({'success': false, 'message': 'Missing status'}));
     
     final res = await HrService.updateLeaveStatus(int.parse(id), status, userId);
-    if (!res['success']) return Response.internalServerError(body: jsonEncode(res), headers: {'Content-Type': 'application/json'});
-    return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json'});
+    if (!res['success']) return Response.internalServerError(body: jsonEncode(res), headers: {'Content-Type': 'application/json; charset=utf-8'});
+    return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json; charset=utf-8'});
   }
 
   // --- Remote Work ---
@@ -135,7 +148,7 @@ class HrRoutes {
     if (userId == null) return Response.forbidden(jsonEncode({'success': false, 'message': 'Unauthorized'}));
     
     final res = await HrService.getRemoteWorkRequests(role, userId);
-    return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json'});
+    return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json; charset=utf-8'});
   }
 
   Future<Response> _submitRemoteWorkRequest(Request request) async {
@@ -145,8 +158,8 @@ class HrRoutes {
     final body = await request.readAsString();
     final data = jsonDecode(body) as Map<String, dynamic>;
     final res = await HrService.submitRemoteWorkRequest(userId, data);
-    if (!res['success']) return Response.badRequest(body: jsonEncode(res), headers: {'Content-Type': 'application/json'});
-    return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json'});
+    if (!res['success']) return Response.badRequest(body: jsonEncode(res), headers: {'Content-Type': 'application/json; charset=utf-8'});
+    return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json; charset=utf-8'});
   }
 
   Future<Response> _updateRemoteWorkStatus(Request request, String id) async {
@@ -160,8 +173,8 @@ class HrRoutes {
     if (status == null) return Response.badRequest(body: jsonEncode({'success': false, 'message': 'Missing status'}));
     
     final res = await HrService.updateRemoteWorkStatus(int.parse(id), status, userId);
-    if (!res['success']) return Response.internalServerError(body: jsonEncode(res), headers: {'Content-Type': 'application/json'});
-    return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json'});
+    if (!res['success']) return Response.internalServerError(body: jsonEncode(res), headers: {'Content-Type': 'application/json; charset=utf-8'});
+    return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json; charset=utf-8'});
   }
 
   // --- Salaries ---
@@ -175,15 +188,15 @@ class HrRoutes {
     final targetEmployeeId = params['employeeId'];
 
     final res = await HrService.getSalaries(role, userId, targetEmployeeId: targetEmployeeId);
-    return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json'});
+    return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json; charset=utf-8'});
   }
 
   Future<Response> _createSalary(Request request) async {
     final body = await request.readAsString();
     final data = jsonDecode(body) as Map<String, dynamic>;
     final res = await HrService.createSalary(data, callerId: request.authUserId);
-    if (!res['success']) return Response.badRequest(body: jsonEncode(res), headers: {'Content-Type': 'application/json'});
-    return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json'});
+    if (!res['success']) return Response.badRequest(body: jsonEncode(res), headers: {'Content-Type': 'application/json; charset=utf-8'});
+    return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json; charset=utf-8'});
   }
 
   Future<Response> _updateSalaryStatus(Request request, String id) async {
@@ -194,8 +207,8 @@ class HrRoutes {
     if (status == null) return Response.badRequest(body: jsonEncode({'success': false, 'message': 'Missing status'}));
     
     final res = await HrService.updateSalaryStatus(int.parse(id), status, callerId: request.authUserId);
-    if (!res['success']) return Response.internalServerError(body: jsonEncode(res), headers: {'Content-Type': 'application/json'});
-    return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json'});
+    if (!res['success']) return Response.internalServerError(body: jsonEncode(res), headers: {'Content-Type': 'application/json; charset=utf-8'});
+    return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json; charset=utf-8'});
   }
 
   // --- Bulk Salary Generation ---
@@ -206,21 +219,21 @@ class HrRoutes {
     final month = data['month']?.toString();
     if (month == null) return Response.badRequest(body: jsonEncode({'success': false, 'message': 'month is required (format: YYYY-MM)'}));
     final res = await HrService.bulkGenerateSalaries(month, callerId: request.authUserId);
-    if (!res['success']) return Response.internalServerError(body: jsonEncode(res), headers: {'Content-Type': 'application/json'});
-    return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json'});
+    if (!res['success']) return Response.internalServerError(body: jsonEncode(res), headers: {'Content-Type': 'application/json; charset=utf-8'});
+    return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json; charset=utf-8'});
   }
 
   // --- Bonuses ---
 
-  Future<Response> _getBonuses(Request request, String employeeId) async {
+  Future<Response> _getBonuses(Request request, {String? targetEmployeeId}) async {
     final callerRole = request.authUserRole;
     final callerId = request.authUserId ?? '';
-    // Employees can only see their own bonuses; Admin/RH/Comptable can see any
-    final targetId = (callerRole == 'Admin' || callerRole == 'RH' || callerRole == 'Comptable')
-        ? employeeId
-        : callerId;
-    final res = await HrService.getBonuses(targetId);
-    return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json'});
+    
+    // If targetEmployeeId is not in path, check query params
+    final employeeId = targetEmployeeId ?? request.url.queryParameters['employeeId'];
+
+    final res = await HrService.getBonuses(callerRole, callerId, targetEmployeeId: employeeId);
+    return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json; charset=utf-8'});
   }
 
   Future<Response> _grantBonus(Request request) async {
@@ -233,7 +246,24 @@ class HrRoutes {
     }
     
     final res = await HrService.grantBonus(data);
-    if (!res['success']) return Response.badRequest(body: jsonEncode(res), headers: {'Content-Type': 'application/json'});
-    return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json'});
+    if (!res['success']) return Response.badRequest(body: jsonEncode(res), headers: {'Content-Type': 'application/json; charset=utf-8'});
+    return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json; charset=utf-8'});
+  }
+
+  Future<Response> _bulkGrantBonuses(Request request) async {
+    final userId = request.authUserId;
+    final body = await request.readAsString();
+    final data = jsonDecode(body) as Map<String, dynamic>;
+    
+    final employeeIds = List<String>.from(data['employeeIds'] ?? []);
+    final bonusData = Map<String, dynamic>.from(data['bonus'] ?? {});
+
+    if (userId != null && bonusData['granted_by'] == null) {
+      bonusData['granted_by'] = userId;
+    }
+
+    final res = await HrService.bulkGrantBonuses(employeeIds, bonusData);
+    if (!res['success']) return Response.badRequest(body: jsonEncode(res), headers: {'Content-Type': 'application/json; charset=utf-8'});
+    return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json; charset=utf-8'});
   }
 }

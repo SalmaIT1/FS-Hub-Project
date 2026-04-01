@@ -6,8 +6,8 @@ import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 import 'package:uuid/uuid.dart';
 import '../../../../shared/database/connection.dart';
-import '../../../auth/domain/services/auth_service.dart';
 import '../../domain/services/chat_service.dart';
+import '../../../auth/domain/services/auth_service.dart';
 
 const _uuid = Uuid();
 
@@ -33,41 +33,10 @@ class WebSocketServer {
     return Router()
       // WebSocket endpoint: requires a short-lived one-time ticket obtained from
       // POST /v1/auth/ws-ticket. Never put long-lived JWTs in the URL.
-      ..get('/', _rootHandler)
+      // H-2 FIX: Removed legacy /ws?token=JWT path — JWTs in URLs are logged
+      // by servers and proxies. All clients must use the ticket-based flow.
+      ..get('/', _chatHandler)
       ..get('/chat', _chatHandler);
-  }
-
-  FutureOr<Response> _rootHandler(Request request) {
-    // Backward compatible endpoint: accepts JWT token as query param.
-    // (Used by existing web clients: /ws?token=...)
-    final token = request.url.queryParameters['token'];
-    if (token == null || token.isEmpty) {
-      // If token is absent, fall back to the newer ticket-based handler.
-      return _chatHandler(request);
-    }
-
-    final payload = AuthService.verifyToken(token);
-    if (payload == null) {
-      return Future.value(Response(
-        401,
-        body: jsonEncode({'error': 'Unauthorized', 'message': 'Invalid or expired token'}),
-        headers: {'Content-Type': 'application/json'},
-      ));
-    }
-
-    final userId = payload['userId']?.toString();
-    if (userId == null || userId.isEmpty) {
-      return Future.value(Response(
-        401,
-        body: jsonEncode({'error': 'Unauthorized', 'message': 'Invalid token payload'}),
-        headers: {'Content-Type': 'application/json'},
-      ));
-    }
-
-    final handler = webSocketHandler((dynamic webSocket) {
-      _registerConnection(webSocket, userId);
-    });
-    return handler(request);
   }
 
   FutureOr<Response> _chatHandler(Request request) {
@@ -77,7 +46,7 @@ class WebSocketServer {
       return Future.value(Response(
         401,
         body: jsonEncode({'error': 'Unauthorized', 'message': 'WS ticket required'}),
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       ));
     }
 
@@ -87,7 +56,7 @@ class WebSocketServer {
       return Future.value(Response(
         403,
         body: jsonEncode({'error': 'Forbidden', 'message': 'Invalid or expired ticket'}),
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       ));
     }
 
@@ -186,6 +155,12 @@ class WebSocketServer {
           break;
           
         case 'message':
+            // M-5 FIX: Enforce content size limit on incoming WS messages.
+            final content = payload['content']?.toString() ?? '';
+            if (content.length > 10000) {
+              _sendError(connectionId, 'Message content exceeds 10,000 characters');
+              break;
+            }
             _handleChatMessage(connectionId, userId, payload);
           break;
           
@@ -466,12 +441,25 @@ class WebSocketServer {
     print('[WS-DISCONNECT] Cleanup complete for userId=$userId. Remaining users: ${_userToConnections.keys.toSet()}');
   }
 
-  void _handleJoinConversation(String connectionId, String userId, Map<String, dynamic> data) {
+  void _handleJoinConversation(String connectionId, String userId, Map<String, dynamic> data) async {
     try {
       final conversationId = data['conversationId']?.toString();
       if (conversationId == null || conversationId.isEmpty) {
         print('[WS-ROOM] ERROR: No conversationId provided');
         _sendError(connectionId, 'conversationId is required');
+        return;
+      }
+
+      // H-3 FIX: Verify the user is actually a member of this conversation
+      // before allowing them to subscribe to its real-time events.
+      final conn = DBConnection.getConnection();
+      final memberCheck = await conn.execute(
+        'SELECT id FROM conversation_members WHERE conversation_id = :convId AND user_id = :userId AND left_at IS NULL',
+        {'convId': conversationId, 'userId': userId},
+      );
+      if (memberCheck.rows.isEmpty) {
+        print('[WS-ROOM] FORBIDDEN: User $userId is not a member of conversation $conversationId');
+        _sendError(connectionId, 'You are not a member of this conversation');
         return;
       }
 

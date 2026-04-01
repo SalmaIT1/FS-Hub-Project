@@ -51,6 +51,9 @@ class PosteService {
       final poste = PosteModel(
         nom: json['nom'],
         description: json['description'],
+        departementId: json['departement_id'] != null 
+            ? int.tryParse(json['departement_id'].toString()) 
+            : null,
       );
 
       final createdPoste = await createPoste(poste);
@@ -75,6 +78,9 @@ class PosteService {
         id: id,
         nom: json['nom'],
         description: json['description'],
+        departementId: json['departement_id'] != null 
+            ? int.tryParse(json['departement_id'].toString()) 
+            : null,
       );
 
       final updatedPoste = await updatePoste(poste);

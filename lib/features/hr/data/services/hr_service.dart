@@ -31,6 +31,23 @@ class HrService {
     }
   }
 
+  static Future<List<Attendance>> getAllAttendance(String date) async {
+    try {
+      final response = await AuthService.authenticatedRequest('/hr/attendance?date=$date', 'GET');
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(response.body);
+        if (data['success'] == true && data['data'] != null) {
+          final List<dynamic> list = data['data'];
+          return list.map((item) => Attendance.fromJson(item)).toList();
+        }
+      }
+      return [];
+    } catch (e) {
+      print('getAllAttendance error: $e');
+      return [];
+    }
+  }
+
   static Future<bool> logAttendance(Attendance attendance) async {
     try {
       final response = await AuthService.authenticatedRequest(
@@ -124,21 +141,22 @@ class HrService {
     }
   }
 
-  static Future<bool> submitRemoteWorkRequest(RemoteWork request) async {
+  static Future<Map<String, dynamic>> submitRemoteWorkRequest(RemoteWork request) async {
     try {
        final response = await AuthService.authenticatedRequest(
         '/hr/remote-work',
         'POST',
         body: request.toJson(),
       );
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final Map<String, dynamic> data = jsonDecode(response.body);
-        return data['success'] == true;
-      }
-      return false;
+      
+      final Map<String, dynamic> data = jsonDecode(response.body);
+      return {
+        'success': data['success'] == true,
+        'message': data['message'] ?? (data['success'] == true ? 'Succès' : 'Une erreur est survenue')
+      };
     } catch (e) {
       print('submitRemoteWorkRequest error: $e');
-      return false;
+      return {'success': false, 'message': 'Erreur de connexion au serveur'};
     }
   }
 
@@ -220,9 +238,10 @@ class HrService {
     }
   }
   
-  static Future<List<Bonus>> getBonuses(String employeeId) async {
+  static Future<List<Bonus>> getBonuses({String? employeeId}) async {
     try {
-      final response = await AuthService.authenticatedRequest('/hr/bonuses/$employeeId', 'GET');
+      final url = employeeId != null ? '/hr/bonuses/$employeeId' : '/hr/bonuses';
+      final response = await AuthService.authenticatedRequest(url, 'GET');
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = jsonDecode(response.body);
         if (data['success'] == true && data['data'] != null) {
@@ -251,6 +270,45 @@ class HrService {
       return false;
     } catch (e) {
       print('grantBonus error: $e');
+      return false;
+    }
+  }
+
+  static Future<bool> bulkGrantBonuses(List<String> employeeIds, Map<String, dynamic> bonusData) async {
+    try {
+      final response = await AuthService.authenticatedRequest(
+        '/hr/bonuses/bulk',
+        'POST',
+        body: {
+          'employeeIds': employeeIds,
+          'bonus': bonusData,
+        },
+      );
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final Map<String, dynamic> data = jsonDecode(response.body);
+        return data['success'] == true;
+      }
+      return false;
+    } catch (e) {
+      print('bulkGrantBonuses error: $e');
+      return false;
+    }
+  }
+
+  static Future<bool> bulkGenerateSalaries(String month) async {
+    try {
+      final response = await AuthService.authenticatedRequest(
+        '/hr/salaries/bulk-generate',
+        'POST',
+        body: {'month': month},
+      );
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final Map<String, dynamic> data = jsonDecode(response.body);
+        return data['success'] == true;
+      }
+      return false;
+    } catch (e) {
+      print('bulkGenerateSalaries error: $e');
       return false;
     }
   }

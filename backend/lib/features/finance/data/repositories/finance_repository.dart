@@ -9,14 +9,25 @@ class FinanceRepository {
     final paidRes = await _db.execute('SELECT SUM(montant) as total FROM paiements');
     final statusRes = await _db.execute('SELECT statut, COUNT(*) as count, SUM(montant_ttc) as amount FROM factures GROUP BY statut');
     
+    // Expenses
+    final compExpRes = await _db.execute("SELECT SUM(montant) as total FROM depenses_entreprise WHERE status = 'approved_finance'");
+    final projExpRes = await _db.execute("SELECT SUM(montant) as total FROM depenses_projets WHERE status = 'approved_finance'");
+
     final billed = double.tryParse(billedRes.rows.first.assoc()['total']?.toString() ?? '0') ?? 0.0;
     final paid = double.tryParse(paidRes.rows.first.assoc()['total']?.toString() ?? '0') ?? 0.0;
+    final compExp = double.tryParse(compExpRes.rows.first.assoc()['total']?.toString() ?? '0') ?? 0.0;
+    final projExp = double.tryParse(projExpRes.rows.first.assoc()['total']?.toString() ?? '0') ?? 0.0;
+    
     final statusDistribution = statusRes.rows.map((row) => row.assoc()).toList();
 
     return {
       'total_billed': billed,
       'total_paid': paid,
       'outstanding': billed - paid,
+      'total_expenses': compExp + projExp,
+      'company_expenses': compExp,
+      'project_expenses': projExp,
+      'net_profit': paid - (compExp + projExp),
       'status_distribution': statusDistribution,
     };
   }

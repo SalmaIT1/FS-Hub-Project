@@ -21,10 +21,10 @@ class EmailRoutes {
       final result = await EmailService.sendPasswordResetEmail(
         userEmail: payload['userEmail'],
         userName: payload['userName'],
-        newPassword: payload['newPassword'],
+        resetToken: payload['resetToken'] ?? payload['newPassword'],
       );
 
-      return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json'});
+      return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
       return Response.internalServerError(body: jsonEncode({'success': false, 'error': e.toString()}));
     }
@@ -42,7 +42,7 @@ class EmailRoutes {
         requestId: payload['requestId'],
       );
 
-      return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json'});
+      return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
       return Response.internalServerError(body: jsonEncode({'success': false, 'error': e.toString()}));
     }

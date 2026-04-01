@@ -212,7 +212,7 @@ class AuthRepository {
           FROM permissions p
           JOIN role_permissions rp ON p.id = rp.permission_id
           JOIN roles r ON rp.role_id = r.id
-          WHERE r.nom = :roleName
+          WHERE LOWER(r.nom) = LOWER(:roleName)
         ''', {'roleName': roleName});
         
         permissions.addAll(rolePermsResult.rows.map((r) => r.colAt(0).toString()));
@@ -228,5 +228,43 @@ class AuthRepository {
       print('Database error in getUserPermissions: $e');
       return [];
     }
+  }
+
+  /// HARSH FIX: Password Reset Tokens
+  Future<void> savePasswordResetToken({
+    required String userId,
+    required String tokenHash,
+    required DateTime expiresAt,
+  }) async {
+    // FIX: Using FROM_UNIXTIME to match TIMESTAMP column type.
+    await _db.execute(
+      'INSERT INTO password_resets (user_id, token_hash, expires_at) VALUES (:userId, :hash, FROM_UNIXTIME(:expires))',
+      {
+        'userId': userId,
+        'hash': tokenHash,
+        'expires': (expiresAt.millisecondsSinceEpoch ~/ 1000).toString(),
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>?> getResetTokenInfo(String tokenHash) async {
+    final res = await _db.execute(
+      'SELECT user_id, is_used, expires_at FROM password_resets WHERE token_hash = :hash',
+      {'hash': tokenHash},
+    );
+    if (res.rows.isEmpty) return null;
+    final row = res.rows.first;
+    return {
+      'user_id': row.colByName('user_id'),
+      'is_used': row.colByName('is_used') == 1 || row.colByName('is_used') == true,
+      'expires_at': row.colByName('expires_at')?.toString(),
+    };
+  }
+
+  Future<void> markResetTokenUsed(String tokenHash) async {
+    await _db.execute(
+      'UPDATE password_resets SET is_used = TRUE WHERE token_hash = :hash',
+      {'hash': tokenHash},
+    );
   }
 }

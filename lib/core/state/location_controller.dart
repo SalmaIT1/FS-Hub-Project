@@ -115,7 +115,7 @@ class LocationController extends ChangeNotifier {
     try {
       final response = await http.get(
         Uri.parse('https://nominatim.openstreetmap.org/reverse?format=json&lat=$lat&lon=$lng&zoom=18&addressdetails=1'),
-        headers: {'User-Agent': 'FSHub_App'},
+        headers: kIsWeb ? {} : {'User-Agent': 'FSHub_App'},
       );
 
       if (response.statusCode == 200) {

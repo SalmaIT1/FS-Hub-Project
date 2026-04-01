@@ -36,12 +36,12 @@ class NotificationRoutes {
       final result = await NotificationService.getUserNotifications(userId, filter: filter);
 
       if (result['success']) {
-        return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json'});
+        return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json; charset=utf-8'});
       } else {
-        return Response(400, body: jsonEncode(result), headers: {'Content-Type': 'application/json'});
+        return Response(400, body: jsonEncode(result), headers: {'Content-Type': 'application/json; charset=utf-8'});
       }
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'success': false, 'message': e.toString()}));
+      return Response.internalServerError(body: jsonEncode({'success': false, 'message': 'Internal server error'}));
     }
   }
 
@@ -51,12 +51,12 @@ class NotificationRoutes {
       final result = await NotificationService.markNotificationAsRead(notificationId, userId);
 
       if (result['success']) {
-        return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json'});
+        return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json; charset=utf-8'});
       } else {
-        return Response(400, body: jsonEncode(result), headers: {'Content-Type': 'application/json'});
+        return Response(400, body: jsonEncode(result), headers: {'Content-Type': 'application/json; charset=utf-8'});
       }
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'success': false, 'message': e.toString()}));
+      return Response.internalServerError(body: jsonEncode({'success': false, 'message': 'Internal server error'}));
     }
   }
 
@@ -66,12 +66,12 @@ class NotificationRoutes {
       final result = await NotificationService.markAllNotificationsAsRead(userId);
 
       if (result['success']) {
-        return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json'});
+        return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json; charset=utf-8'});
       } else {
-        return Response(400, body: jsonEncode(result), headers: {'Content-Type': 'application/json'});
+        return Response(400, body: jsonEncode(result), headers: {'Content-Type': 'application/json; charset=utf-8'});
       }
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'success': false, 'message': e.toString()}));
+      return Response.internalServerError(body: jsonEncode({'success': false, 'message': 'Internal server error'}));
     }
   }
   
@@ -81,12 +81,12 @@ class NotificationRoutes {
       final result = await NotificationService.getUnreadNotificationCount(userId);
 
       if (result['success']) {
-        return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json'});
+        return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json; charset=utf-8'});
       } else {
-        return Response(400, body: jsonEncode(result), headers: {'Content-Type': 'application/json'});
+        return Response(400, body: jsonEncode(result), headers: {'Content-Type': 'application/json; charset=utf-8'});
       }
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'success': false, 'message': e.toString()}));
+      return Response.internalServerError(body: jsonEncode({'success': false, 'message': 'Internal server error'}));
     }
   }
   
@@ -96,12 +96,12 @@ class NotificationRoutes {
       final result = await NotificationService.getNotificationById(notificationId, userId);
 
       if (result['success']) {
-        return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json'});
+        return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json; charset=utf-8'});
       } else {
-        return Response(404, body: jsonEncode(result), headers: {'Content-Type': 'application/json'});
+        return Response(404, body: jsonEncode(result), headers: {'Content-Type': 'application/json; charset=utf-8'});
       }
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'success': false, 'message': e.toString()}));
+      return Response.internalServerError(body: jsonEncode({'success': false, 'message': 'Internal server error'}));
     }
   }
 }

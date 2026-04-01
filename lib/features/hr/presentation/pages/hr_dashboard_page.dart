@@ -3,159 +3,229 @@ import 'package:provider/provider.dart';
 import 'package:fs_hub/core/state/settings_controller.dart';
 import 'package:fs_hub/shared/widgets/luxury/luxury_app_bar.dart';
 import 'package:fs_hub/core/routes/app_routes.dart';
-import 'dart:ui';
 
 class HrDashboardPage extends StatelessWidget {
   const HrDashboardPage({super.key});
 
+  static const _gold = Color(0xFFC9A24D);
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final settings = context.watch<SettingsController>();
-    final isFr = settings.languageCode == 'fr';
+    final isFr = context.watch<SettingsController>().languageCode == 'fr';
+    final bg = isDark ? const Color(0xFF0F0F0F) : const Color(0xFFF6F6F6);
 
     return LuxuryScaffold(
       title: isFr ? 'Espace RH' : 'HR Portal',
       isPremium: true,
       body: SafeArea(
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 30),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                isFr ? 'Gestion des Ressources Humaines' : 'Human Resources Management',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                  color: isDark ? Colors.white : Colors.black,
-                  letterSpacing: -0.5,
+        child: Container(
+          color: bg,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Hero banner
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(28),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1A1A1A) : Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: isDark ? Colors.white10 : Colors.black.withOpacity(0.06),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              isFr ? 'Ressources Humaines' : 'Human Resources',
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                                color: isDark ? Colors.white : Colors.black87,
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              isFr
+                                  ? 'Présence, congés, paie et gestion du personnel.'
+                                  : 'Attendance, leave, payroll and workforce management.',
+                              style: const TextStyle(color: Colors.grey, fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: _gold.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(Icons.people_alt_rounded, color: _gold, size: 30),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                isFr ? 'Supervision complète du personnel et des processus RH.' : 'Complete oversight of staff and HR processes.',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: isDark ? Colors.white54 : Colors.black54,
+
+                const SizedBox(height: 28),
+
+                Text(
+                  isFr ? 'Modules' : 'Modules',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.grey.shade500,
+                    letterSpacing: 1.2,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 40),
-              
-              Wrap(
-                spacing: 20,
-                runSpacing: 20,
-                children: [
-                  _buildModuleCard(
-                    context,
-                    title: isFr ? 'Pointage' : 'Attendance',
-                    subtitle: isFr ? 'Suivi des présences' : 'Attendance tracking',
-                    icon: Icons.access_time_rounded,
-                    route: AppRoutes.hrAttendance,
-                    isDark: isDark,
-                  ),
-                  _buildModuleCard(
-                    context,
-                    title: isFr ? 'Congés' : 'Leave Requests',
-                    subtitle: isFr ? 'Gestion des vacances' : 'Vacation management',
-                    icon: Icons.beach_access_rounded,
-                    route: AppRoutes.hrLeaves,
-                    isDark: isDark,
-                  ),
-                  _buildModuleCard(
-                    context,
-                    title: isFr ? 'Télétravail' : 'Remote Work',
-                    subtitle: isFr ? 'Demandes de télétravail' : 'Remote work requests',
-                    icon: Icons.laptop_mac_rounded,
-                    route: AppRoutes.hrRemoteWork,
-                    isDark: isDark,
-                  ),
-                  _buildModuleCard(
-                    context,
-                    title: isFr ? 'Salaires' : 'Salaries',
-                    subtitle: isFr ? 'Gestion de paie' : 'Payroll management',
-                    icon: Icons.account_balance_wallet_rounded,
-                    route: AppRoutes.hrSalaries,
-                    isDark: isDark,
-                  ),
-                  _buildModuleCard(
-                    context,
-                    title: isFr ? 'Bonus' : 'Bonuses',
-                    subtitle: isFr ? 'Récompenses & Primes' : 'Rewards & Perks',
-                    icon: Icons.star_rounded,
-                    route: AppRoutes.hrBonuses,
-                    isDark: isDark,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 100),
-            ],
+
+                const SizedBox(height: 14),
+
+                ..._modules(isFr).map((m) => _ModuleTile(
+                      icon: m.icon,
+                      title: m.title,
+                      subtitle: m.subtitle,
+                      route: m.route,
+                      isDark: isDark,
+                    )),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildModuleCard(BuildContext context, {
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required String route,
-    required bool isDark,
-  }) {
-    final double cardWidth = (MediaQuery.of(context).size.width - 48 - 20) / 2;
-    
-    return GestureDetector(
-      onTap: () => Navigator.pushNamed(context, route),
-      child: Container(
-        width: cardWidth > 200 ? cardWidth : double.infinity,
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.02),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.05),
-          ),
-          boxShadow: [
-             BoxShadow(
-              color: isDark ? Colors.black.withOpacity(0.2) : Colors.black.withOpacity(0.05),
-              blurRadius: 20,
-              offset: const Offset(0, 10),
-            ),
-          ]
+  List<_Module> _modules(bool isFr) => [
+        _Module(
+          icon: Icons.access_time_filled_rounded,
+          title: isFr ? 'Pointage & Présence' : 'Attendance',
+          subtitle: isFr ? 'Suivi quotidien de la présence' : 'Daily attendance tracking',
+          route: AppRoutes.hrAttendance,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFC9A24D).withOpacity(0.15),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Icon(icon, color: const Color(0xFFC9A24D), size: 28),
+        _Module(
+          icon: Icons.history_rounded,
+          title: isFr ? 'Historique de Présence' : 'Attendance History',
+          subtitle: isFr ? 'Vue mensuelle par employé' : 'Monthly view by employee',
+          route: AppRoutes.hrAttendanceHistory,
+        ),
+        _Module(
+          icon: Icons.event_available_rounded,
+          title: isFr ? 'Gestion des Congés' : 'Leave Requests',
+          subtitle: isFr ? 'Demandes et approbations' : 'Requests and approvals',
+          route: AppRoutes.hrLeaves,
+        ),
+        _Module(
+          icon: Icons.home_work_rounded,
+          title: isFr ? 'Télétravail' : 'Remote Work',
+          subtitle: isFr ? 'Demandes de travail à distance' : 'Remote work management',
+          route: AppRoutes.hrRemoteWork,
+        ),
+        _Module(
+          icon: Icons.payments_rounded,
+          title: isFr ? 'Gestion de Paie' : 'Payroll',
+          subtitle: isFr ? 'Salaires et bulletins de paie' : 'Salaries and payslips',
+          route: AppRoutes.hrSalaries,
+        ),
+        _Module(
+          icon: Icons.stars_rounded,
+          title: isFr ? 'Bonus & Primes' : 'Bonuses',
+          subtitle: isFr ? 'Récompenses et incentives' : 'Rewards and incentives',
+          route: AppRoutes.hrBonuses,
+        ),
+      ];
+}
+
+class _Module {
+  final IconData icon;
+  final String title, subtitle, route;
+  const _Module({required this.icon, required this.title, required this.subtitle, required this.route});
+}
+
+class _ModuleTile extends StatefulWidget {
+  final IconData icon;
+  final String title, subtitle, route;
+  final bool isDark;
+
+  const _ModuleTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.route,
+    required this.isDark,
+  });
+
+  @override
+  State<_ModuleTile> createState() => _ModuleTileState();
+}
+
+class _ModuleTileState extends State<_ModuleTile> {
+  bool _hovered = false;
+  static const _gold = Color(0xFFC9A24D);
+
+  @override
+  Widget build(BuildContext context) {
+    final surface = widget.isDark ? const Color(0xFF1A1A1A) : Colors.white;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: () => Navigator.pushNamed(context, widget.route),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: _hovered ? _gold.withOpacity(0.04) : surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: _hovered
+                  ? _gold.withOpacity(0.3)
+                  : (widget.isDark ? Colors.white10 : Colors.black.withOpacity(0.06)),
             ),
-            const SizedBox(height: 24),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : Colors.black87,
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: _gold.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(widget.icon, color: _gold, size: 22),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              subtitle,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 12,
-                color: isDark ? Colors.white54 : Colors.black54,
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.title,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                        color: widget.isDark ? Colors.white : Colors.black87,
+                      ),
+                    ),
+                    Text(widget.subtitle, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                  ],
+                ),
               ),
-            ),
-          ],
+              Icon(
+                Icons.chevron_right_rounded,
+                color: _hovered ? _gold : Colors.grey.shade400,
+                size: 22,
+              ),
+            ],
+          ),
         ),
       ),
     );

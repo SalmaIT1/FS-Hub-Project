@@ -7,6 +7,9 @@ class RemoteWork {
   final String? approvedBy;
   final String status;
 
+  final String? employeeNom;
+  final String? employeePrenom;
+
   RemoteWork({
     this.id,
     required this.employeeId,
@@ -15,6 +18,8 @@ class RemoteWork {
     this.reason,
     this.approvedBy,
     required this.status,
+    this.employeeNom,
+    this.employeePrenom,
   });
 
   factory RemoteWork.fromJson(Map<String, dynamic> json) {
@@ -26,6 +31,8 @@ class RemoteWork {
       reason: json['reason'],
       approvedBy: json['approved_by'],
       status: json['status'],
+      employeeNom: json['nom'],
+      employeePrenom: json['prenom'],
     );
   }
 

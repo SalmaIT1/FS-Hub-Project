@@ -41,6 +41,7 @@ class _PooledConnection {
       secure: secure,
     );
     await _conn!.connect();
+    await _conn!.execute('SET NAMES utf8mb4');
   }
 
   Future<IResultSet> execute(String sql, [Map<String, dynamic>? params]) async {

@@ -23,11 +23,16 @@ class PermissionGuard {
         _userInfo = user;
         _userRole = user['role'] ?? '';
         
+        print('[AUTH-GUARD] User: ${user['username']}, Role: $_userRole');
+        
         // Use permissions from user object if available (preferred)
         if (user['permissions'] != null && user['permissions'] is List) {
           _userPermissions = (user['permissions'] as List).cast<String>().toList();
+          print('[AUTH-GUARD] Loaded permissions: $_userPermissions');
           return;
         }
+        
+        print('[AUTH-GUARD] No permissions found in user object, using fallback...');
 
         // Fallback for comma-separated string (legacy)
         if (user['permissions'] != null && user['permissions'] is String) {
@@ -39,7 +44,7 @@ class PermissionGuard {
         // Note: This may fail with 403 if the current user can't manage roles
         final roles = await RoleService.getAllRoles();
         final userRole = roles.firstWhere(
-          (role) => role['nom'] == _userRole,
+          (role) => role['nom'].toString().toLowerCase() == _userRole.toLowerCase(),
           orElse: () => <String, dynamic>{},
         );
         
@@ -71,13 +76,28 @@ class PermissionGuard {
   /// Check if user has specific permission
   static bool hasPermission(String permission) {
     if (hasRole('Admin')) return true;
-    return _userPermissions.contains(permission);
+    
+    // Support both view_employees and employees.view notations during transition
+    String alternative = permission.contains('_') 
+      ? permission.split('_').reversed.join('.') 
+      : permission.split('.').reversed.join('_');
+      
+    // SINGULAR/PLURAL HANDLER: Handle 'leave' vs 'leaves'
+    if (alternative.contains('leave') && !alternative.contains('leaves')) {
+      alternative = alternative.replaceFirst('leave', 'leaves');
+    } else if (alternative.contains('leaves')) {
+      // also check the singular version
+      final alternativeSingular = alternative.replaceFirst('leaves', 'leave');
+      if (_userPermissions.contains(alternativeSingular)) return true;
+    }
+      
+    return _userPermissions.contains(permission) || _userPermissions.contains(alternative);
   }
 
   /// Check if user has any of the specified permissions
   static bool hasAnyPermission(List<String> permissions) {
     if (hasRole('Admin')) return true;
-    return permissions.any((permission) => _userPermissions.contains(permission));
+    return permissions.any((p) => hasPermission(p));
   }
 
   /// Check if user has all specified permissions

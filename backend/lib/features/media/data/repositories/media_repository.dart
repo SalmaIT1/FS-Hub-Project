@@ -83,4 +83,19 @@ class MediaRepository {
       {'expiresAt': expiresAt, 'id': id},
     );
   }
+
+  /// H-6 HELP: Checks if a stored filename is part of any conversation where userId is a member.
+  Future<bool> checkIfFileInUserConversations(String storedFilename, String userId) async {
+    // Check if filename appears in message_attachments for any message in a conv with userId as member.
+    final res = await _db.execute('''
+      SELECT COUNT(*) as count 
+      FROM message_attachments ma
+      JOIN messages m ON ma.message_id = m.id
+      JOIN conversation_members cm ON m.conversation_id = cm.conversation_id
+      WHERE ma.filename = :filename AND cm.user_id = :userId AND cm.left_at IS NULL
+    ''', {'filename': storedFilename, 'userId': userId});
+    
+    final count = int.tryParse(res.rows.first.colByName('count')?.toString() ?? '0') ?? 0;
+    return count > 0;
+  }
 }

@@ -41,7 +41,7 @@ class ProjectExpensesRoutes {
           'data': expenses,
           'message': 'Project expenses retrieved successfully',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -49,7 +49,7 @@ class ProjectExpensesRoutes {
           'success': false,
           'message': 'Failed to retrieve project expenses: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -65,7 +65,7 @@ class ProjectExpensesRoutes {
             'success': false,
             'message': 'Project expense not found',
           }),
-          headers: {'content-type': 'application/json'},
+          headers: {'content-type': 'application/json; charset=utf-8'},
         );
       }
 
@@ -75,7 +75,7 @@ class ProjectExpensesRoutes {
           'data': expense?.toJson() ?? {},
           'message': 'Project expense retrieved successfully',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -83,7 +83,7 @@ class ProjectExpensesRoutes {
           'success': false,
           'message': 'Failed to retrieve project expense: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -104,7 +104,7 @@ class ProjectExpensesRoutes {
       return Response(
         result['success'] ? 201 : 400,
         body: jsonEncode(result),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -112,7 +112,7 @@ class ProjectExpensesRoutes {
           'success': false,
           'message': 'Failed to create project expense: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -128,7 +128,7 @@ class ProjectExpensesRoutes {
       return Response(
         result['success'] ? 200 : 400,
         body: jsonEncode(result),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -136,7 +136,7 @@ class ProjectExpensesRoutes {
           'success': false,
           'message': 'Failed to update project expense: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -149,7 +149,7 @@ class ProjectExpensesRoutes {
       return Response(
         result['success'] ? 200 : 404,
         body: jsonEncode(result),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -157,7 +157,7 @@ class ProjectExpensesRoutes {
           'success': false,
           'message': 'Failed to delete project expense: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -175,7 +175,7 @@ class ProjectExpensesRoutes {
           'data': summary,
           'message': 'Project expense summary retrieved successfully',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -183,7 +183,7 @@ class ProjectExpensesRoutes {
           'success': false,
           'message': 'Failed to retrieve project expense summary: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -199,7 +199,7 @@ class ProjectExpensesRoutes {
           'data': categories.map((c) => c?.toJson() ?? {}).toList(),
           'message': 'Expense categories retrieved successfully',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -207,7 +207,7 @@ class ProjectExpensesRoutes {
           'success': false,
           'message': 'Failed to retrieve expense categories: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -231,7 +231,7 @@ class ProjectExpensesRoutes {
           'data': category?.toJson() ?? {},
           'message': 'Expense category created successfully',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -239,7 +239,7 @@ class ProjectExpensesRoutes {
           'success': false,
           'message': 'Failed to create expense category: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }

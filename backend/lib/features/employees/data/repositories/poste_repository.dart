@@ -1,4 +1,4 @@
-﻿import 'package:mysql_client/mysql_client.dart';
+import 'package:mysql_client/mysql_client.dart';
 import '../models/poste_model.dart';
 import '../../../../shared/database/connection.dart';
 
@@ -30,12 +30,12 @@ class PosteRepository {
   Future<PosteModel> createPoste(PosteModel poste) async {
     try {
       final results = await _db.execute('''
-        INSERT INTO postes (nom, description, created_by)
-        VALUES (:nom, :description, :created_by)
+        INSERT INTO postes (nom, description, departement_id)
+        VALUES (:nom, :description, :deptId)
       ''', {
         'nom': poste.nom,
         'description': poste.description,
-        'created_by': 'system',
+        'deptId': poste.departementId,
       });
       
       final id = results.lastInsertID.toInt();
@@ -45,15 +45,17 @@ class PosteRepository {
     }
   }
 
+
   Future<PosteModel> updatePoste(PosteModel poste) async {
     try {
       await _db.execute('''
         UPDATE postes 
-        SET nom = :nom, description = :description, updated_at = CURRENT_TIMESTAMP
+        SET nom = :nom, description = :description, departement_id = :deptId, updated_at = CURRENT_TIMESTAMP
         WHERE id = :id
       ''', {
         'nom': poste.nom,
         'description': poste.description,
+        'deptId': poste.departementId,
         'id': poste.id,
       });
       
@@ -62,6 +64,7 @@ class PosteRepository {
       throw Exception('Failed to update poste: $e');
     }
   }
+
 
   Future<bool> deletePoste(int id) async {
     try {

@@ -135,7 +135,7 @@ class _MyTasksPageState extends State<MyTasksPage> with TickerProviderStateMixin
               // Task List
               if (_isLoading)
                 const SliverFillRemaining(
-                  child: Center(child: CircularProgressIndicator(color: AppTheme.accentGold)),
+                  child: Center(child: ExcludeSemantics(child: CircularProgressIndicator(color: AppTheme.accentGold))),
                 )
               else if (_tasks.isEmpty)
                 SliverFillRemaining(child: _buildEmptyState(isDark))

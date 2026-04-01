@@ -65,7 +65,7 @@ class UploadRoutes {
 
       return Response.ok(jsonEncode({'success': true, 'upload_id': uploadId}));
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'success': false, 'message': 'Upload failed: $e'}));
+      return Response.internalServerError(body: jsonEncode({'success': false, 'message': 'Internal Server Error'}));
     }
   }
 
@@ -105,7 +105,7 @@ class UploadRoutes {
           final uniqueId = const Uuid().v4();
           final actualStoredFilename = '$uniqueId.$extension';
 
-          // Create record
+          // HARSH FIX: Initial uploads expire in 1 hour if not completed.
           final newId = await MediaService.insertMedia({
             'original_filename': filename,
             'stored_filename': actualStoredFilename,
@@ -114,7 +114,7 @@ class UploadRoutes {
             'mime_type': mimeType ?? 'application/octet-stream',
             'uploaded_by': userId,
             'is_public': false,
-            'expires_at': DateTime.now().add(const Duration(days: 365)).toIso8601String(),
+            'expires_at': DateTime.now().add(const Duration(hours: 1)).toIso8601String(),
           });
           uploadId = newId.toString();
 
@@ -139,13 +139,17 @@ class UploadRoutes {
             await sink.close();
           }
 
-          if (mimeType != null && mimeType.startsWith('image/')) {
+          // HARSH FIX: Server-side MIME sniffing instead of trusting client header.
+          final sniffedMime = lookupMimeType(filePath) ?? mimeType ?? 'application/octet-stream';
+
+          if (sniffedMime.startsWith('image/')) {
              await MediaService.generateThumbnail(filePath, uploadId.toString());
           }
 
           await MediaService.updateMedia(uploadId.toString(), {
             'file_path': filePath,
             'file_size': totalBytes,
+            'mime_type': sniffedMime,
           });
         }
       }
@@ -162,7 +166,7 @@ class UploadRoutes {
         'mime_type': mimeType,
       }));
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'success': false, 'message': 'Upload failed: $e'}));
+      return Response.internalServerError(body: jsonEncode({'success': false, 'message': 'Internal Server Error'}));
     }
   }
 

@@ -9,6 +9,9 @@ class LeaveRequest {
   final String? reason;
   final String? approvedBy;
 
+  final String? employeeNom;
+  final String? employeePrenom;
+
   LeaveRequest({
     this.id,
     required this.employeeId,
@@ -19,6 +22,8 @@ class LeaveRequest {
     required this.status,
     this.reason,
     this.approvedBy,
+    this.employeeNom,
+    this.employeePrenom,
   });
 
   factory LeaveRequest.fromJson(Map<String, dynamic> json) {
@@ -32,6 +37,8 @@ class LeaveRequest {
       status: json['status'],
       reason: json['reason'],
       approvedBy: json['approved_by'],
+      employeeNom: json['nom'],
+      employeePrenom: json['prenom'],
     );
   }
 

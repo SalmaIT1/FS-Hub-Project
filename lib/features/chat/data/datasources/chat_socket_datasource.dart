@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:fs_hub/shared/models/chat_models.dart';
 
 class ChatSocketDatasource {
   final String wsUrl;
+  final String apiBaseUrl;
   final Future<String> Function() tokenProvider;
   
   WebSocketChannel? _channel;
@@ -28,7 +30,11 @@ class ChatSocketDatasource {
   Timer? _reconnectTimer;
   int _reconnectAttempts = 0;
 
-  ChatSocketDatasource({required this.wsUrl, required this.tokenProvider});
+  ChatSocketDatasource({
+    required this.wsUrl, 
+    required this.apiBaseUrl,
+    required this.tokenProvider,
+  });
 
   Future<void> connect() async {
     if (_isConnected) return;
@@ -36,9 +42,27 @@ class ChatSocketDatasource {
     
     try {
       final token = await tokenProvider();
-      final uri = Uri.parse('$wsUrl?token=$token');
       
-      print('[WS] Connecting to $wsUrl...');
+      // H-1/H-2 FIX: Negotiate a short-lived ticket before opening the socket.
+      // This prevents long-lived JWTs from appearing in URL logs.
+      final ticketRes = await http.post(
+        Uri.parse('$apiBaseUrl/v1/auth/ws-ticket'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'ngrok-skip-browser-warning': 'true',
+        },
+      );
+
+      if (ticketRes.statusCode != 200) {
+        print('[WS] Ticket negotiation failed: ${ticketRes.body}');
+        _onDisconnected();
+        return;
+      }
+
+      final ticket = jsonDecode(ticketRes.body)['ticket'];
+      final uri = Uri.parse('$wsUrl?ticket=$ticket');
+      
+      print('[WS] Connecting to $wsUrl with ticket...');
       _channel = WebSocketChannel.connect(uri);
       
       _channel!.stream.listen(

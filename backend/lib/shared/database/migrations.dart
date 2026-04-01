@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:dotenv/dotenv.dart' as dotenv;
 import 'connection.dart';
+import 'seeder.dart';
 
 class Migrations {
   /// Entry point for database initialization and migrations
@@ -45,8 +46,9 @@ class Migrations {
       // 3. Apply incremental migrations (idempotent)
       await _runIncrementalMigrations(conn, dbName);
 
-      // 3b. Seed missing permissions for existing databases
+      // 3b. Seed missing permissions and system data
       await _seedMissingPermissions(conn);
+      await DatabaseSeeder.seed(conn);
       
       // 4. Reset all users to offline on startup (in case of previous crash)
       print('Resetting user presence states...');
@@ -143,6 +145,15 @@ class Migrations {
 
     await _ensureColumn(conn, dbName, 'file_uploads', 'is_completed', 'BOOLEAN DEFAULT FALSE');
 
+    // FB-FIX: user_roles.assigned_at — required by employee creation RBAC insert
+    await _ensureColumn(conn, dbName, 'user_roles', 'assigned_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP');
+
+    // FB-FIX2: users.is_active — required by deactivate-employee soft-delete query
+    await _ensureColumn(conn, dbName, 'users', 'is_active', 'TINYINT(1) DEFAULT 1');
+
+    // HR-FIX: Add base_salary to employees for payroll defaults
+    await _ensureColumn(conn, dbName, 'employees', 'base_salary', 'DECIMAL(12,2) DEFAULT 0.00');
+
     // FD. Revoked Tokens
     await _ensureTable(conn, dbName, 'revoked_tokens', '''
       CREATE TABLE revoked_tokens (
@@ -150,6 +161,18 @@ class Migrations {
           token_hash VARCHAR(64) NOT NULL UNIQUE,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           INDEX idx_hash (token_hash)
+      )
+    ''');
+
+    // FE. Rate Limit Attempts (H-4/H-5 FIX: DB-backed rate limiter)
+    await _ensureTable(conn, dbName, 'rate_limit_attempts', '''
+      CREATE TABLE rate_limit_attempts (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          endpoint VARCHAR(100) NOT NULL,
+          ip_address VARCHAR(45) NOT NULL,
+          attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_endpoint_ip (endpoint, ip_address),
+          INDEX idx_attempted_at (attempted_at)
       )
     ''');
 
@@ -166,6 +189,104 @@ class Migrations {
           FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
           INDEX idx_user_id (user_id),
           INDEX idx_is_read (is_read)
+      )
+    ''');
+
+    // HARSH FIX: Password Resets (Secure reset tokens)
+    await _ensureTable(conn, dbName, 'password_resets', '''
+      CREATE TABLE IF NOT EXISTS password_resets (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          user_id VARCHAR(50) NOT NULL,
+          token_hash VARCHAR(64) NOT NULL,
+          is_used BOOLEAN DEFAULT FALSE,
+          expires_at TIMESTAMP NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+          INDEX idx_token (token_hash),
+          INDEX idx_user_expires (user_id, expires_at)
+      )
+    ''');
+
+    // HR MODULE TABLES
+    await _ensureTable(conn, dbName, 'salaries', '''
+      CREATE TABLE IF NOT EXISTS salaries (
+          id INT PRIMARY KEY AUTO_INCREMENT,
+          employee_id VARCHAR(50) NOT NULL,
+          base_salary DECIMAL(12,2) NOT NULL,
+          bonus_amount DECIMAL(12,2) DEFAULT 0,
+          deductions DECIMAL(12,2) DEFAULT 0,
+          net_salary DECIMAL(12,2),
+          salary_month DATE NOT NULL,
+          payment_status ENUM('pending', 'paid', 'cancelled') DEFAULT 'pending',
+          paid_at DATETIME,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE,
+          UNIQUE(employee_id, salary_month)
+      )
+    ''');
+
+    await _ensureTable(conn, dbName, 'bonuses', '''
+      CREATE TABLE IF NOT EXISTS bonuses (
+          id INT PRIMARY KEY AUTO_INCREMENT,
+          employee_id VARCHAR(50) NOT NULL,
+          amount DECIMAL(12,2) NOT NULL,
+          reason VARCHAR(255),
+          bonus_type ENUM('performance', 'project_completion', 'holiday', 'referral', 'other') DEFAULT 'performance',
+          granted_by VARCHAR(50),
+          granted_date DATE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE,
+          FOREIGN KEY (granted_by) REFERENCES users(id)
+      )
+    ''');
+
+    // FINANCE TABLES
+    await _ensureTable(conn, dbName, 'expense_categories', '''
+      CREATE TABLE IF NOT EXISTS expense_categories (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          nom VARCHAR(100) NOT NULL UNIQUE,
+          description TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    ''');
+
+    await _ensureTable(conn, dbName, 'depenses_projets', '''
+      CREATE TABLE IF NOT EXISTS depenses_projets (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          montant DECIMAL(15, 2) NOT NULL,
+          date_depense DATE NOT NULL,
+          description TEXT,
+          projet_id INT NOT NULL,
+          category_id INT,
+          created_by VARCHAR(50),
+          status ENUM('pending', 'approved_manager', 'approved_hr', 'approved_finance', 'rejected') DEFAULT 'pending',
+          manager_id VARCHAR(50) NULL,
+          hr_id VARCHAR(50) NULL,
+          finance_id VARCHAR(50) NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          FOREIGN KEY (projet_id) REFERENCES projets(id) ON DELETE CASCADE,
+          FOREIGN KEY (category_id) REFERENCES expense_categories(id) ON DELETE SET NULL,
+          FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+      )
+    ''');
+
+    await _ensureTable(conn, dbName, 'depenses_entreprise', '''
+      CREATE TABLE IF NOT EXISTS depenses_entreprise (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          montant DECIMAL(15, 2) NOT NULL,
+          date_depense DATE NOT NULL,
+          description TEXT,
+          category_id INT,
+          created_by VARCHAR(50),
+          status ENUM('pending', 'approved_manager', 'approved_hr', 'approved_finance', 'rejected') DEFAULT 'pending',
+          manager_id VARCHAR(50) NULL,
+          hr_id VARCHAR(50) NULL,
+          finance_id VARCHAR(50) NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          FOREIGN KEY (category_id) REFERENCES expense_categories(id) ON DELETE SET NULL,
+          FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
       )
     ''');
 
@@ -509,6 +630,73 @@ class Migrations {
         END
       ''');
     } catch(e) {}
+
+    // ── FIX DOUBLONS ET UNICITÉ (FORCE MODE) ──────────────────────────────
+    print('[DB-FIX] Starting emergency cleanup of duplicate roles/permissions...');
+    try {
+      await conn.execute('SET FOREIGN_KEY_CHECKS = 0');
+      
+      // Nettoyer les rôles
+      await conn.execute('''
+        DELETE FROM roles WHERE id NOT IN (
+          SELECT id FROM (SELECT MIN(id) as id FROM roles GROUP BY nom) as rtmp
+        )
+      ''');
+      
+      // Nettoyer les permissions
+      await conn.execute('''
+        DELETE FROM permissions WHERE id NOT IN (
+          SELECT id FROM (SELECT MIN(id) as id FROM permissions GROUP BY nom) as ptmp
+        )
+      ''');
+
+      await conn.execute('SET FOREIGN_KEY_CHECKS = 1');
+      
+      // Ajouter les contraintes d'unicité (SI elles n'existent pas encore)
+      try { await conn.execute('ALTER TABLE roles ADD UNIQUE INDEX idx_unique_role_nom (nom)'); } catch(_) {}
+      try { await conn.execute('ALTER TABLE permissions ADD UNIQUE INDEX idx_unique_perm_nom (nom)'); } catch(_) {}
+      
+      // ── FUSION ET NORMALISATION DES PERMISSIONS ─────────────────────────
+      print('[DB-FIX] Merging duplicate permission notations...');
+      final normalizationMapping = {
+        'employees.view': 'view_employees',
+        'employees.manage': 'manage_employees',
+        'salaries.view': 'manage_salaries',
+        'salaries.manage': 'manage_salaries',
+        'leave.manage': 'manage_leaves',
+        'attendance.manage': 'manage_attendance',
+        'remote_work.manage': 'manage_remote_work'
+      };
+
+      for (var entry in normalizationMapping.entries) {
+        final oldNom = entry.key;
+        final newNom = entry.value;
+
+        // 1. Get IDs
+        final oldRes = await conn.execute('SELECT id FROM permissions WHERE nom = :n', {'n': oldNom});
+        final newRes = await conn.execute('SELECT id FROM permissions WHERE nom = :n', {'n': newNom});
+
+        if (oldRes.rows.isNotEmpty && newRes.rows.isNotEmpty) {
+           final oldId = oldRes.rows.first.colAt(0).toString();
+           final newId = newRes.rows.first.colAt(0).toString();
+
+           // 2. Transfer role links from old to new (IGNORE duplicates)
+           await conn.execute('UPDATE IGNORE role_permissions SET permission_id = :newId WHERE permission_id = :oldId', {'newId': newId, 'oldId': oldId});
+           
+           // 3. Delete old dot-notation permission
+           await conn.execute('DELETE FROM role_permissions WHERE permission_id = :oldId', {'oldId': oldId});
+           await conn.execute('DELETE FROM permissions WHERE id = :oldId', {'oldId': oldId});
+        } else if (oldRes.rows.isNotEmpty) {
+           // Only old one exists, just rename it
+           await conn.execute('UPDATE permissions SET nom = :newNom WHERE nom = :oldNom', {'newNom': newNom, 'oldNom': oldNom});
+        }
+      }
+      
+      print('[DB-FIX] Cleanup successful. Nomenclature normalized.');
+    } catch (e) {
+      print('[DB-FIX] ERROR during cleanup: $e');
+      await conn.execute('SET FOREIGN_KEY_CHECKS = 1');
+    }
   }
 
   static Future<void> _replaceCascadeWithRestrict(_DBProxy conn, String dbName, String tableName) async {
@@ -648,6 +836,17 @@ class Migrations {
       ''');
     } catch (e) {
       print('Employé permission auto-assignment error: $e');
+    }
+
+    // Auto-assign HR permissions to "RH" role
+    try {
+      await conn.execute('''
+        INSERT IGNORE INTO role_permissions (role_id, permission_id)
+        SELECT r.id, p.id FROM roles r, permissions p
+        WHERE (r.nom = 'RH' OR r.nom = 'Human Resources') AND p.module = 'HR'
+      ''');
+    } catch (e) {
+      print('RH permission auto-assignment error: $e');
     }
 
     print('Permission seeding complete.');

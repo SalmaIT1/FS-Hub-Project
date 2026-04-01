@@ -36,16 +36,16 @@ class DemandRoutes {
         result['data'] = [];
       }
 
-      return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json'});
+      return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e, stack) {
       print('❌ ERROR in _getAllDemands: $e\n$stack');
-      return Response.ok(
-        jsonEncode({
+      return Response.internalServerError(
+        body: jsonEncode({
           'success': false, 
-          'message': 'Internal Server Error: $e',
-          'data': [] // Return empty list to prevent frontend crash
+          'message': 'Internal Server Error',
+          'data': []
         }),
-        headers: {'Content-Type': 'application/json'}
+        headers: {'Content-Type': 'application/json; charset=utf-8'}
       );
     }
   }
@@ -56,14 +56,14 @@ class DemandRoutes {
       if (result['success']) {
         final demand = result['data'];
         if (request.authUserRole != 'Admin' && demand['requesterId'] != request.authUserId) {
-          return Response(403, body: jsonEncode({'success': false, 'message': 'Permission denied'}), headers: {'Content-Type': 'application/json'});
+          return Response(403, body: jsonEncode({'success': false, 'message': 'Permission denied'}), headers: {'Content-Type': 'application/json; charset=utf-8'});
         }
-        return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json'});
+        return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json; charset=utf-8'});
       } else {
-        return Response.notFound(jsonEncode(result), headers: {'Content-Type': 'application/json'});
+        return Response.notFound(jsonEncode(result), headers: {'Content-Type': 'application/json; charset=utf-8'});
       }
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'success': false, 'message': e.toString()}));
+      return Response.internalServerError(body: jsonEncode({'success': false, 'message': 'Internal Server Error'}));
     }
   }
 
@@ -74,9 +74,9 @@ class DemandRoutes {
       data['requesterId'] = request.authUserId;
 
       final result = await DemandService.createDemand(data);
-      return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json'});
+      return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'success': false, 'message': e.toString()}));
+      return Response.internalServerError(body: jsonEncode({'success': false, 'message': 'Internal Server Error'}));
     }
   }
 
@@ -86,12 +86,12 @@ class DemandRoutes {
       final result = await DemandService.updateDemandSecurely(id, data, request.authUserId, request.authUserRole);
 
       if (result['success']) {
-        return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json'});
+        return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json; charset=utf-8'});
       } else {
-        return Response(403, body: jsonEncode(result), headers: {'Content-Type': 'application/json'});
+        return Response(403, body: jsonEncode(result), headers: {'Content-Type': 'application/json; charset=utf-8'});
       }
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'success': false, 'message': e.toString()}));
+      return Response.internalServerError(body: jsonEncode({'success': false, 'message': 'Internal Server Error'}));
     }
   }
 
@@ -101,12 +101,12 @@ class DemandRoutes {
       final result = await DemandService.updateDemandStatus(id, data, request.authUserId, request.authUserRole);
 
       if (result['success']) {
-        return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json'});
+        return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json; charset=utf-8'});
       } else {
-        return Response(400, body: jsonEncode(result), headers: {'Content-Type': 'application/json'});
+        return Response(400, body: jsonEncode(result), headers: {'Content-Type': 'application/json; charset=utf-8'});
       }
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'success': false, 'message': e.toString()}));
+      return Response.internalServerError(body: jsonEncode({'success': false, 'message': 'Internal Server Error'}));
     }
   }
 
@@ -114,12 +114,12 @@ class DemandRoutes {
     try {
       final result = await DemandService.deleteDemand(id, request.authUserId, request.authUserRole);
       if (result['success']) {
-        return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json'});
+        return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json; charset=utf-8'});
       } else {
-        return Response(403, body: jsonEncode(result), headers: {'Content-Type': 'application/json'});
+        return Response(403, body: jsonEncode(result), headers: {'Content-Type': 'application/json; charset=utf-8'});
       }
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'success': false, 'message': e.toString()}));
+      return Response.internalServerError(body: jsonEncode({'success': false, 'message': 'Internal Server Error'}));
     }
   }
 }

@@ -49,6 +49,7 @@ INSERT IGNORE INTO permissions (nom, module, description) VALUES
 ('manage_leaves', 'HR', 'Gestion des congés'),
 ('manage_attendance', 'HR', 'Gestion du pointage'),
 ('manage_remote_work', 'HR', 'Gestion du télétravail'),
+('manage_bonuses', 'HR', 'Gestion des primes et bonus'),
 
 -- Project permissions
 ('manage_projects', 'Projects', 'Gestion complète des projets'),

@@ -46,6 +46,12 @@ class ProjectService {
   }
 
   static Future<int> createProject(Map<String, dynamic> data, {String? callerId}) async {
+    // A project cannot start 'En cours' without members, and new projects 
+    // haven't had members assigned yet.
+    if (data['statut'] == 'En cours') {
+      throw Exception('Un nouveau projet doit d’abord être planifié pour y ajouter des membres avant de passer "En cours".');
+    }
+
     final id = await _repository.createProject(data);
     await AuditService.log(callerId ?? 'SYSTEM', 'PROJECT_CREATED', {
       'projectId': id,
@@ -55,6 +61,13 @@ class ProjectService {
   }
 
   static Future<void> updateProject(int id, Map<String, dynamic> data, {String? callerId}) async {
+    if (data['statut'] == 'En cours') {
+      final members = await _repository.getProjectMembers(id);
+      if (members.isEmpty) {
+        throw Exception('Impossible de démarrer le projet : aucun membre assigné.');
+      }
+    }
+
     await _repository.updateProject(id, data);
     if (callerId != null) {
       await AuditService.log(callerId, 'PROJECT_UPDATED', {
@@ -96,7 +109,7 @@ class ProjectService {
     return members.map((m) => m.toJson()).toList();
   }
 
-  static Future<void> addProjectMember(int projectId, String employeeId, {String role = 'Membre'}) async {
+  static Future<void> addProjectMember(int projectId, String employeeId, {String role = 'Employé'}) async {
     await _repository.addProjectMember(projectId, employeeId, role);
   }
 

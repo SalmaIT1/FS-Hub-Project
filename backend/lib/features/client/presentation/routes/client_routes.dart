@@ -23,9 +23,9 @@ class ClientRoutes {
   Future<Response> _getAllClients(Request request) async {
     try {
       final clients = await ClientService.getAllClients();
-      return Response.ok(jsonEncode(clients), headers: {'Content-Type': 'application/json'});
+      return Response.ok(jsonEncode(clients), headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'error': 'Failed to load clients: $e'}));
+      return Response.internalServerError(body: jsonEncode({'error': 'Internal server error'}));
     }
   }
 
@@ -37,9 +37,9 @@ class ClientRoutes {
       final client = await ClientService.getClientById(id);
       if (client == null) return Response.notFound(jsonEncode({'error': 'Client not found'}));
       
-      return Response.ok(jsonEncode(client), headers: {'Content-Type': 'application/json'});
+      return Response.ok(jsonEncode(client), headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'error': 'Failed to load client: $e'}));
+      return Response.internalServerError(body: jsonEncode({'error': 'Internal server error'}));
     }
   }
 
@@ -53,9 +53,9 @@ class ClientRoutes {
       }
       
       final result = await ClientService.createClient(data, callerId: request.authUserId);
-      return Response(201, body: jsonEncode(result), headers: {'Content-Type': 'application/json'});
+      return Response(201, body: jsonEncode(result), headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'message': 'Failed to create: $e'}));
+      return Response.internalServerError(body: jsonEncode({'message': 'Internal server error'}));
     }
   }
 
@@ -67,9 +67,9 @@ class ClientRoutes {
       final body = await request.readAsString();
       final data = jsonDecode(body);
       final result = await ClientService.updateClient(id, data, callerId: request.authUserId);
-      return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json'});
+      return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'error': 'Failed to update: $e'}));
+      return Response.internalServerError(body: jsonEncode({'error': 'Internal server error'}));
     }
   }
 
@@ -83,7 +83,7 @@ class ClientRoutes {
       
       return Response.ok(jsonEncode({'message': 'Client deleted successfully'}));
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'error': 'Failed to delete: $e'}));
+      return Response.internalServerError(body: jsonEncode({'error': 'Internal server error'}));
     }
   }
 
@@ -94,21 +94,21 @@ class ClientRoutes {
       
       final result = await ClientService.getClientCreditScore(id);
       if (result['success']) {
-        return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json'});
+        return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json; charset=utf-8'});
       } else {
         return Response.notFound(jsonEncode(result));
       }
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'message': 'Failed: $e'}));
+      return Response.internalServerError(body: jsonEncode({'message': 'Internal server error'}));
     }
   }
 
   Future<Response> _getAllClientsWithCreditScores(Request request) async {
     try {
       final result = await ClientService.getAllClientsWithCreditScores();
-      return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json'});
+      return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'message': 'Failed: $e'}));
+      return Response.internalServerError(body: jsonEncode({'message': 'Internal server error'}));
     }
   }
 
@@ -119,12 +119,12 @@ class ClientRoutes {
       
       final result = await ClientService.getPaymentHistory(id);
       if (result['success']) {
-        return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json'});
+        return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json; charset=utf-8'});
       } else {
         return Response.notFound(jsonEncode(result));
       }
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'message': 'Failed: $e'}));
+      return Response.internalServerError(body: jsonEncode({'message': 'Internal server error'}));
     }
   }
 }

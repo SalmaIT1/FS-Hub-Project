@@ -20,9 +20,9 @@ class DepartmentRoutes {
   Future<Response> _getAllDepartments(Request request) async {
     try {
       final depts = await DepartmentService.getAllDepartments();
-      return Response.ok(jsonEncode({'success': true, 'data': depts}), headers: {'Content-Type': 'application/json'});
+      return Response.ok(jsonEncode({'success': true, 'data': depts}), headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'success': false, 'message': 'Internal Server Error: $e'}));
+      return Response.internalServerError(body: jsonEncode({'success': false, 'message': 'Internal Server Error'}));
     }
   }
 
@@ -30,9 +30,9 @@ class DepartmentRoutes {
     try {
       final dept = await DepartmentService.getDepartmentById(id);
       if (dept == null) return Response.notFound(jsonEncode({'success': false, 'message': 'Department not found'}));
-      return Response.ok(jsonEncode({'success': true, 'data': dept}), headers: {'Content-Type': 'application/json'});
+      return Response.ok(jsonEncode({'success': true, 'data': dept}), headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'success': false, 'message': 'Internal Server Error: $e'}));
+      return Response.internalServerError(body: jsonEncode({'success': false, 'message': 'Internal Server Error'}));
     }
   }
 
@@ -45,9 +45,9 @@ class DepartmentRoutes {
         return Response(400, body: jsonEncode({'success': false, 'message': 'Department name is required'}));
       }
       await DepartmentService.createDepartment(data);
-      return Response.ok(jsonEncode({'success': true, 'message': 'Department created successfully'}), headers: {'Content-Type': 'application/json'});
+      return Response.ok(jsonEncode({'success': true, 'message': 'Department created successfully'}), headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'success': false, 'message': 'Internal Server Error: $e'}));
+      return Response.internalServerError(body: jsonEncode({'success': false, 'message': 'Internal Server Error'}));
     }
   }
 
@@ -57,9 +57,9 @@ class DepartmentRoutes {
       final body = await request.readAsString();
       final data = jsonDecode(body);
       await DepartmentService.updateDepartment(id, data);
-      return Response.ok(jsonEncode({'success': true, 'message': 'Department updated successfully'}), headers: {'Content-Type': 'application/json'});
+      return Response.ok(jsonEncode({'success': true, 'message': 'Department updated successfully'}), headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'success': false, 'message': 'Internal Server Error: $e'}));
+      return Response.internalServerError(body: jsonEncode({'success': false, 'message': 'Internal Server Error'}));
     }
   }
 
@@ -68,9 +68,9 @@ class DepartmentRoutes {
       if (!request.isAdmin) return Response.forbidden(jsonEncode({'success': false, 'message': 'Admin only'}));
       final res = await DepartmentService.deleteDepartment(id);
       if (!res['success']) return Response(400, body: jsonEncode(res));
-      return Response.ok(jsonEncode({'success': true, 'message': 'Department deleted successfully'}), headers: {'Content-Type': 'application/json'});
+      return Response.ok(jsonEncode({'success': true, 'message': 'Department deleted successfully'}), headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'success': false, 'message': e.toString()}));
+      return Response.internalServerError(body: jsonEncode({'success': false, 'message': 'Internal Server Error'}));
     }
   }
 }

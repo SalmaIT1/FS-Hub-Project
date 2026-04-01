@@ -28,8 +28,9 @@ class UrlUtils {
     }
     
     // 2. Handle base64 fallback for long strings without prefix
-    if (raw.length > 100 && !raw.startsWith('/')) {
-      return 'data:image/jpeg;base64,$raw';
+    final cleanedRaw = raw.replaceAll(RegExp(r'\s+'), '');
+    if (cleanedRaw.length > 200) {
+      return 'data:image/jpeg;base64,$cleanedRaw';
     }
     
     // 3. filename or relative URL — make absolute with /media/ prefix if missing

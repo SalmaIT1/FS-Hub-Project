@@ -32,7 +32,7 @@ class PosteRoutes {
       if (deptIdParam != null) {
         final deptId = int.tryParse(deptIdParam);
         if (deptId == null) {
-          return Response(400, body: jsonEncode({'success': false, 'message': 'Invalid departement_id'}), headers: {'content-type': 'application/json'});
+          return Response(400, body: jsonEncode({'success': false, 'message': 'Invalid departement_id'}), headers: {'content-type': 'application/json; charset=utf-8'});
         }
         postes = await _posteService.getPostesByDepartment(deptId);
       } else {
@@ -45,16 +45,16 @@ class PosteRoutes {
           'data': postes,
           'message': 'Postes retrieved successfully',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e, stackTrace) {
       print('Exception in _getAllPostes: $e\n$stackTrace');
       return Response.internalServerError(
         body: jsonEncode({
           'success': false,
-          'message': 'Failed to retrieve postes: $e',
+          'message': 'Internal server error',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -70,7 +70,7 @@ class PosteRoutes {
             'success': false,
             'message': 'Poste not found',
           }),
-          headers: {'content-type': 'application/json'},
+          headers: {'content-type': 'application/json; charset=utf-8'},
         );
       }
 
@@ -80,15 +80,15 @@ class PosteRoutes {
           'data': poste!.toJson(),
           'message': 'Poste retrieved successfully',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
         body: jsonEncode({
           'success': false,
-          'message': 'Failed to retrieve poste: $e',
+          'message': 'Internal server error',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -103,15 +103,15 @@ class PosteRoutes {
       return Response(
         result['success'] ? 201 : 400,
         body: jsonEncode(result),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
         body: jsonEncode({
           'success': false,
-          'message': 'Failed to create poste: $e',
+          'message': 'Internal server error',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -127,15 +127,15 @@ class PosteRoutes {
       return Response(
         result['success'] ? 200 : 400,
         body: jsonEncode(result),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
         body: jsonEncode({
           'success': false,
-          'message': 'Failed to update poste: $e',
+          'message': 'Internal server error',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -148,15 +148,15 @@ class PosteRoutes {
       return Response(
         result['success'] ? 200 : 404,
         body: jsonEncode(result),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
         body: jsonEncode({
           'success': false,
-          'message': 'Failed to delete poste: $e',
+          'message': 'Internal server error',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -168,7 +168,7 @@ class PosteRoutes {
         return Response(400, body: jsonEncode({
           'success': false,
           'message': 'Search query parameter "q" is required',
-        }), headers: {'content-type': 'application/json'});
+        }), headers: {'content-type': 'application/json; charset=utf-8'});
       }
       
       final result = await _posteService.searchPostesWithResponse(query);
@@ -176,15 +176,15 @@ class PosteRoutes {
       return Response(
         result['success'] ? 200 : 400,
         body: jsonEncode(result),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
         body: jsonEncode({
           'success': false,
-          'message': 'Failed to search postes: $e',
+          'message': 'Internal server error',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -196,15 +196,15 @@ class PosteRoutes {
       return Response(
         result['success'] ? 200 : 400,
         body: jsonEncode(result),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
         body: jsonEncode({
           'success': false,
-          'message': 'Failed to retrieve poste statistics: $e',
+          'message': 'Internal server error',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }

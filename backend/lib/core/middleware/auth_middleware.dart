@@ -34,7 +34,7 @@ Middleware requireAuth() {
           401,
           body: jsonEncode(
               {'success': false, 'message': 'Authorization required'}),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       }
 
@@ -44,7 +44,7 @@ Middleware requireAuth() {
         return Response(
           401,
           body: jsonEncode({'success': false, 'message': 'Token revoked'}),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       }
 
@@ -55,7 +55,7 @@ Middleware requireAuth() {
           401,
           body: jsonEncode(
               {'success': false, 'message': 'Invalid or expired token'}),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       }
 
@@ -66,7 +66,7 @@ Middleware requireAuth() {
         return Response(
           401,
           body: jsonEncode({'success': false, 'message': 'Invalid token payload'}),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       }
 
@@ -103,7 +103,7 @@ Middleware requireRole(List<String> allowedRoles) {
             'success': false,
             'message': 'Insufficient permissions. Required roles: $allowedRoles'
           }),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       }
 
@@ -126,7 +126,7 @@ Middleware checkPermission(String permission) {
             'success': false,
             'message': 'Permission denied: $permission'
           }),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       }
 

@@ -9,3 +9,8 @@ build/
 NativeAssetsManifest.json
 NOTICES.Z
 kernel_blob.bin
+
+# Environment / Secrets — NEVER commit these
+.env
+*.env
+backend/.env

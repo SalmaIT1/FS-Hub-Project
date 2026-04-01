@@ -8,7 +8,9 @@ import '../../data/models/auth_session_model.dart';
 import 'dart:io';
 import 'dart:math';
 import '../../../email/domain/services/email_service.dart';
-// Just in case it's needed for JSON and crypto.
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
+import '../../../demand/data/repositories/demand_repository.dart';
 
 class AuthService {
   static final _repository = AuthRepository();
@@ -110,28 +112,21 @@ class AuthService {
 
       final accessToken = _generateAccessToken(userId, userRole ?? 'Employé');
       final refreshToken = _generateRefreshToken(userId);
-      print('[DEBUG] Tokens generated for userId: $userId');
-
       try {
         await _repository.saveRefreshToken(
           userId: userId,
           token: refreshToken,
           expiresAt: DateTime.now().add(_refreshTokenExpiry),
         );
-        print('[DEBUG] Refresh token saved');
       } catch (e) {
-        print('Failed to persist refresh token: $e');
+        print('[AUTH] Failed to persist refresh token: $e');
       }
 
-      print('[DEBUG] Converting userRow to UserModel. userRow keys: ${userRow.keys}');
-      print('[DEBUG] permissions type: ${userRow['permissions'].runtimeType}');
-      
       final session = AuthSessionModel(
         accessToken: accessToken,
         refreshToken: refreshToken,
         user: UserModel.fromMap(userRow),
       );
-      print('[DEBUG] Session created');
 
       return {
         'success': true,
@@ -183,7 +178,9 @@ class AuthService {
       }
 
       final userId = jwt.payload['userId']?.toString();
-      if (userId == null) {
+      final type = jwt.payload['type']?.toString();
+
+      if (userId == null || type != 'refresh') {
         return {'success': false, 'message': 'Invalid refresh token payload'};
       }
 
@@ -233,7 +230,7 @@ class AuthService {
       };
     } catch (e) {
       print('Refresh token error: $e');
-      return {'success': false, 'message': 'Failed to refresh token'};
+      return {'success': false, 'message': 'Internal Server Error'};
     }
   }
 
@@ -267,7 +264,7 @@ class AuthService {
       };
     } catch (e) {
       print('Get profile error: $e');
-      return {'success': false, 'message': 'Failed to get profile'};
+      return {'success': false, 'message': 'Internal Server Error'};
     }
   }
 
@@ -293,50 +290,92 @@ class AuthService {
       return {'success': true, 'message': 'Password updated successfully'};
     } catch (e) {
       print('Change password error: $e');
-      return {'success': false, 'message': 'Failed to update password'};
+      return {'success': false, 'message': 'Internal Server Error'};
     }
   }
 
   // ── Forgot Password & Admin Reset ─────────────────────────────────────────
 
+  /// HARSH FIX: Password Complexity check.
+  static bool validatePasswordComplexity(String password) {
+    if (password.length < 8) return false;
+    final hasUpper = password.contains(RegExp(r'[A-Z]'));
+    final hasLower = password.contains(RegExp(r'[a-z]'));
+    final hasDigit = password.contains(RegExp(r'[0-9]'));
+    final hasSpec  = password.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'));
+    return hasUpper && hasLower && hasDigit && hasSpec;
+  }
+
   /// Self-service forgot password. 
-  /// In this flow, we generate a new password and send it to the user.
+  /// Issuing a token instead of changing password instantly (prevents lockout).
   static Future<Map<String, dynamic>> forgotPassword(String email) async {
+    const uniformResponse = {
+      'success': true, 
+      'message': 'Your request has been sent to our administrator for verification. You will receive an email shortly.'
+    };
     try {
       final userRow = await _repository.findUserByUsernameOrEmail(email);
-      if (userRow == null) {
-        // For security, don't reveal if user exists, but we can't send email if not.
-        // But for internal tool, we can be more explicit.
-        return {'success': false, 'message': 'No account associated with this email'};
-      }
+      if (userRow == null) return uniformResponse;
 
       final userId = userRow['id'].toString();
-      final userName = '${userRow['prenom'] ?? ''} ${userRow['nom'] ?? ''}'.trim();
       final userEmail = userRow['email'] as String?;
+      if (userEmail == null || userEmail.isEmpty) return uniformResponse;
 
-      if (userEmail == null || userEmail.isEmpty) {
-        return {'success': false, 'message': 'Account has no associated email'};
-      }
-
-      final newPassword = _generateRandomPassword();
-      final hashedUrl = BCrypt.hashpw(newPassword, BCrypt.gensalt());
-
-      await _repository.updatePassword(userId, hashedUrl);
-
-      final emailResult = await EmailService.sendPasswordResetEmail(
-        userEmail: userEmail,
-        userName: userName.isEmpty ? (userRow['username'] ?? 'User') : userName,
-        newPassword: newPassword,
+      // Instead of sending reset link, create a Manual Demand ticket for Admin
+      final demandRepo = DemandRepository();
+      
+      // Check if there is already a pending reset demand for this user
+      final existingDemands = await demandRepo.getAllDemands(
+        requesterId: userId,
+        type: 'password_reset',
+        status: 'pending',
+        isAdmin: true
       );
 
-      if (emailResult['success'] == true) {
-        return {'success': true, 'message': 'A new password has been sent to your email'};
-      } else {
-        return {'success': false, 'message': 'Failed to send email: ${emailResult['error']}'};
+      if (existingDemands.isEmpty) {
+        await demandRepo.createDemand({
+          'type': 'password_reset',
+          'description': 'L\'utilisateur a demandé une réinitialisation de son mot de passe via l\'écran de connexion.',
+          'requesterId': userId,
+        });
       }
+
+      return uniformResponse;
     } catch (e) {
-      print('Forgot password error: $e');
-      return {'success': false, 'message': 'An error occurred during password reset'};
+      print('[AUTH] Forgot password demand creation error: $e');
+      return uniformResponse;
+    }
+  }
+
+  /// Consumes a reset token and sets a new password.
+  static Future<Map<String, dynamic>> resetPasswordWithToken(String token, String newPassword) async {
+    try {
+      if (!validatePasswordComplexity(newPassword)) {
+        return {'success': false, 'message': 'Password is too weak. Must have upper, lower, digit and special.'};
+      }
+
+      final hash = sha256.convert(utf8.encode(token)).toString();
+      final info = await _repository.getResetTokenInfo(hash);
+
+      if (info == null || info['is_used'] == true) {
+        return {'success': false, 'message': 'Invalid or already used token.'};
+      }
+
+      final expiresAt = DateTime.parse(info['expires_at'].toString());
+      if (DateTime.now().isAfter(expiresAt)) {
+        return {'success': false, 'message': 'Token expired.'};
+      }
+
+      final userId = info['user_id'].toString();
+      final hashedPassword = BCrypt.hashpw(newPassword, BCrypt.gensalt());
+      
+      await _repository.updatePassword(userId, hashedPassword);
+      await _repository.markResetTokenUsed(hash);
+
+      return {'success': true, 'message': 'Password has been reset.'};
+    } catch (e) {
+      print('resetPasswordWithToken error: $e');
+      return {'success': false, 'message': 'Internal Server Error'};
     }
   }
 
@@ -344,36 +383,34 @@ class AuthService {
   static Future<Map<String, dynamic>> adminResetUserPassword(String targetUserId) async {
     try {
       final profile = await _repository.getProfile(targetUserId);
-      if (profile == null) {
-        return {'success': false, 'message': 'User not found'};
-      }
+      if (profile == null) return {'success': false, 'message': 'User not found'};
 
-      final userName = '${profile.prenom} ${profile.nom}'.trim();
       final userEmail = profile.email;
+      if (userEmail == null || userEmail.isEmpty) return {'success': false, 'message': 'User has no email'};
 
-      if (userEmail == null || userEmail.isEmpty) {
-        return {'success': false, 'message': 'User has no associated email'};
-      }
+      final token = const Uuid().v4();
+      final hash = sha256.convert(utf8.encode(token)).toString();
+      final expiresAt = DateTime.now().add(const Duration(hours: 24));
 
-      final newPassword = _generateRandomPassword();
-      final hashedUrl = BCrypt.hashpw(newPassword, BCrypt.gensalt());
+      await _repository.savePasswordResetToken(
+        userId: targetUserId, 
+        tokenHash: hash, 
+        expiresAt: expiresAt
+      );
 
-      await _repository.updatePassword(targetUserId, hashedUrl);
-
-      final emailResult = await EmailService.sendPasswordResetEmail(
+      await EmailService.sendPasswordResetEmail(
         userEmail: userEmail,
-        userName: userName.isEmpty ? profile.username : userName,
-        newPassword: newPassword,
+        userName: profile.prenom ?? 'User',
+        resetToken: token,
       );
 
       return {
         'success': true, 
-        'message': 'Password has been reset and email sent to $userEmail',
-        'data': {'newPassword': newPassword} // Return to admin just in case
+        'message': 'A reset link has been sent to $userEmail',
       };
     } catch (e) {
       print('Admin reset password error: $e');
-      return {'success': false, 'message': 'Failed to reset user password'};
+      return {'success': false, 'message': 'Internal Server Error'};
     }
   }
 
@@ -444,6 +481,7 @@ class AuthService {
       return List<String>.from(perms);
     } catch (e) {
       print('Error getting user permissions: $e');
+      // HARSH FIX: Don't leak internals even in private logs if possible.
       return [];
     }
   }

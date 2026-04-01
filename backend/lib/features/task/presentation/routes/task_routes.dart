@@ -24,9 +24,9 @@ class TaskRoutes {
   Future<Response> _getAllTasks(Request request) async {
     try {
       final tasks = await TaskService.getAllTasks();
-      return Response.ok(jsonEncode(tasks), headers: {'Content-Type': 'application/json'});
+      return Response.ok(jsonEncode(tasks), headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'error': e.toString()}));
+      return Response.internalServerError(body: jsonEncode({'error': 'Internal server error'}));
     }
   }
 
@@ -34,9 +34,9 @@ class TaskRoutes {
     try {
       final userId = request.authUserId;
       final tasks = await TaskService.getMyTasks(userId);
-      return Response.ok(jsonEncode(tasks), headers: {'Content-Type': 'application/json'});
+      return Response.ok(jsonEncode(tasks), headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'error': e.toString()}));
+      return Response.internalServerError(body: jsonEncode({'error': 'Internal server error'}));
     }
   }
 
@@ -45,10 +45,14 @@ class TaskRoutes {
       final sid = int.tryParse(sprintId);
       if (sid == null) return Response.badRequest(body: jsonEncode({'error': 'Invalid ID'}));
       
-      final tasks = await TaskService.getTasksBySprint(sid);
-      return Response.ok(jsonEncode(tasks), headers: {'Content-Type': 'application/json'});
+      final tasks = await TaskService.getTasksBySprint(
+        sid,
+        callerRole: request.authUserRole,
+        callerId: request.authUserId,
+      );
+      return Response.ok(jsonEncode(tasks), headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'error': e.toString()}));
+      return Response.internalServerError(body: jsonEncode({'error': 'Internal server error'}));
     }
   }
 
@@ -57,11 +61,15 @@ class TaskRoutes {
       final id = int.tryParse(idString);
       if (id == null) return Response.badRequest(body: jsonEncode({'error': 'Invalid format'}));
       
-      final task = await TaskService.getTaskById(id);
-      if (task == null) return Response.notFound(jsonEncode({'error': 'Task not found'}));
-      return Response.ok(jsonEncode(task), headers: {'Content-Type': 'application/json'});
+      final task = await TaskService.getTaskById(
+        id, 
+        callerRole: request.authUserRole, 
+        callerId: request.authUserId
+      );
+      if (task == null) return Response.notFound(jsonEncode({'error': 'Task not found or access denied'}));
+      return Response.ok(jsonEncode(task), headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'error': e.toString()}));
+      return Response.internalServerError(body: jsonEncode({'error': 'Internal server error'}));
     }
   }
 
@@ -74,7 +82,7 @@ class TaskRoutes {
       await TaskService.createTask(data, callerId: request.authUserId);
       return Response(201, body: jsonEncode({'success': true, 'message': 'Task created'}));
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'error': e.toString()}));
+      return Response.internalServerError(body: jsonEncode({'error': 'Internal server error'}));
     }
   }
 
@@ -87,9 +95,9 @@ class TaskRoutes {
       if (employeeId == null) return Response.badRequest(body: jsonEncode({'error': 'employeeId is required'}));
       
       final res = await TaskService.bulkAssignTasks(taskIds, employeeId, callerId: request.authUserId);
-      return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json'});
+      return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'error': e.toString()}));
+      return Response.internalServerError(body: jsonEncode({'error': 'Internal server error'}));
     }
   }
 
@@ -102,10 +110,7 @@ class TaskRoutes {
       await TaskService.updateTask(id, data, request.authUserId, request.authUserPermissions, request.isAdmin);
       return Response.ok(jsonEncode({'success': true, 'message': 'Task updated'}));
     } catch (e) {
-      if (e.toString().contains('Permission denied')) {
-        return Response.forbidden(jsonEncode({'error': e.toString().replaceAll('Exception: ', '')}));
-      }
-      return Response.internalServerError(body: jsonEncode({'error': e.toString()}));
+      return Response.internalServerError(body: jsonEncode({'error': 'Internal server error'}));
     }
   }
 
@@ -116,7 +121,7 @@ class TaskRoutes {
       await TaskService.deleteTask(id, callerId: request.authUserId);
       return Response.ok(jsonEncode({'success': true, 'message': 'Task deleted'}));
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'error': e.toString()}));
+      return Response.internalServerError(body: jsonEncode({'error': 'Internal server error'}));
     }
   }
 
@@ -125,10 +130,14 @@ class TaskRoutes {
       final sid = int.tryParse(sprintId);
       if (sid == null) return Response.badRequest(body: jsonEncode({'error': 'Invalid ID'}));
       
-      final data = await TaskService.getBurndownData(sid);
-      return Response.ok(jsonEncode(data), headers: {'Content-Type': 'application/json'});
+      final data = await TaskService.getBurndownData(
+        sid,
+        callerRole: request.authUserRole,
+        callerId: request.authUserId,
+      );
+      return Response.ok(jsonEncode(data), headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'error': e.toString()}));
+      return Response.internalServerError(body: jsonEncode({'error': 'Internal server error'}));
     }
   }
 }

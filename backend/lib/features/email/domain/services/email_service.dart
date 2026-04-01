@@ -31,13 +31,13 @@ class EmailService {
   static Future<Map<String, dynamic>> sendPasswordResetEmail({
     required String userEmail,
     required String userName,
-    required String newPassword,
+    required String resetToken,
   }) async {
     try {
       if (!_emailEnabled) return {'success': false, 'error': 'Email service is disabled'};
 
-      final subject = 'Your FS Hub Password Has Been Reset';
-      final body = _buildPasswordResetEmail(userName, newPassword);
+      final subject = 'Your FS Hub Password Reset Link';
+      final body = _buildPasswordResetEmail(userName, resetToken);
 
       final smtpServer = _getSmtpServer();
 
@@ -49,6 +49,32 @@ class EmailService {
 
       await send(message, smtpServer);
       return {'success': true, 'message': 'Password reset email sent to $userEmail'};
+    } catch (e) {
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  static Future<Map<String, dynamic>> sendNewPasswordEmail({
+    required String userEmail,
+    required String userName,
+    required String newPassword,
+  }) async {
+    try {
+      if (!_emailEnabled) return {'success': false, 'error': 'Email service is disabled'};
+
+      final subject = 'Your new password for FS Hub';
+      final body = _buildNewPasswordEmail(userName, newPassword);
+
+      final smtpServer = _getSmtpServer();
+
+      final message = Message()
+        ..from = Address(_fromEmail, _fromName)
+        ..recipients.add(userEmail)
+        ..subject = subject
+        ..html = body;
+
+      await send(message, smtpServer);
+      return {'success': true, 'message': 'New password emailed to $userEmail'};
     } catch (e) {
       return {'success': false, 'error': e.toString()};
     }
@@ -81,7 +107,7 @@ class EmailService {
     }
   }
 
-  static String _buildPasswordResetEmail(String userName, String newPassword) {
+  static String _buildPasswordResetEmail(String userName, String resetToken) {
     return '''
 <!DOCTYPE html>
 <html>
@@ -90,10 +116,30 @@ class EmailService {
     <title>Password Reset - FS Hub</title>
 </head>
 <body>
-    <h1>Password Reset Complete</h1>
+    <h1>Password Reset Request</h1>
     <p>Dear $userName,</p>
-    <p>Your password has been reset to: <strong>$newPassword</strong></p>
-    <p>Please change it immediately after logging in.</p>
+    <p>A password reset has been requested for your account. Please use the following token or link to reset it:</p>
+    <p>Token: <strong>$resetToken</strong></p>
+    <p>If you did not request this, please ignore this email.</p>
+</body>
+</html>
+    ''';
+  }
+
+  static String _buildNewPasswordEmail(String userName, String newPassword) {
+    return '''
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Your New Password - FS Hub</title>
+</head>
+<body>
+    <h1>Password Change</h1>
+    <p>Dear $userName,</p>
+    <p>Your password has been successfully reset by an administrator.</p>
+    <p>Your new password is: <strong>$newPassword</strong></p>
+    <p>Please log in and we recommend you change this password to a personal one.</p>
 </body>
 </html>
     ''';

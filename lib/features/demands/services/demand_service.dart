@@ -135,12 +135,13 @@ class DemandService {
   }
 
   /// Update demand status
-  static Future<Map<String, dynamic>> updateDemandStatus(String id, String status, {String? resolutionNotes, String? handledBy}) async {
+  static Future<Map<String, dynamic>> updateDemandStatus(String id, String status, {String? resolutionNotes, String? handledBy, String? newPassword}) async {
     try {
       final updateData = {
         'status': status,
-        'resolutionNotes': resolutionNotes,
-        'handledBy': handledBy,
+        if (resolutionNotes != null) 'resolutionNotes': resolutionNotes,
+        if (handledBy != null) 'handledBy': handledBy,
+        if (newPassword != null) 'new_password': newPassword,
       };
 
       final result = await ApiService.put(

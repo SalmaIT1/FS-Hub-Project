@@ -273,7 +273,7 @@ class _ProjectsListPageState extends State<ProjectsListPage> with SingleTickerPr
 }
 
   Widget _buildDeadlineAlert(Project project, bool isDark) {
-    if (project.dateFinPrevue == null || project.statut == 'Terminé') {
+    if (project.dateFinPrevue == null || project.statut == 'Termine' || project.statut == 'Terminé') {
       return const SizedBox.shrink();
     }
 
@@ -320,9 +320,9 @@ class _ProjectsListPageState extends State<ProjectsListPage> with SingleTickerPr
   Widget _buildStatusBadge(String status) {
     Color color;
     switch (status) {
-      case 'Planifié': color = Colors.blue; break;
+      case 'Planifie': case 'Planifié': color = Colors.blue; break;
       case 'En cours': color = Colors.orange; break;
-      case 'Terminé': color = Colors.green; break;
+      case 'Termine': case 'Terminé': color = Colors.green; break;
       case 'En retard': color = Colors.red; break;
       default: color = Colors.grey;
     }
@@ -463,7 +463,7 @@ class _AddEditProjectDialogState extends State<AddEditProjectDialog> {
   int? _selectedClientId;
   List<Client> _clients = [];
   String _selectedPriorite = 'Moyenne';
-  String _selectedStatut = 'Planifié';
+  String _selectedStatut = 'Planifie';
   DateTime? _dateDebut;
   DateTime? _dateFin;
   bool _isSaving = false;
@@ -478,8 +478,18 @@ class _AddEditProjectDialogState extends State<AddEditProjectDialog> {
     
     if (widget.project != null) {
       _selectedClientId = widget.project!.clientId;
+      
+      // Normalize values to match dropdown items exactly (avoiding accent mismatches)
+      final status = widget.project!.statut;
+      if (status == 'Planifié') {
+        _selectedStatut = 'Planifie';
+      } else if (status == 'Terminé') {
+        _selectedStatut = 'Termine';
+      } else {
+        _selectedStatut = status;
+      }
+
       _selectedPriorite = widget.project!.priorite;
-      _selectedStatut = widget.project!.statut;
       _dateDebut = widget.project!.dateDebut;
       _dateFin = widget.project!.dateFinPrevue;
     }
@@ -562,7 +572,7 @@ class _AddEditProjectDialogState extends State<AddEditProjectDialog> {
                       
                       _buildLabel(settings.translate('clients') ?? 'CLIENT PORTFOLIO'),
                       _buildDropdownField<int>(
-                        value: _selectedClientId,
+                        value: _clients.any((c) => c.id == _selectedClientId) ? _selectedClientId : null,
                         hint: 'Sélectionner un client',
                         isDark: isDark,
                         icon: Icons.person_search_rounded,
@@ -615,13 +625,18 @@ class _AddEditProjectDialogState extends State<AddEditProjectDialog> {
                               children: [
                                 _buildLabel('PRIORITÉ'),
                                 _buildDropdownField<String>(
-                                  value: _selectedPriorite,
+                                  value: ['Faible', 'Moyenne', 'Haute', 'Critique'].contains(_selectedPriorite) ? _selectedPriorite : 'Moyenne',
                                   hint: 'Priorité',
                                   isDark: isDark,
                                   icon: Icons.priority_high_rounded,
-                                  items: ['Faible', 'Moyenne', 'Haute', 'Critique'].map((p) => DropdownMenuItem(
-                                    value: p,
-                                    child: Text(p, style: const TextStyle(fontSize: 14)),
+                                  items: [
+                                    {'value': 'Faible', 'label': 'Faible'},
+                                    {'value': 'Moyenne', 'label': 'Moyenne'},
+                                    {'value': 'Haute', 'label': 'Haute'},
+                                    {'value': 'Critique', 'label': 'Critique'}
+                                  ].map<DropdownMenuItem<String>>((p) => DropdownMenuItem<String>(
+                                    value: p['value']!,
+                                    child: Text(p['label']!, style: const TextStyle(fontSize: 14)),
                                   )).toList(),
                                   onChanged: (v) => setState(() => _selectedPriorite = v!),
                                 ),
@@ -635,13 +650,18 @@ class _AddEditProjectDialogState extends State<AddEditProjectDialog> {
                               children: [
                                 _buildLabel('STATUT'),
                                 _buildDropdownField<String>(
-                                  value: _selectedStatut,
+                                  value: ['Planifie', 'En cours', 'Termine', 'En retard'].contains(_selectedStatut) ? _selectedStatut : 'Planifie',
                                   hint: 'Statut',
                                   isDark: isDark,
                                   icon: Icons.flag_rounded,
-                                  items: ['Planifié', 'En cours', 'Terminé', 'En retard'].map((s) => DropdownMenuItem(
-                                    value: s,
-                                    child: Text(s, style: const TextStyle(fontSize: 14)),
+                                  items: [
+                                    {'value': 'Planifie', 'label': 'Planifié'},
+                                    if (widget.project != null) {'value': 'En cours', 'label': 'En cours'},
+                                    {'value': 'Termine', 'label': 'Terminé'},
+                                    {'value': 'En retard', 'label': 'En retard'}
+                                  ].map<DropdownMenuItem<String>>((s) => DropdownMenuItem<String>(
+                                    value: s['value']!,
+                                    child: Text(s['label']!, style: const TextStyle(fontSize: 14)),
                                   )).toList(),
                                   onChanged: (v) => setState(() => _selectedStatut = v!),
                                 ),

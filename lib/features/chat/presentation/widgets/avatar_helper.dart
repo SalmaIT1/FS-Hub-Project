@@ -17,9 +17,14 @@ class AvatarHelper {
     }
   }
 
-  /// Clean base64 string from any potential weird characters/newlines
+  /// Clean base64 string from any potential weird characters/newlines and fix padding
   static String _cleanBase64(String raw) {
-    return raw.replaceAll(RegExp(r'\s+'), '').trim();
+    String cleaned = raw.replaceAll(RegExp(r'[\s\n\r]+'), '').trim();
+    int remainder = cleaned.length % 4;
+    if (remainder > 0) {
+      cleaned += '=' * (4 - remainder);
+    }
+    return cleaned;
   }
 
   /// Higher-level method that returns a Widget, matching EmployeeCard's robust logic.
@@ -37,10 +42,11 @@ class AvatarHelper {
 
     if (normalizedUrl.startsWith('data:')) {
       try {
-        final base64Part = normalizedUrl.split(',').last;
+        final commaIndex = normalizedUrl.indexOf(',');
+        final base64Part = commaIndex != -1 ? normalizedUrl.substring(commaIndex + 1) : normalizedUrl;
         final bytes = _decodeBase64(_cleanBase64(base64Part));
         if (bytes != null) {
-          provider = MemoryImage(bytes);
+          provider = ResizeImage(MemoryImage(bytes), width: 256);
           print('[AvatarHelper] Created MemoryImage from data URL');
         } else {
           print('[AvatarHelper] Failed to decode base64 bytes');
@@ -121,24 +127,27 @@ class AvatarHelper {
 
     if (url.startsWith('data:')) {
       try {
-        final base64String = url.split(',').last;
-        return MemoryImage(base64Decode(base64String.trim()));
+        final commaIndex = url.indexOf(',');
+        final base64String = commaIndex != -1 ? url.substring(commaIndex + 1) : url;
+        return ResizeImage(MemoryImage(base64Decode(_cleanBase64(base64String))), width: 256);
       } catch (_) { return null; }
     }
 
     if (url.startsWith('http') && url.contains('/media/')) {
       final parts = url.split('/media/');
       if (parts.length > 1 && parts.last.length > 50) {
-        try { return MemoryImage(base64Decode(parts.last.trim())); } catch (_) {}
+        try { return ResizeImage(MemoryImage(base64Decode(_cleanBase64(parts.last))), width: 256); } catch (_) {}
       }
     }
 
     if (url.length > 50 && !url.startsWith('http')) {
-      try { return MemoryImage(base64Decode(url.trim())); } catch (_) {}
+      try { return ResizeImage(MemoryImage(base64Decode(_cleanBase64(url))), width: 256); } catch (_) {}
     }
 
     if (url.startsWith('http')) return NetworkImage(url);
     
     return null;
   }
+
 }
+

@@ -52,11 +52,19 @@ class ProjectService {
         body: project.toJson(),
       );
 
+      String message = response.statusCode == 201 ? 'Project created successfully' : 'Failed to create project';
+      if (response.statusCode != 201) {
+        try {
+          final errorBody = jsonDecode(response.body);
+          if (errorBody is Map && errorBody.containsKey('error')) {
+            message = errorBody['error'];
+          }
+        } catch (_) {}
+      }
+
       return {
         'success': response.statusCode == 201,
-        'message': response.statusCode == 201 
-            ? 'Project created successfully' 
-            : 'Failed to create project: ${response.body}',
+        'message': message,
         'data': response.statusCode == 201 ? jsonDecode(response.body) : null,
       };
     } catch (e) {
@@ -74,11 +82,19 @@ class ProjectService {
         body: project.toJson(),
       );
 
+      String message = response.statusCode == 200 ? 'Project updated successfully' : 'Failed to update project';
+      if (response.statusCode != 200) {
+        try {
+          final errorBody = jsonDecode(response.body);
+          if (errorBody is Map && errorBody.containsKey('error')) {
+            message = errorBody['error'];
+          }
+        } catch (_) {}
+      }
+
       return {
         'success': response.statusCode == 200,
-        'message': response.statusCode == 200 
-            ? 'Project updated successfully' 
-            : 'Failed to update project: ${response.body}',
+        'message': message,
       };
     } catch (e) {
       return {'success': false, 'message': 'Network error: $e'};

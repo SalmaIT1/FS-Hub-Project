@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fs_hub/features/auth/presentation/pages/login_page.dart';
+import 'package:fs_hub/features/auth/presentation/pages/reset_password_page.dart';
 import 'package:fs_hub/features/auth/presentation/pages/splash_page.dart';
 import 'package:fs_hub/features/home/screens/home/home_page.dart';
 import 'package:fs_hub/features/employees/screens/employee_detail_page.dart';
@@ -30,6 +31,7 @@ import 'package:fs_hub/features/hr/presentation/pages/hr_leaves_page.dart';
 import 'package:fs_hub/features/hr/presentation/pages/hr_remote_work_page.dart';
 import 'package:fs_hub/features/hr/presentation/pages/hr_salaries_page.dart';
 import 'package:fs_hub/features/hr/presentation/pages/hr_bonuses_page.dart';
+import 'package:fs_hub/features/hr/presentation/pages/hr_attendance_history_page.dart';
 import 'package:fs_hub/features/auth/data/datasources/auth_remote_datasource.dart';
 import 'package:fs_hub/core/theme/app_theme.dart';
 import 'package:fs_hub/core/routes/app_routes.dart';
@@ -37,6 +39,8 @@ import 'package:fs_hub/shared/widgets/layout/custom_title_bar.dart';
 import 'package:fs_hub/shared/widgets/layout/main_layout.dart';
 import 'package:fs_hub/core/security/permission_guard.dart';
 import 'package:fs_hub/core/security/protected_route.dart';
+import 'package:fs_hub/shared/models/employee_model.dart';
+import 'package:fs_hub/features/clients/models/client_model.dart';
 
 import 'package:fs_hub/core/state/settings_controller.dart';
 import 'package:fs_hub/pages/settings_page.dart';
@@ -134,7 +138,11 @@ class MyApp extends StatelessWidget {
           create: (_) => ChatRemoteDatasource(baseUrl: apiBaseUrl, tokenProvider: () => getToken()),
         ),
         Provider<ChatSocketDatasource>(
-          create: (_) => ChatSocketDatasource(wsUrl: wsBaseUrl, tokenProvider: () => getToken()),
+          create: (_) => ChatSocketDatasource(
+            wsUrl: wsBaseUrl, 
+            apiBaseUrl: apiBaseUrl, 
+            tokenProvider: () => getToken()
+          ),
         ),
         Provider<UploadDatasource>(
           create: (_) => UploadDatasource(baseUrl: apiBaseUrl, tokenProvider: () => getToken()),
@@ -163,6 +171,7 @@ class MyApp extends StatelessWidget {
             home: const SplashScreen(),
             routes: {
               '/login': (context) => const GlassLoginPage(),
+              AppRoutes.resetPassword: (context) => const ResetPasswordPage(),
               '/home': (context) => const MainLayout(initialRoute: '/'),
               '/employees': (context) => const MainLayout(initialRoute: '/employees'),
               '/demands': (context) => const MainLayout(initialRoute: '/demands'),
@@ -175,6 +184,10 @@ class MyApp extends StatelessWidget {
               AppRoutes.hrAttendance: (context) => ProtectedRoute(
                 requiredPermissions: ['view_employees', 'manage_attendance'],
                 child: const HrAttendancePage(),
+              ),
+              AppRoutes.hrAttendanceHistory: (context) => ProtectedRoute(
+                requiredPermissions: ['view_employees', 'manage_attendance'],
+                child: const HrAttendanceHistoryPage(),
               ),
               AppRoutes.hrLeaves: (context) => ProtectedRoute(
                 requiredPermissions: ['view_employees', 'manage_leaves'],
@@ -192,14 +205,12 @@ class MyApp extends StatelessWidget {
                 requiredPermissions: ['view_employees', 'manage_bonuses'],
                 child: const HrBonusesPage(),
               ),
-              '/clients': (context) => const MainLayout(
-                initialRoute: '/clients',
-              ),
+              '/clients': (context) => const ClientsListPage(),
               AppRoutes.departments: (context) => ProtectedRoute(
                 requiredPermissions: ['manage_system'],
                 child: DepartmentsPage(),
               ),
-              AppRoutes.projects: (context) => const MainLayout(initialRoute: '/projects'),
+              AppRoutes.projects: (context) => const ProjectsListPage(),
               '/notifications': (context) => const NotificationCenterPage(),
               '/finance': (context) => ProtectedRoute(
                 requiredPermissions: ['view_financial_reports', 'view_revenue'],
@@ -234,10 +245,17 @@ class MyApp extends StatelessWidget {
             onGenerateRoute: (settings) {
               // Handle routes with parameters
               if (settings.name == AppRoutes.employeeDetail) {
-                final args = settings.arguments as Map<String, dynamic>?;
-                if (args != null && args['employee'] != null) {
+                // Support both Map arguments and direct Employee objects
+                if (settings.arguments is Map) {
+                  final args = settings.arguments as Map<String, dynamic>;
+                  if (args['employee'] != null) {
+                    return MaterialPageRoute(
+                      builder: (context) => EmployeeDetailPage(employee: args['employee']),
+                    );
+                  }
+                } else if (settings.arguments is Employee) {
                   return MaterialPageRoute(
-                    builder: (context) => EmployeeDetailPage(employee: args['employee']),
+                    builder: (context) => EmployeeDetailPage(employee: settings.arguments as Employee),
                   );
                 }
               } else if (settings.name == AppRoutes.addEmployee) {
@@ -245,10 +263,17 @@ class MyApp extends StatelessWidget {
                   builder: (context) => const AddEditEmployeePage(),
                 );
               } else if (settings.name == AppRoutes.editEmployee) {
-                final args = settings.arguments as Map<String, dynamic>?;
-                if (args != null && args['employee'] != null) {
+                // Support both Map arguments and direct Employee objects
+                if (settings.arguments is Map) {
+                  final args = settings.arguments as Map<String, dynamic>;
+                  if (args['employee'] != null) {
+                    return MaterialPageRoute(
+                      builder: (context) => AddEditEmployeePage(employee: args['employee']),
+                    );
+                  }
+                } else if (settings.arguments is Employee) {
                   return MaterialPageRoute(
-                    builder: (context) => AddEditEmployeePage(employee: args['employee']),
+                    builder: (context) => AddEditEmployeePage(employee: settings.arguments as Employee),
                   );
                 }
               } else if (settings.name == AppRoutes.myProfile) {
@@ -267,10 +292,17 @@ class MyApp extends StatelessWidget {
                   );
                 }
               } else if (settings.name == AppRoutes.clientDetail) {
-                final args = settings.arguments as Map<String, dynamic>?;
-                if (args != null && args['client'] != null) {
+                // Support both Map arguments and direct Client objects
+                if (settings.arguments is Map) {
+                  final args = settings.arguments as Map<String, dynamic>;
+                  if (args['client'] != null) {
+                    return MaterialPageRoute(
+                      builder: (context) => ClientDetailPage(client: args['client']),
+                    );
+                  }
+                } else if (settings.arguments is Client) {
                   return MaterialPageRoute(
-                    builder: (context) => ClientDetailPage(client: args['client']),
+                    builder: (context) => ClientDetailPage(client: settings.arguments as Client),
                   );
                 }
               } else if (settings.name == AppRoutes.addClient) {
@@ -278,10 +310,17 @@ class MyApp extends StatelessWidget {
                   builder: (context) => const ClientFormPage(),
                 );
               } else if (settings.name == AppRoutes.editClient) {
-                final args = settings.arguments as Map<String, dynamic>?;
-                if (args != null && args['client'] != null) {
+                // Support both Map arguments and direct Client objects
+                if (settings.arguments is Map) {
+                  final args = settings.arguments as Map<String, dynamic>;
+                  if (args['client'] != null) {
+                    return MaterialPageRoute(
+                      builder: (context) => ClientFormPage(client: args['client']),
+                    );
+                  }
+                } else if (settings.arguments is Client) {
                   return MaterialPageRoute(
-                    builder: (context) => ClientFormPage(client: args['client']),
+                    builder: (context) => ClientFormPage(client: settings.arguments as Client),
                   );
                 }
               } else if (settings.name == '/chat_thread') {
@@ -307,7 +346,14 @@ class MyApp extends StatelessWidget {
                         )
                       : const chat_ui.ConversationListPage(),
                 );
-              } else if (settings.name == AppRoutes.sprints || settings.name == AppRoutes.projectDetail) {
+              } else if (settings.name == AppRoutes.sprints) {
+                final args = settings.arguments as Map<String, dynamic>?;
+                if (args != null && args['project'] != null) {
+                  return MaterialPageRoute(
+                    builder: (context) => SprintsListPage(project: args['project']),
+                  );
+                }
+              } else if (settings.name == AppRoutes.projectDetail) {
                 final args = settings.arguments as Map<String, dynamic>?;
                 if (args != null && args['project'] != null) {
                   return MaterialPageRoute(

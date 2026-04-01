@@ -36,4 +36,5 @@ class AppRoutes {
   static const String hrSalaries = '/hr/salaries';
   static const String hrBonuses = '/hr/bonuses';
   static const String hrAttendance = '/hr/attendance';
+  static const String hrAttendanceHistory = '/hr/attendance/history';
 }

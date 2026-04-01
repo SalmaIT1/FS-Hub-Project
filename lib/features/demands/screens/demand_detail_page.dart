@@ -24,6 +24,7 @@ class _DemandDetailPageState extends State<DemandDetailPage> with TickerProvider
   bool _isLoading = true;
   String? _selectedStatus;
   final TextEditingController _resolutionNotesController = TextEditingController();
+  final TextEditingController _newPasswordController = TextEditingController();
   
   late AnimationController _fadeController;
   late List<Animation<double>> _staggeredAnimations;
@@ -58,6 +59,7 @@ class _DemandDetailPageState extends State<DemandDetailPage> with TickerProvider
   void dispose() {
     _fadeController.dispose();
     _resolutionNotesController.dispose();
+    _newPasswordController.dispose();
     super.dispose();
   }
 
@@ -151,20 +153,20 @@ class _DemandDetailPageState extends State<DemandDetailPage> with TickerProvider
     }
   }
 
-  Future<void> _updateDemandStatusWithNotes(String status, String resolutionNotes) async {
+  Future<void> _updateDemandStatusWithNotes(String status, String resolutionNotes, {String? newPassword}) async {
     setState(() => _isLoading = true);
 
     try {
       final currentUser = await AuthService.getCurrentUser();
       final currentUserId = currentUser?['id'];
       
-      final updateData = {
-        'status': status,
-        'handledBy': currentUserId,
-        'resolutionNotes': resolutionNotes,
-      };
-      
-      final result = await DemandService.updateDemand(_demand.id, updateData);
+      final result = await DemandService.updateDemandStatus(
+        _demand.id,
+        status,
+        resolutionNotes: resolutionNotes,
+        handledBy: currentUserId,
+        newPassword: newPassword,
+      );
       if (mounted) {
         if (result['success']) {
           final refreshedResult = await DemandService.getDemandById(_demand.id);
@@ -439,25 +441,24 @@ class _DemandDetailPageState extends State<DemandDetailPage> with TickerProvider
             ),
           ),
           const SizedBox(height: 24),
-          if (_demand.type == 'password_reset' && _demand.status == 'pending') ...[
-            SizedBox(
-              width: double.infinity,
-              height: 54,
-              child: Container(
-                decoration: BoxDecoration(
+          if (_demand.type == 'password_reset' && (_selectedStatus ?? _demand.status) == 'resolved') ...[
+            const Text('Manual Password Set', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _newPasswordController,
+              style: const TextStyle(fontSize: 14),
+              decoration: InputDecoration(
+                hintText: 'Enter new password here...',
+                hintStyle: TextStyle(color: isDark ? Colors.white24 : Colors.black26),
+                filled: true,
+                fillColor: isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.03),
+                border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.red.withOpacity(0.5)),
-                  color: Colors.red.withOpacity(0.1),
+                  borderSide: BorderSide(color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.1)),
                 ),
-                child: ElevatedButton.icon(
-                  onPressed: _adminResetPassword,
-                  icon: const Icon(Icons.lock_reset, color: Colors.red),
-                  label: const Text('Admin Force Reset', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.transparent,
-                    shadowColor: Colors.transparent,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.1)),
                 ),
               ),
             ),
@@ -476,6 +477,7 @@ class _DemandDetailPageState extends State<DemandDetailPage> with TickerProvider
                 onPressed: () => _updateDemandStatusWithNotes(
                   _selectedStatus ?? _demand.status,
                   _resolutionNotesController.text.trim(),
+                  newPassword: _newPasswordController.text.isNotEmpty ? _newPasswordController.text.trim() : null,
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.transparent,
@@ -491,62 +493,6 @@ class _DemandDetailPageState extends State<DemandDetailPage> with TickerProvider
     );
   }
 
-  Future<void> _adminResetPassword() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Security Protocol: Force Reset'),
-        content: const Text('This will generate a new randomized password and transmit it immediately to the user. Confirm?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abort')),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Execute Reset'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      if (!mounted) return;
-      setState(() => _isLoading = true);
-      try {
-        final result = await AuthService.adminResetUserPassword(_demand.requesterId ?? '0');
-        if (mounted) {
-          if (result['success']) {
-            // Automatically resolve the demand
-            await _updateDemandStatusWithNotes('resolved', 'System Force Reset Protocol executed successfully by admin.');
-            
-            LuxuryStatusDialog.show(
-              context,
-              isSuccess: true,
-              title: 'Reset Successful',
-              message: 'Account security updated. New credentials transmitted.',
-            );
-          } else {
-            setState(() => _isLoading = false);
-            LuxuryStatusDialog.show(
-              context,
-              isSuccess: false,
-              title: 'Protocol Failure',
-              message: result['message'] ?? 'Interference detected in security layer.',
-            );
-          }
-        }
-      } catch (e) {
-        if (mounted) {
-          setState(() => _isLoading = false);
-          LuxuryStatusDialog.show(
-            context,
-            isSuccess: false,
-            title: 'System Breach',
-            message: e.toString(),
-          );
-        }
-      }
-    }
-  }
 
   Widget _buildStatusDropdown(bool isDark) {
     return Container(

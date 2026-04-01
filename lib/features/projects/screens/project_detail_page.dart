@@ -367,9 +367,9 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> with SingleTicker
 
   Color _getStatusColor(String status) {
     switch (status) {
-      case 'Planifié': return Colors.blue;
+      case 'Planifie': case 'Planifié': return Colors.blue;
       case 'En cours': return Colors.orange;
-      case 'Terminé': return Colors.green;
+      case 'Termine': case 'Terminé': return Colors.green;
       case 'En retard': return Colors.red;
       default: return Colors.grey;
     }
@@ -759,7 +759,7 @@ class _AddMemberDialogState extends State<AddMemberDialog> {
   List<ProjectMember> _availableEmployees = [];
   bool _isLoading = true;
   String? _selectedEmployeeId;
-  String _role = 'Membre';
+  String _role = 'Employé';
   bool _isSaving = false;
 
   @override
@@ -811,10 +811,14 @@ class _AddMemberDialogState extends State<AddMemberDialog> {
                     onChanged: (v) => setState(() => _selectedEmployeeId = v),
                   ),
                   const SizedBox(height: 16),
-                  TextFormField(
-                    initialValue: _role,
+                  DropdownButtonFormField<String>(
+                    value: _role,
                     decoration: const InputDecoration(labelText: 'Role in Project'),
-                    onChanged: (v) => _role = v,
+                    items: ['Employé', 'TeamLead', 'Manager'].map((r) => DropdownMenuItem(
+                      value: r,
+                      child: Text(r),
+                    )).toList(),
+                    onChanged: (v) => setState(() => _role = v!),
                   ),
                 ],
               ),

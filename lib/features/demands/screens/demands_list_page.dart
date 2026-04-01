@@ -126,7 +126,7 @@ class _DemandsListPageState extends State<DemandsListPage> with SingleTickerProv
               // List of demands
               if (_isLoading)
                 const SliverFillRemaining(
-                  child: Center(child: CircularProgressIndicator(color: AppTheme.accentGold)),
+                  child: Center(child: ExcludeSemantics(child: CircularProgressIndicator(color: AppTheme.accentGold))),
                 )
               else if (_demands.isEmpty)
                 SliverFillRemaining(child: _buildEmptyState(isDark, settings))

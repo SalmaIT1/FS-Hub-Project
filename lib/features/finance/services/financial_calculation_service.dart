@@ -201,7 +201,7 @@ class FinancialCalculationService {
         'success': true,
         'data': {
           'client_id': clientId,
-          'client_name': client.fullName,
+          'client_name': client.displayName,
           'total_invoices': totalInvoices,
           'total_paid': totalPaid,
           'outstanding_balance': outstandingBalance,

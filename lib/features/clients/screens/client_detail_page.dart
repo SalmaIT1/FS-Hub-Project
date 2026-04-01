@@ -310,16 +310,7 @@ class _ClientDetailPageState extends State<ClientDetailPage> with TickerProvider
                     ),
                   ),
                 ),
-                if (_client.fullName != _client.displayName) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    _client.fullName,
-                    style: TextStyle(
-                      color: isDark ? Colors.white60 : Colors.black54,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
+
               ],
             ),
           ),

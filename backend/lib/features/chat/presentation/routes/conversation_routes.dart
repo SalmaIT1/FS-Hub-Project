@@ -45,15 +45,14 @@ class ConversationRoutes {
 
       return result['success'] == true
           ? Response.ok(jsonEncode(result),
-              headers: {'Content-Type': 'application/json'})
+              headers: {'Content-Type': 'application/json; charset=utf-8'})
           : Response.internalServerError(
               body: jsonEncode(result),
-              headers: {'Content-Type': 'application/json'});
+              headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
-      print('Error fetching conversations: $e');
       return Response.internalServerError(
-        body: jsonEncode({'success': false, 'message': e.toString()}),
-        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'success': false, 'message': 'Internal server error'}),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -88,13 +87,12 @@ class ConversationRoutes {
 
       return Response.ok(
         jsonEncode({'success': true, 'data': users}),
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
-      print('Error fetching available users: $e');
       return Response.internalServerError(
-        body: jsonEncode({'success': false, 'message': e.toString()}),
-        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'success': false, 'message': 'Internal server error'}),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -125,7 +123,7 @@ class ConversationRoutes {
             'success': false,
             'message': 'At least one participant is required'
           }),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       }
 
@@ -139,15 +137,14 @@ class ConversationRoutes {
 
       return result['success'] == true
           ? Response.ok(jsonEncode(result),
-              headers: {'Content-Type': 'application/json'})
+              headers: {'Content-Type': 'application/json; charset=utf-8'})
           : Response.internalServerError(
               body: jsonEncode(result),
-              headers: {'Content-Type': 'application/json'});
+              headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
-      print('Error creating conversation: $e');
       return Response.internalServerError(
-        body: jsonEncode({'success': false, 'message': e.toString()}),
-        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'success': false, 'message': 'Internal server error'}),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -168,14 +165,14 @@ class ConversationRoutes {
 
       return result['success'] == true
           ? Response.ok(jsonEncode(result),
-              headers: {'Content-Type': 'application/json'})
+              headers: {'Content-Type': 'application/json; charset=utf-8'})
           : Response.internalServerError(
               body: jsonEncode(result),
-              headers: {'Content-Type': 'application/json'});
+              headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
       return Response.internalServerError(
-        body: jsonEncode({'success': false, 'message': e.toString()}),
-        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'success': false, 'message': 'Internal server error'}),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -194,7 +191,7 @@ class ConversationRoutes {
           400,
           body: jsonEncode(
               {'success': false, 'message': 'content is required'}),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       }
 
@@ -243,15 +240,14 @@ class ConversationRoutes {
 
       return result['success'] == true
           ? Response.ok(jsonEncode(result),
-              headers: {'Content-Type': 'application/json'})
+              headers: {'Content-Type': 'application/json; charset=utf-8'})
           : Response.internalServerError(
               body: jsonEncode(result),
-              headers: {'Content-Type': 'application/json'});
+              headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
-      print('Error sending message: $e');
       return Response.internalServerError(
-        body: jsonEncode({'success': false, 'message': e.toString()}),
-        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'success': false, 'message': 'Internal server error'}),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -269,14 +265,14 @@ class ConversationRoutes {
 
       return result['success'] == true
           ? Response.ok(jsonEncode(result),
-              headers: {'Content-Type': 'application/json'})
+              headers: {'Content-Type': 'application/json; charset=utf-8'})
           : Response.internalServerError(
               body: jsonEncode(result),
-              headers: {'Content-Type': 'application/json'});
+              headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
       return Response.internalServerError(
-        body: jsonEncode({'success': false, 'message': e.toString()}),
-        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'success': false, 'message': 'Internal server error'}),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -296,7 +292,7 @@ class ConversationRoutes {
           400,
           body: jsonEncode(
               {'success': false, 'message': 'messageIds is required'}),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       }
 
@@ -307,14 +303,14 @@ class ConversationRoutes {
 
       return result['success'] == true
           ? Response.ok(jsonEncode(result),
-              headers: {'Content-Type': 'application/json'})
+              headers: {'Content-Type': 'application/json; charset=utf-8'})
           : Response.internalServerError(
               body: jsonEncode(result),
-              headers: {'Content-Type': 'application/json'});
+              headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
       return Response.internalServerError(
-        body: jsonEncode({'success': false, 'message': e.toString()}),
-        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'success': false, 'message': 'Internal server error'}),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -334,7 +330,7 @@ class ConversationRoutes {
           400,
           body: jsonEncode(
               {'success': false, 'message': 'conversationId is required'}),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       }
 
@@ -346,14 +342,14 @@ class ConversationRoutes {
 
       return result['success'] == true
           ? Response.ok(jsonEncode(result),
-              headers: {'Content-Type': 'application/json'})
+              headers: {'Content-Type': 'application/json; charset=utf-8'})
           : Response.internalServerError(
               body: jsonEncode(result),
-              headers: {'Content-Type': 'application/json'});
+              headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
       return Response.internalServerError(
-        body: jsonEncode({'success': false, 'message': e.toString()}),
-        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'success': false, 'message': 'Internal server error'}),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -364,14 +360,14 @@ class ConversationRoutes {
       final result = await ChatService.getTypingUsers(id, request.authUserId);
       return result['success'] == true
           ? Response.ok(jsonEncode(result),
-              headers: {'Content-Type': 'application/json'})
+              headers: {'Content-Type': 'application/json; charset=utf-8'})
           : Response.internalServerError(
               body: jsonEncode(result),
-              headers: {'Content-Type': 'application/json'});
+              headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
       return Response.internalServerError(
-        body: jsonEncode({'success': false, 'message': e.toString()}),
-        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'success': false, 'message': 'Internal server error'}),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -389,15 +385,14 @@ class ConversationRoutes {
 
       return result['success'] == true
           ? Response.ok(jsonEncode(result),
-              headers: {'Content-Type': 'application/json'})
+              headers: {'Content-Type': 'application/json; charset=utf-8'})
           : Response.internalServerError(
               body: jsonEncode(result),
-              headers: {'Content-Type': 'application/json'});
+              headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
-      print('Error leaving conversation: $e');
       return Response.internalServerError(
-        body: jsonEncode({'success': false, 'message': e.toString()}),
-        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'success': false, 'message': 'Internal server error'}),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     }
   }

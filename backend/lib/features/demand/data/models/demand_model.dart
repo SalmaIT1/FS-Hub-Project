@@ -5,6 +5,7 @@ class DemandModel {
   final String status;
   final String requesterId;
   final String? requesterName;
+  final String? requesterEmail;
   final String? handledBy;
   final String? resolutionNotes;
   final String? createdAt;
@@ -17,6 +18,7 @@ class DemandModel {
     required this.status,
     required this.requesterId,
     this.requesterName,
+    this.requesterEmail,
     this.handledBy,
     this.resolutionNotes,
     this.createdAt,
@@ -31,6 +33,7 @@ class DemandModel {
       'status': status,
       'requesterId': requesterId,
       'requesterName': requesterName,
+      'requesterEmail': requesterEmail,
       'handledBy': handledBy,
       'resolutionNotes': resolutionNotes,
       'createdAt': createdAt,
@@ -46,6 +49,7 @@ class DemandModel {
       status: map['status']?.toString() ?? 'pending',
       requesterId: map['requester_id']?.toString() ?? '',
       requesterName: map['requester_name']?.toString(),
+      requesterEmail: map['requester_email']?.toString(),
       handledBy: map['handled_by']?.toString(),
       resolutionNotes: map['resolution_notes']?.toString(),
       createdAt: map['created_at']?.toString(),

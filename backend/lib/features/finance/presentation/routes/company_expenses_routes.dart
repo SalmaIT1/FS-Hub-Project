@@ -38,7 +38,7 @@ class CompanyExpensesRoutes {
           'data': expenses,
           'message': 'Company expenses retrieved successfully',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -46,7 +46,7 @@ class CompanyExpensesRoutes {
           'success': false,
           'message': 'Failed to retrieve company expenses: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -62,7 +62,7 @@ class CompanyExpensesRoutes {
             'success': false,
             'message': 'Company expense not found',
           }),
-          headers: {'content-type': 'application/json'},
+          headers: {'content-type': 'application/json; charset=utf-8'},
         );
       }
 
@@ -72,7 +72,7 @@ class CompanyExpensesRoutes {
           'data': expense?.toJson() ?? {},
           'message': 'Company expense retrieved successfully',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -80,7 +80,7 @@ class CompanyExpensesRoutes {
           'success': false,
           'message': 'Failed to retrieve company expense: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -101,7 +101,7 @@ class CompanyExpensesRoutes {
       return Response(
         result['success'] ? 201 : 400,
         body: jsonEncode(result),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -109,7 +109,7 @@ class CompanyExpensesRoutes {
           'success': false,
           'message': 'Failed to create company expense: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -125,7 +125,7 @@ class CompanyExpensesRoutes {
       return Response(
         result['success'] ? 200 : 400,
         body: jsonEncode(result),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -133,7 +133,7 @@ class CompanyExpensesRoutes {
           'success': false,
           'message': 'Failed to update company expense: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -146,7 +146,7 @@ class CompanyExpensesRoutes {
       return Response(
         result['success'] ? 200 : 404,
         body: jsonEncode(result),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -154,7 +154,7 @@ class CompanyExpensesRoutes {
           'success': false,
           'message': 'Failed to delete company expense: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -169,7 +169,7 @@ class CompanyExpensesRoutes {
           'data': summary,
           'message': 'Company expense summary retrieved successfully',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -177,7 +177,7 @@ class CompanyExpensesRoutes {
           'success': false,
           'message': 'Failed to retrieve company expense summary: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -193,7 +193,7 @@ class CompanyExpensesRoutes {
           'data': categories.map((c) => c?.toJson() ?? {}).toList(),
           'message': 'Company expense categories retrieved successfully',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -201,7 +201,7 @@ class CompanyExpensesRoutes {
           'success': false,
           'message': 'Failed to retrieve company expense categories: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -225,7 +225,7 @@ class CompanyExpensesRoutes {
           'data': category?.toJson() ?? {},
           'message': 'Company expense category created successfully',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -233,7 +233,7 @@ class CompanyExpensesRoutes {
           'success': false,
           'message': 'Failed to create company expense category: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }

@@ -27,14 +27,14 @@ class AttendanceModel {
 
   factory AttendanceModel.fromMap(Map<String, dynamic> map) {
     return AttendanceModel(
-      id: map['id'],
+      id: map['id'] != null ? int.tryParse(map['id'].toString()) : null,
       employeeId: map['employee_id'],
       attendanceDate: DateTime.parse(map['attendance_date'].toString()),
       checkIn: map['check_in'] != null ? DateTime.parse(map['check_in'].toString()) : null,
       checkOut: map['check_out'] != null ? DateTime.parse(map['check_out'].toString()) : null,
       status: map['status'] ?? 'present',
-      workHours: map['work_hours']?.toDouble(),
-      overtimeHours: map['overtime_hours']?.toDouble(),
+      workHours: map['work_hours'] != null ? double.tryParse(map['work_hours'].toString()) : 0.0,
+      overtimeHours: map['overtime_hours'] != null ? double.tryParse(map['overtime_hours'].toString()) : 0.0,
       notes: map['notes'],
       createdAt: map['created_at'] != null ? DateTime.parse(map['created_at'].toString()) : null,
       updatedAt: map['updated_at'] != null ? DateTime.parse(map['updated_at'].toString()) : null,

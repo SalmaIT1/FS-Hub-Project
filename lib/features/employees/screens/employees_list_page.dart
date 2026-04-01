@@ -406,7 +406,7 @@ class _EmployeesListPageState extends State<EmployeesListPage> with SingleTicker
         ),
       ),
       child: _isLoading 
-          ? const Center(child: CircularProgressIndicator(color: AppTheme.accentGold))
+          ? const Center(child: ExcludeSemantics(child: CircularProgressIndicator(color: AppTheme.accentGold)))
           : Column(
               children: [
                 _buildSummaryCard(isDark, settings),

@@ -13,53 +13,96 @@ class DataIntegrityService {
       _cleanupExpiredUploads();
     });
 
-    // 2. Check for overdue tasks every hour
+    // 2. Check for overdue tasks and project status every hour
     Timer.periodic(const Duration(hours: 1), (timer) {
       checkDeadlines();
+    });
+
+    // 3. L-5 FIX: Prune stale rows from security tables every 6 hours.
+    //    - revoked_tokens: entries older than 24 h are useless (token already expired by JWT TTL).
+    //    - rate_limit_attempts: entries outside the widest rate window (15 min) are useless.
+    Timer.periodic(const Duration(hours: 6), (timer) {
+      _cleanupSecurityTables();
     });
   }
 
   /// Deletes upload records and files that were never completed
   static Future<void> _cleanupExpiredUploads() async {
     try {
-      // 1. Fetch expired file paths
       final expired = await _db.execute(
         "SELECT id, file_path FROM file_uploads WHERE is_completed = FALSE AND expires_at < NOW()"
       );
 
-      // 2. Physically delete from disk
+      final uploadRoot = Directory('uploads').absolute.path;
+
       for (final row in expired.rows) {
         final path = row.colByName('file_path')?.toString();
         if (path != null) {
           final file = File(path);
-          if (await file.exists()) {
-            await file.delete();
-            print('[DataIntegrityService] Deleted physical file: \$path');
+          // HARSH FIX: Ensure we only delete files inside the uploads directory sandbox.
+          if (file.absolute.path.startsWith(uploadRoot)) {
+            if (await file.exists()) {
+              await file.delete();
+              print('[DataIntegrityService] Deleted physical file: $path');
+            }
+          } else {
+             print('[DataIntegrityService] WARNING: Blocked attempt to delete file outside sandbox: $path');
           }
         }
       }
 
-      // 3. Clean up DB records
       await _db.execute(
         "DELETE FROM file_uploads WHERE is_completed = FALSE AND expires_at < NOW()"
       );
     } catch (e) {
-      print('Cleanup error: \$e');
+      print('Cleanup error: $e');
+    }
+  }
+
+  /// L-5 FIX: Prunes stale rows from security-related tables.
+  static Future<void> _cleanupSecurityTables() async {
+    try {
+      // Revoked access tokens expire within 24 h by JWT design — older rows are useless.
+      final revokedRes = await _db.execute(
+        'DELETE FROM revoked_tokens WHERE created_at < DATE_SUB(NOW(), INTERVAL 24 HOUR)'
+      );
+      print('[DataIntegrityService] Pruned revoked_tokens: ${revokedRes.affectedRows} rows removed');
+    } catch (e) {
+      print('[DataIntegrityService] revoked_tokens cleanup error: \$e');
+    }
+    try {
+      final rlRes = await _db.execute(
+        'DELETE FROM rate_limit_attempts WHERE attempted_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE)'
+      );
+      print('[DataIntegrityService] Pruned rate_limit_attempts: ${rlRes.affectedRows} rows removed');
+    } catch (e) {
+      print('[DataIntegrityService] rate_limit_attempts cleanup error: $e');
+    }
+
+    try {
+      // HARSH FIX: Prune expired refresh tokens (revoked or naturally old).
+      // Older than 30 days to keep a small buffer for audit purposes.
+      final rtRes = await _db.execute(
+        'DELETE FROM refresh_tokens WHERE expires_at < DATE_SUB(NOW(), INTERVAL 30 DAY)'
+      );
+      print('[DataIntegrityService] Pruned refresh_tokens: ${rtRes.affectedRows} rows removed');
+    } catch (e) {
+      print('[DataIntegrityService] refresh_tokens cleanup error: $e');
     }
   }
 
   /// Checks for overdue tasks and sends notifications to owners
   static Future<void> checkDeadlines() async {
     try {
-      final result = await _db.execute('''
+      // 1. Check Tasks
+      final tasks = await _db.execute('''
         SELECT t.id, t.titre, t.employee_id 
         FROM taches t
         WHERE t.statut != 'Done' 
         AND t.updated_at < DATE_SUB(NOW(), INTERVAL 7 DAY)
       ''');
 
-      for (final row in result.rows) {
-        final taskId = row.colByName('id');
+      for (final row in tasks.rows) {
         final title = row.colByName('titre');
         final userId = row.colByName('employee_id');
 
@@ -72,6 +115,35 @@ class DataIntegrityService {
           );
         }
       }
+
+      // 2. Check Projects past start date but still 'Planifie'
+      final lateProjects = await _db.execute('''
+        SELECT p.id, p.nom, (SELECT count(*) FROM projet_membres pm WHERE pm.projet_id = p.id) as member_count
+        FROM projets p
+        WHERE p.statut = 'Planifie' AND p.date_debut <= NOW() AND p.is_deleted = FALSE
+      ''');
+
+      for (final row in lateProjects.rows) {
+        final id = int.parse(row.colByName('id').toString());
+        final nom = row.colByName('nom');
+        final memberCount = int.parse(row.colByName('member_count').toString());
+
+        if (memberCount == 0) {
+          // No members? Mark as late immediately and notify admins
+          await _db.execute("UPDATE projets SET statut = 'En retard' WHERE id = :id", {'id': id});
+          print('[DataIntegrityService] Project "$nom" marked EN RETARD (Missing members at start date)');
+        } else {
+          // Has members? Auto-start
+          await _db.execute("UPDATE projets SET statut = 'En cours' WHERE id = :id", {'id': id});
+          print('[DataIntegrityService] Project "$nom" auto-started (En cours)');
+        }
+      }
+      // 3. Mark active projects as 'En retard' if they pass finish date
+      await _db.execute('''
+        UPDATE projets 
+        SET statut = 'En retard' 
+        WHERE statut = 'En cours' AND date_fin_prevue < NOW() AND is_deleted = FALSE
+      ''');
     } catch (e) {
       print('Deadline check error: $e');
     }

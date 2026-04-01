@@ -9,16 +9,18 @@ class EmployeeService {
   static const allowedRoles = {'Admin', 'Manager', 'Employé', 'RH', 'Team Lead', 'Comptable', 'Client'};
   static const allowedStatuts = {'actif', 'inactif', 'suspendu'};
 
-  static Future<Map<String, dynamic>> getAllEmployees({int page = 1, int limit = 50}) async {
+  static Future<Map<String, dynamic>> getAllEmployees({int page = 1, int limit = 50, required String callerRole, required String callerId}) async {
     final offset = (page - 1) * limit;
     final res = await _repository.getAllEmployees(limit: limit, offset: offset);
     
     final employees = (res['employees'] as List).cast<EmployeeModel>();
     final total = res['total'] as int;
 
+    final bool canSeePrivate = (callerRole == 'Admin' || callerRole == 'RH');
+
     return {
       'success': true,
-      'data': employees.map((e) => e.toJson()).toList(),
+      'data': employees.map((e) => e.toJson(includePrivate: canSeePrivate || e.id == callerId)).toList(),
       'pagination': {
         'page': page,
         'limit': limit,
@@ -28,10 +30,13 @@ class EmployeeService {
     };
   }
 
-  static Future<Map<String, dynamic>> getEmployeeById(String id) async {
+  static Future<Map<String, dynamic>> getEmployeeById(String id, {required String callerRole, required String callerId}) async {
     final emp = await _repository.getEmployeeById(id);
     if (emp == null) return {'success': false, 'message': 'Employee not found'};
-    return {'success': true, 'data': emp.toJson()};
+    
+    final bool canSeePrivate = (callerRole == 'Admin' || callerRole == 'RH' || callerId == id || callerId == emp.userId);
+    
+    return {'success': true, 'data': emp.toJson(includePrivate: canSeePrivate)};
   }
 
   static Future<Map<String, dynamic>> createEmployee(Map<String, dynamic> data, {String? callerId}) async {
@@ -59,7 +64,8 @@ class EmployeeService {
       });
       return {'success': true, 'message': 'Employee created successfully', 'data': {'id': id}};
     } catch (e) {
-      return {'success': false, 'message': e.toString().contains('already exists') ? e.toString() : 'Failed to create employee'};
+      print('Error trace: $e');
+      return {'success': false, 'message': 'Internal Server Error'};
     }
   }
 

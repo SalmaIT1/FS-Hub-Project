@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
@@ -9,29 +10,32 @@ class AuthRoutes {
   late final Router router;
 
   AuthRoutes() {
-    // Public routes (no auth middleware):
-    final publicRouter = Router()
-      ..post('/login', _login)
-      ..post('/refresh', _refreshToken)
-      ..post('/forgot-password', _forgotPassword);
+    router = Router();
 
-    // Protected routes:
-    final protectedRouter = Router()
-      ..post('/logout', _logout)
-      ..get('/profile', _getProfile)
-      ..post('/change-password', _changePassword)
-      ..get('/settings', _getUserSettings)
-      ..post('/settings', _updateUserSettings)
-      ..post('/ws-ticket', _getWsTicket)
-      ..post('/admin/reset-user-password', Pipeline().addMiddleware(requirePermission('manage_users')).addHandler(_adminResetUserPassword));
+    // -- Public Routes --
+    router.post('/login', _login);
+    router.post('/refresh', _refreshToken);
+    router.post('/forgot-password', _forgotPassword);
+    router.post('/reset-password', _resetPassword);
 
-    final protectedHandler = Pipeline()
+    // -- Protected Routes --
+    // We apply requireAuth() only to these specific handlers.
+    Handler _secured(Function handler) => 
+        Pipeline().addMiddleware(requireAuth()).addHandler((r) => handler(r) as FutureOr<Response>);
+
+    router.post('/logout', _secured(_logout));
+    router.get('/profile', _secured(_getProfile));
+    router.post('/change-password', _secured(_changePassword));
+    router.get('/settings', _secured(_getUserSettings));
+    router.post('/settings', _updateUserSettings); // _updateUserSettings is already a handler
+    router.post('/ws-ticket', _secured(_getWsTicket));
+    
+    // Admin-guarded route
+    router.post('/admin/reset-user-password', (Request req) => 
+      Pipeline()
         .addMiddleware(requireAuth())
-        .addHandler(protectedRouter.call);
-
-    router = Router()
-      ..mount('/', publicRouter.call)
-      ..mount('/', protectedHandler);
+        .addMiddleware(requirePermission('manage_users'))
+        .addHandler((r) => _adminResetUserPassword(r))(req));
   }
 
   Future<Response> _login(Request request) async {
@@ -48,7 +52,7 @@ class AuthRoutes {
         return Response(
           400,
           body: jsonEncode({'success': false, 'message': 'email or username and password are required'}),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       }
 
@@ -60,20 +64,20 @@ class AuthRoutes {
       if (result['success'] == true) {
         return Response.ok(
           jsonEncode(result),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       } else {
         return Response(
           401,
           body: jsonEncode(result),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       }
     } catch (e) {
       print('Login route error: $e');
       return Response.internalServerError(
         body: jsonEncode({'success': false, 'message': 'Login failed'}),
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -89,12 +93,12 @@ class AuthRoutes {
 
       return Response.ok(
         jsonEncode({'success': true, 'message': 'Logged out successfully'}),
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
-        body: jsonEncode({'success': false, 'message': e.toString()}),
-        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'success': false, 'message': 'Internal server error'}),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -109,7 +113,7 @@ class AuthRoutes {
         return Response(
           400,
           body: jsonEncode({'success': false, 'message': 'refreshToken is required'}),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       }
 
@@ -118,19 +122,19 @@ class AuthRoutes {
       if (result['success'] == true) {
         return Response.ok(
           jsonEncode(result),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       } else {
         return Response(
           400,
           body: jsonEncode(result),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       }
     } catch (e) {
       return Response.internalServerError(
-        body: jsonEncode({'success': false, 'message': e.toString()}),
-        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'success': false, 'message': 'Internal Server Error'}),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -143,20 +147,40 @@ class AuthRoutes {
       if (result['success'] == true) {
         return Response.ok(
           jsonEncode(result),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       } else {
         return Response(
           403,
           body: jsonEncode(result),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       }
     } catch (e) {
       return Response.internalServerError(
         body: jsonEncode({'success': false, 'message': e.toString()}),
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
+    }
+  }
+
+  Future<Response> _resetPassword(Request request) async {
+    try {
+      final body = await request.readAsString();
+      final data = jsonDecode(body);
+      final token = data['token']?.toString();
+      final newPassword = data['new_password']?.toString();
+
+      if (token == null || newPassword == null) {
+        return Response.badRequest(body: jsonEncode({'success': false, 'message': 'Token and new_password are required'}));
+      }
+
+      final res = await AuthService.resetPasswordWithToken(token, newPassword);
+      if (!res['success']) return Response.badRequest(body: jsonEncode(res));
+
+      return Response.ok(jsonEncode(res));
+    } catch (e) {
+      return Response.internalServerError(body: jsonEncode({'success': false, 'message': 'Internal Server Error'}));
     }
   }
 
@@ -168,21 +192,33 @@ class AuthRoutes {
         return Response(
           401,
           body: jsonEncode({'success': false, 'message': 'Unauthorized'}),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       }
 
       final body = await request.readAsString();
       final data = jsonDecode(body) as Map<String, dynamic>;
 
-      final oldPassword = data['oldPassword'];
-      final newPassword = data['newPassword'];
+      final oldPassword = data['oldPassword']?.toString() ?? data['currentPassword']?.toString();
+      final newPassword = data['newPassword']?.toString();
 
       if (oldPassword == null || newPassword == null) {
         return Response(
           400,
           body: jsonEncode({'success': false, 'message': 'oldPassword and newPassword are required'}),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
+        );
+      }
+
+      // HARSH FIX: Complexity requirement
+      if (!AuthService.validatePasswordComplexity(newPassword)) {
+        return Response(
+          400,
+          body: jsonEncode({
+            'success': false, 
+            'message': 'Password too weak. Must be >= 8 chars with Upper, Lower, Digit, Spec.'
+          }),
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       }
 
@@ -191,19 +227,19 @@ class AuthRoutes {
       if (result['success'] == true) {
         return Response.ok(
           jsonEncode(result),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       } else {
         return Response(
           400,
           body: jsonEncode(result),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       }
     } catch (e) {
       return Response.internalServerError(
-        body: jsonEncode({'success': false, 'message': e.toString()}),
-        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'success': false, 'message': 'Internal Server Error'}),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -212,27 +248,27 @@ class AuthRoutes {
   Future<Response> _getUserSettings(Request request) async {
     try {
       final userId = request.authUserId;
-      if (userId == null) return Response(401, body: jsonEncode({'success': false, 'message': 'Unauthorized'}), headers: {'Content-Type': 'application/json'});
+      if (userId == null) return Response(401, body: jsonEncode({'success': false, 'message': 'Unauthorized'}), headers: {'Content-Type': 'application/json; charset=utf-8'});
 
       final result = await AuthService.getUserSettings(userId);
-      return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json'});
+      return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'success': false, 'message': e.toString()}), headers: {'Content-Type': 'application/json'});
+      return Response.internalServerError(body: jsonEncode({'success': false, 'message': e.toString()}), headers: {'Content-Type': 'application/json; charset=utf-8'});
     }
   }
 
   Future<Response> _updateUserSettings(Request request) async {
     try {
       final userId = request.authUserId;
-      if (userId == null) return Response(401, body: jsonEncode({'success': false, 'message': 'Unauthorized'}), headers: {'Content-Type': 'application/json'});
+      if (userId == null) return Response(401, body: jsonEncode({'success': false, 'message': 'Unauthorized'}), headers: {'Content-Type': 'application/json; charset=utf-8'});
 
       final body = await request.readAsString();
       final data = jsonDecode(body) as Map<String, dynamic>;
 
       final result = await AuthService.updateUserSettings(userId, data);
-      return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json'});
+      return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'success': false, 'message': e.toString()}), headers: {'Content-Type': 'application/json'});
+      return Response.internalServerError(body: jsonEncode({'success': false, 'message': e.toString()}), headers: {'Content-Type': 'application/json; charset=utf-8'});
     }
   }
 
@@ -244,7 +280,7 @@ class AuthRoutes {
     final ticket = AuthService.issueWsTicket(userId, userRole);
     return Response.ok(
       jsonEncode({'success': true, 'ticket': ticket}),
-      headers: {'Content-Type': 'application/json'},
+      headers: {'Content-Type': 'application/json; charset=utf-8'},
     );
   }
   Future<Response> _forgotPassword(Request request) async {
@@ -254,13 +290,13 @@ class AuthRoutes {
       final email = data['email'];
 
       if (email == null || email.toString().isEmpty) {
-        return Response(400, body: jsonEncode({'success': false, 'message': 'Email is required'}), headers: {'Content-Type': 'application/json'});
+        return Response(400, body: jsonEncode({'success': false, 'message': 'Email is required'}), headers: {'Content-Type': 'application/json; charset=utf-8'});
       }
 
       final result = await AuthService.forgotPassword(email.toString());
-      return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json'});
+      return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'success': false, 'message': e.toString()}), headers: {'Content-Type': 'application/json'});
+      return Response.internalServerError(body: jsonEncode({'success': false, 'message': e.toString()}), headers: {'Content-Type': 'application/json; charset=utf-8'});
     }
   }
 
@@ -272,13 +308,13 @@ class AuthRoutes {
       final targetUserId = data['userId'];
 
       if (targetUserId == null || targetUserId.toString().isEmpty) {
-        return Response(400, body: jsonEncode({'success': false, 'message': 'userId is required'}), headers: {'Content-Type': 'application/json'});
+        return Response(400, body: jsonEncode({'success': false, 'message': 'userId is required'}), headers: {'Content-Type': 'application/json; charset=utf-8'});
       }
 
       final result = await AuthService.adminResetUserPassword(targetUserId.toString());
-      return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json'});
+      return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'success': false, 'message': e.toString()}), headers: {'Content-Type': 'application/json'});
+      return Response.internalServerError(body: jsonEncode({'success': false, 'message': e.toString()}), headers: {'Content-Type': 'application/json; charset=utf-8'});
     }
   }
 }

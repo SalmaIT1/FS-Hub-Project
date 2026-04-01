@@ -45,19 +45,19 @@ class EmployeeModel {
     this.role,
   });
 
-  Map<String, dynamic> toJson() {
+  Map<String, dynamic> toJson({bool includePrivate = false}) {
     return {
       'id': id,
       'userId': userId,
       'matricule': matricule,
       'nom': nom,
       'prenom': prenom,
-      'dateNaissance': dateNaissance,
+      'dateNaissance': includePrivate ? dateNaissance : null,
       'sexe': sexe,
       'photo': photo,
       'email': email,
-      'telephone': telephone,
-      'adresse': adresse,
+      'telephone': includePrivate ? telephone : null,
+      'adresse': includePrivate ? adresse : null,
       'ville': ville,
       'poste': poste,
       'departement': departement,

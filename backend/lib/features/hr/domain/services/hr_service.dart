@@ -1,11 +1,24 @@
 import '../../data/repositories/hr_repository.dart';
 import '../../../notification/domain/services/notification_service.dart';
 import '../../../../shared/services/audit_service.dart';
+import '../../../finance/domain/services/expense_service.dart';
+import '../../../finance/data/models/expense_model.dart';
 
 class HrService {
   static final HrRepository _repository = HrRepository();
+  static final ExpenseService _expenseService = ExpenseService();
 
   // --- Attendance ---
+
+  static Future<Map<String, dynamic>> getAllAttendance(String date) async {
+    try {
+      final records = await _repository.getAllAttendance(date);
+      return {'success': true, 'data': records.map((r) => r.toMap()).toList()};
+    } catch (e) {
+      print('getAllAttendance error: $e');
+      return {'success': false, 'message': 'Failed to retrieve attendance log'};
+    }
+  }
 
   static Future<Map<String, dynamic>> getAttendance(String employeeId, {String? startDate, String? endDate}) async {
     try {
@@ -22,6 +35,12 @@ class HrService {
       if (data['employee_id'] == null || data['attendance_date'] == null) {
         return {'success': false, 'message': 'Missing employee_id or attendance_date'};
       }
+      
+      // Normalize date to YYYY-MM-DD
+      if (data['attendance_date'].toString().contains('T')) {
+        data['attendance_date'] = data['attendance_date'].toString().split('T')[0];
+      }
+
       await _repository.logAttendance(data);
       
       await AuditService.log(callerId ?? 'SYSTEM', 'ATTENDANCE_LOGGED', {
@@ -43,7 +62,7 @@ class HrService {
     try {
       if (callerRole == 'Admin' || callerRole == 'RH') {
         final records = await _repository.getAllLeaveRequests();
-        return {'success': true, 'data': records.map((r) => r.toMap()).toList()};
+        return {'success': true, 'data': records};
       }
       final records = await _repository.getLeaveRequests(callerId);
       return {'success': true, 'data': records.map((r) => r.toMap()).toList()};
@@ -107,7 +126,7 @@ class HrService {
     try {
       if (callerRole == 'Admin' || callerRole == 'RH') {
         final records = await _repository.getAllRemoteWorkRequests();
-         return {'success': true, 'data': records.map((r) => r.toMap()).toList()};
+        return {'success': true, 'data': records};
       }
       final records = await _repository.getRemoteWorkRequests(callerId);
       return {'success': true, 'data': records.map((r) => r.toMap()).toList()};
@@ -123,11 +142,25 @@ class HrService {
         return {'success': false, 'message': 'Missing remote_date'};
       }
       
+      final remoteDate = DateTime.parse(data['remote_date'].toString());
+      
+      // Validation : Quota de 3 jours par semaine
+      final count = await _repository.countRemoteWorkDaysInWeek(employeeId, remoteDate);
+      if (count >= 3) {
+        return {
+          'success': false, 
+          'message': 'Vous avez déjà atteint la limite de 3 jours de télétravail pour cette semaine.'
+        };
+      }
+      
       data['employee_id'] = employeeId;
       data['status'] = 'pending';
       
        await _repository.submitRemoteWorkRequest(data);
-      return {'success': true, 'message': 'Remote work request submitted'};
+      return {
+        'success': true, 
+        'message': 'Demande de télétravail soumise. (Reste : \${2 - count} jour(s) pour cette semaine)'
+      };
     } catch (e) {
       print('submitRemoteWorkRequest error: $e');
       return {'success': false, 'message': 'Failed to submit remote work request'};
@@ -233,24 +266,82 @@ class HrService {
        
        await _repository.grantBonus(data);
        
+       // Record as company expense (Charge)
+       final amount = double.tryParse(data['amount'].toString()) ?? 0.0;
+       await _expenseService.createCompanyExpense(ExpenseModel(
+         categorie: 'Salaires et Charges Sociales',
+         montant: amount,
+         dateDepense: DateTime.now(),
+         description: 'Bonus accordé à l\'employé #${data['employee_id']}: ${data['reason'] ?? 'Sans motif'}',
+         categoryId: 1, // Category ID for Salaries & Social Charges
+         createdBy: data['granted_by']?.toString() ?? 'SYSTEM',
+         status: 'approved_finance', // Auto-approved as it's a confirmed HR action
+       ));
+
        await NotificationService.createNotification(
-         userId: data['employee_id'],
+         userId: data['employee_id'].toString(),
          title: 'Bonus Granted!',
-         message: "You have been granted a new bonus of ${data['amount']}.",
+         message: "You have been granted a new bonus of $amount DH.",
          type: 'HR_BONUS',
        );
 
        await AuditService.log(data['granted_by']?.toString() ?? 'SYSTEM', 'BONUS_GRANTED_MANUAL', {
          'employee_id': data['employee_id'],
-         'amount': data['amount'],
+         'amount': amount,
          'reason': data['reason'],
        });
        
-       return {'success': true, 'message': 'Bonus granted successfully'};
+       return {'success': true, 'message': 'Bonus granted successfully and recorded as expense'};
      } catch(e) {
        print('grantBonus error: $e');
        return {'success': false, 'message': 'Failed to grant bonus'};
      }
+  }
+
+  static Future<Map<String, dynamic>> bulkGrantBonuses(List<String> employeeIds, Map<String, dynamic> data) async {
+    try {
+      if (employeeIds.isEmpty || data['amount'] == null) {
+        return {'success': false, 'message': 'Missing employees or amount'};
+      }
+
+      final count = await _repository.bulkGrantBonuses(employeeIds, data);
+      final caller = data['granted_by']?.toString() ?? 'SYSTEM';
+      final amountPerEmp = double.tryParse(data['amount'].toString()) ?? 0.0;
+      final totalAmount = amountPerEmp * count;
+
+      // Record bulk operation as one consolidated company expense
+      await _expenseService.createCompanyExpense(ExpenseModel(
+         categorie: 'Salaires et Charges Sociales',
+         montant: totalAmount,
+         dateDepense: DateTime.now(),
+         description: 'Attribution groupée de primes ($count employés) @ $amountPerEmp DH/pers. Motif: ${data['reason'] ?? 'Sans motif'}',
+         categoryId: 1, 
+         createdBy: caller,
+         status: 'approved_finance',
+      ));
+
+      // Mass notify
+      for (final id in employeeIds) {
+          await NotificationService.createNotification(
+            userId: id,
+            title: 'Bonus Granted!',
+            message: "You have been granted a new bonus of $amountPerEmp DH.",
+            type: 'HR_BONUS',
+          );
+      }
+
+      await AuditService.log(caller, 'BONUS_GRANTED_BULK', {
+        'count': count,
+        'amount_per_employee': amountPerEmp,
+        'total_impact': totalAmount,
+        'type': data['bonus_type'] ?? 'performance',
+      });
+
+      return {'success': true, 'message': 'Successfully granted $count bonuses and recorded $totalAmount DH total expense.'};
+    } catch (e) {
+       print('bulkGrantBonuses error: $e');
+       return {'success': false, 'message': 'Batch operation failed'};
+    }
   }
   
   static Future<Map<String, dynamic>> bulkGenerateSalaries(String month, {String? callerId}) async {
@@ -260,17 +351,23 @@ class HrService {
         'month': month,
         'recordCount': count,
       });
-      return {'success': true, 'message': 'Successfully generated \$count salaries for \$month'};
+      return {'success': true, 'message': 'Successfully generated $count salaries for $month'};
     } catch(e) {
       print('bulkGenerateSalaries error: $e');
       return {'success': false, 'message': 'Failed to bulk generate salaries'};
     }
   }
   
-  static Future<Map<String, dynamic>> getBonuses(String employeeId) async {
+  static Future<Map<String, dynamic>> getBonuses(String? callerRole, String callerId, {String? targetEmployeeId}) async {
     try {
-       final records = await _repository.getBonuses(employeeId);
-       return {'success': true, 'data': records.map((r) => r.toMap()).toList()};
+       if (callerRole == 'Admin' || callerRole == 'RH' || callerRole == 'Comptable') {
+         final records = targetEmployeeId != null 
+             ? await _repository.getBonuses(targetEmployeeId)
+             : await _repository.getAllBonuses();
+         return {'success': true, 'data': records};
+       }
+       final records = await _repository.getBonuses(callerId);
+       return {'success': true, 'data': records};
     } catch(e) {
        print('getBonuses error: $e');
        return {'success': false, 'message': 'Failed to fetch bonuses'};
@@ -294,9 +391,10 @@ class HrService {
         'status': status,
         'employeeCount': employeeIds.length,
       });
-      return {'success': true, 'message': 'Successfully updated \$count attendance records'};
+      return {'success': true, 'message': 'Successfully updated $count attendance records'};
     } catch (e) {
-      return {'success': false, 'message': 'Bulk correction failed: \$e'};
+      print('bulkCorrectAttendance error: $e');
+      return {'success': false, 'message': 'Bulk correction failed'};
     }
   }
 }

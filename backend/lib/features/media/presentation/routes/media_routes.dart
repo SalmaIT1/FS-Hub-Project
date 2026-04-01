@@ -1,6 +1,8 @@
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 import '../../domain/services/media_service.dart';
+import '../../../../core/middleware/auth_middleware.dart';
+import '../../../../core/middleware/permission_middleware.dart';
 
 class MediaRoutes {
   late final Router router;
@@ -14,8 +16,16 @@ class MediaRoutes {
     try {
       if (storedFilename.isEmpty) return Response.notFound('File not found');
 
-      final media = await MediaService.getMediaByStoredFilename(storedFilename);
+       final media = await MediaService.getMediaByStoredFilename(storedFilename);
       if (media == null) return Response.notFound('File not found in database');
+
+      // H-6 FIX: Verify the user has access to this file if it is private.
+      final bool hasAccess = await MediaService.canAccessMedia(
+        media: media, 
+        userId: request.authUserId, 
+        isAdmin: request.isAdmin,
+      );
+      if (!hasAccess) return Response.forbidden('You do not have permission to access this file');
 
       final file = await MediaService.resolveFile(media);
       if (file == null) return Response.notFound('File not found on disk');
@@ -29,12 +39,16 @@ class MediaRoutes {
         mimeType = MediaService.getCorrectMimeType(extension);
       }
 
+      final bool isPublic = media.isPublic;
+
       final Map<String, String> headers = {
         'Content-Type': mimeType,
         'Content-Length': fileLength.toString(),
         'Accept-Ranges': 'bytes',
-        'Cache-Control': 'public, max-age=31536000',
-        'Access-Control-Allow-Origin': '*',
+        // L-4 FIX: Private media should not be cached publicly for 1 year.
+        'Cache-Control': isPublic ? 'public, max-age=86400' : 'private, no-store',
+        // H-6 FIX: Wildcard CORS is only safe for truly public files.
+        'Access-Control-Allow-Origin': isPublic ? '*' : 'null',
         'Content-Disposition': 'inline; filename="${media.storedFilename}"',
         'X-Content-Type-Options': 'nosniff',
       };
@@ -61,7 +75,7 @@ class MediaRoutes {
       return Response.ok(file.openRead(), headers: headers);
     } catch (e, stack) {
       print('[MediaRoutes] 🔥 ERROR serving $storedFilename: $e\n$stack');
-      return Response.internalServerError(body: 'Internal server error: $e');
+      return Response.internalServerError(body: 'Internal server error');
     }
   }
 }

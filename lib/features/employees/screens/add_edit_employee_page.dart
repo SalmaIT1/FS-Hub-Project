@@ -281,13 +281,18 @@ class _AddEditEmployeePageState extends State<AddEditEmployeePage> {
 
       if (mounted) {
         if (result['success']) {
-          LuxuryStatusDialog.show(
-            context,
-            isSuccess: true,
-            title: _isEditMode ? 'Protocol Updated' : 'Entity Created',
-            message: result['message'] ?? 'Employee record has been synchronized with the central database.',
+          await showDialog(
+            context: context,
+            barrierDismissible: false,
+            barrierColor: Colors.black.withOpacity(0.5),
+            builder: (ctx) => LuxuryStatusDialog(
+              isSuccess: true,
+              title: _isEditMode ? 'Protocol Updated' : 'Entity Created',
+              message: result['message'] ?? 'Employee record has been synchronized with the central database.',
+              onDismiss: () {},
+            ),
           );
-          Navigator.pop(context, true);
+          if (mounted) Navigator.pop(context, true);
         } else {
           _showError(result['message'] ?? 'Data integrity breach detected.');
         }

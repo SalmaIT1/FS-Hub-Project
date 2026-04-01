@@ -28,13 +28,9 @@ class ProjectRoutes {
         callerRole: request.authUserRole,
         callerId: request.authUserId,
       );
-      return Response.ok(jsonEncode(projects), headers: {'Content-Type': 'application/json'});
-    } catch (e, stack) {
-      print('❌ ERROR in _getAllProjects: $e\n$stack');
-      return Response.internalServerError(
-        body: jsonEncode({'error': 'Failed to load projects: $e'}),
-        headers: {'Content-Type': 'application/json'}
-      );
+      return Response.ok(jsonEncode(projects), headers: {'Content-Type': 'application/json; charset=utf-8'});
+    } catch (e) {
+      return Response.internalServerError(body: jsonEncode({'error': 'Internal server error'}));
     }
   }
 
@@ -43,7 +39,7 @@ class ProjectRoutes {
       await ProjectService.checkDeadlines();
       return Response.ok(jsonEncode({'success': true, 'message': 'Deadlines checked'}));
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'error': e.toString()}));
+      return Response.internalServerError(body: jsonEncode({'error': 'Internal server error'}));
     }
   }
 
@@ -59,9 +55,9 @@ class ProjectRoutes {
       );
       if (project == null) return Response.notFound(jsonEncode({'error': 'Project not found or access denied'}));
       
-      return Response.ok(jsonEncode(project), headers: {'Content-Type': 'application/json'});
+      return Response.ok(jsonEncode(project), headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'error': 'Failed to load project: $e'}));
+      return Response.internalServerError(body: jsonEncode({'error': 'Internal server error'}));
     }
   }
 
@@ -70,9 +66,9 @@ class ProjectRoutes {
       final body = await request.readAsString();
       final data = jsonDecode(body);
       final newId = await ProjectService.createProject(data, callerId: request.authUserId);
-      return Response(201, body: jsonEncode({'success': true, 'id': newId, 'message': 'Project created'}), headers: {'Content-Type': 'application/json'});
+      return Response(201, body: jsonEncode({'success': true, 'id': newId, 'message': 'Project created'}), headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'error': 'Failed to create project: $e'}));
+      return Response.badRequest(body: jsonEncode({'error': e.toString().replaceFirst('Exception: ', '')}));
     }
   }
 
@@ -86,7 +82,7 @@ class ProjectRoutes {
       await ProjectService.updateProject(id, data, callerId: request.authUserId);
       return Response.ok(jsonEncode({'success': true, 'message': 'Project updated'}));
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'error': 'Failed to update project: $e'}));
+      return Response.badRequest(body: jsonEncode({'error': e.toString().replaceFirst('Exception: ', '')}));
     }
   }
 
@@ -100,16 +96,16 @@ class ProjectRoutes {
 
       return Response.ok(jsonEncode({'success': true, 'message': 'Project deleted'}));
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'error': 'Failed to delete project: $e'}));
+      return Response.internalServerError(body: jsonEncode({'error': 'Internal server error'}));
     }
   }
 
   Future<Response> _getAvailableEmployees(Request request) async {
     try {
       final employees = await ProjectService.getAvailableEmployees();
-      return Response.ok(jsonEncode(employees), headers: {'Content-Type': 'application/json'});
+      return Response.ok(jsonEncode(employees), headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'error': 'Failed to load employees: $e'}));
+      return Response.internalServerError(body: jsonEncode({'error': 'Internal server error'}));
     }
   }
 
@@ -119,9 +115,9 @@ class ProjectRoutes {
       if (id == null) return Response.badRequest(body: jsonEncode({'error': 'Invalid ID'}));
       
       final members = await ProjectService.getProjectMembers(id);
-      return Response.ok(jsonEncode(members), headers: {'Content-Type': 'application/json'});
+      return Response.ok(jsonEncode(members), headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'error': 'Failed to load members: $e'}));
+      return Response.internalServerError(body: jsonEncode({'error': 'Internal server error'}));
     }
   }
 
@@ -135,10 +131,7 @@ class ProjectRoutes {
       await ProjectService.addProjectMember(id, data['employeeId'], role: data['role'] ?? 'Membre');
       return Response.ok(jsonEncode({'success': true, 'message': 'Member added'}));
     } catch (e) {
-      if (e.toString().contains('Duplicate entry')) {
-        return Response.badRequest(body: jsonEncode({'error': 'Employee already in team'}));
-      }
-      return Response.internalServerError(body: jsonEncode({'error': 'Failed: $e'}));
+      return Response.internalServerError(body: jsonEncode({'error': 'Internal server error'}));
     }
   }
 
@@ -150,7 +143,7 @@ class ProjectRoutes {
       await ProjectService.removeProjectMember(id, employeeId);
       return Response.ok(jsonEncode({'success': true, 'message': 'Member removed'}));
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'error': 'Failed: $e'}));
+      return Response.internalServerError(body: jsonEncode({'error': 'Internal server error'}));
     }
   }
 }

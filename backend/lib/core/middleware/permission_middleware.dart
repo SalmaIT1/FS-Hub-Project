@@ -15,7 +15,7 @@ Middleware requirePermission(String permission) {
         return Response(
           401,
           body: jsonEncode({'success': false, 'message': 'User not authenticated'}),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       }
 
@@ -37,7 +37,7 @@ Middleware requirePermission(String permission) {
             'success': false,
             'message': 'Insufficient permissions. Required permission: $permission'
           }),
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       }
 
@@ -60,7 +60,7 @@ Middleware requireAdmin() {
           'success': false,
           'message': 'Admin access required'
         }),
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     };
   };
@@ -90,7 +90,7 @@ Middleware requireRoleOrPermission(List<String> allowedRoles, List<String> allow
           'success': false,
           'message': 'Access denied. Required roles: $allowedRoles or permissions: $allowedPermissions'
         }),
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
     };
   };

@@ -50,7 +50,7 @@ class RolePermissionRoutes {
           'data': rolesWithPermissions,
           'message': 'Roles retrieved successfully',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e, st) {
       print('Exception in _getAllRoles: $e\n$st');
@@ -59,7 +59,7 @@ class RolePermissionRoutes {
           'success': false,
           'message': 'Failed to retrieve roles: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -75,7 +75,7 @@ class RolePermissionRoutes {
             'success': false,
             'message': 'Role not found',
           }),
-          headers: {'content-type': 'application/json'},
+          headers: {'content-type': 'application/json; charset=utf-8'},
         );
       }
 
@@ -90,7 +90,7 @@ class RolePermissionRoutes {
           },
           'message': 'Role retrieved successfully',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -98,7 +98,7 @@ class RolePermissionRoutes {
           'success': false,
           'message': 'Failed to retrieve role: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -113,7 +113,7 @@ class RolePermissionRoutes {
       return Response(
         result['success'] ? 201 : 400,
         body: jsonEncode(result),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -121,7 +121,7 @@ class RolePermissionRoutes {
           'success': false,
           'message': 'Failed to create role: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -137,7 +137,7 @@ class RolePermissionRoutes {
       return Response(
         result['success'] ? 200 : 400,
         body: jsonEncode(result),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -145,7 +145,7 @@ class RolePermissionRoutes {
           'success': false,
           'message': 'Failed to update role: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -158,7 +158,7 @@ class RolePermissionRoutes {
       return Response(
         result['success'] ? 200 : 404,
         body: jsonEncode(result),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -166,7 +166,7 @@ class RolePermissionRoutes {
           'success': false,
           'message': 'Failed to delete role: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -182,7 +182,7 @@ class RolePermissionRoutes {
           'data': permissions.map((p) => p?.toJson() ?? {}).toList(),
           'message': 'Role permissions retrieved successfully',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -190,7 +190,7 @@ class RolePermissionRoutes {
           'success': false,
           'message': 'Failed to retrieve role permissions: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -205,7 +205,7 @@ class RolePermissionRoutes {
         return Response(400, body: jsonEncode({
           'success': false,
           'message': 'permission_ids is required',
-        }), headers: {'content-type': 'application/json'});
+        }), headers: {'content-type': 'application/json; charset=utf-8'});
       }
       
       final permissionIds = (json['permission_ids'] as List)
@@ -217,7 +217,7 @@ class RolePermissionRoutes {
       return Response(
         result['success'] ? 200 : 400,
         body: jsonEncode(result),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -225,7 +225,7 @@ class RolePermissionRoutes {
           'success': false,
           'message': 'Failed to assign permissions: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -241,7 +241,7 @@ class RolePermissionRoutes {
           'data': permissions.map((p) => p?.toJson() ?? {}).toList(),
           'message': 'Permissions retrieved successfully',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e, st) {
       print('Exception in _getAllPermissions: $e\n$st');
@@ -250,7 +250,7 @@ class RolePermissionRoutes {
           'success': false,
           'message': 'Failed to retrieve permissions: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -265,7 +265,7 @@ class RolePermissionRoutes {
           'data': groupedPermissions,
           'message': 'Permissions grouped by module retrieved successfully',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e, st) {
       print('Exception in _getPermissionsGroupedByModule: $e\n$st');
@@ -274,7 +274,7 @@ class RolePermissionRoutes {
           'success': false,
           'message': 'Failed to retrieve grouped permissions: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -290,7 +290,7 @@ class RolePermissionRoutes {
             'success': false,
             'message': 'Permission not found',
           }),
-          headers: {'content-type': 'application/json'},
+          headers: {'content-type': 'application/json; charset=utf-8'},
         );
       }
 
@@ -300,7 +300,7 @@ class RolePermissionRoutes {
           'data': permission?.toJson() ?? {},
           'message': 'Permission retrieved successfully',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -308,7 +308,7 @@ class RolePermissionRoutes {
           'success': false,
           'message': 'Failed to retrieve permission: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -323,7 +323,7 @@ class RolePermissionRoutes {
       return Response(
         result['success'] ? 201 : 400,
         body: jsonEncode(result),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -331,7 +331,7 @@ class RolePermissionRoutes {
           'success': false,
           'message': 'Failed to create permission: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -347,7 +347,7 @@ class RolePermissionRoutes {
       return Response(
         result['success'] ? 200 : 400,
         body: jsonEncode(result),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -355,7 +355,7 @@ class RolePermissionRoutes {
           'success': false,
           'message': 'Failed to update permission: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -368,7 +368,7 @@ class RolePermissionRoutes {
       return Response(
         result['success'] ? 200 : 404,
         body: jsonEncode(result),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -376,7 +376,7 @@ class RolePermissionRoutes {
           'success': false,
           'message': 'Failed to delete permission: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -391,7 +391,7 @@ class RolePermissionRoutes {
           'data': permissions.map((p) => p?.toJson() ?? {}).toList(),
           'message': 'Permissions for module retrieved successfully',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -399,7 +399,7 @@ class RolePermissionRoutes {
           'success': false,
           'message': 'Failed to retrieve permissions for module: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }
@@ -412,7 +412,7 @@ class RolePermissionRoutes {
         return Response(401, body: jsonEncode({
           'success': false,
           'message': 'User not authenticated',
-        }), headers: {'content-type': 'application/json'});
+        }), headers: {'content-type': 'application/json; charset=utf-8'});
       }
 
       final permissions = request.authUserPermissions;
@@ -427,7 +427,7 @@ class RolePermissionRoutes {
           },
           'message': 'User permissions retrieved successfully',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     } catch (e) {
       return Response.internalServerError(
@@ -435,7 +435,7 @@ class RolePermissionRoutes {
           'success': false,
           'message': 'Failed to retrieve user permissions: $e',
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
   }

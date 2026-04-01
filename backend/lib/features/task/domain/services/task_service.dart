@@ -141,10 +141,16 @@ class TaskService {
     }
   }
 
-  static Future<List<Map<String, dynamic>>> getBurndownData(int sprintId) async {
+  static Future<List<Map<String, dynamic>>> getBurndownData(int sprintId, {String? callerRole, String? callerId}) async {
     final sprint = await _repository.getSprintInfo(sprintId);
     if (sprint == null || sprint.dateDebut == null || sprint.dateFin == null) {
       throw Exception('Sprint not found or dates missing');
+    }
+
+    if (callerRole != 'Admin' && callerRole != 'Manager' && callerRole != 'RH' && callerId != null && sprint.projectId != null) {
+      final isMember = await _projectRepo.isMember(sprint.projectId!, callerId);
+      final isOwner = await _projectRepo.isClientOwner(sprint.projectId!, callerId);
+      if (!isMember && !isOwner) throw Exception('Permission denied');
     }
 
     final dateDebut = DateTime.parse(sprint.dateDebut!);
@@ -184,7 +190,7 @@ class TaskService {
       if (duration > 1) {
         ideal = totalHours - (i * (totalHours / (duration - 1)));
       } else {
-        ideal = i == 0 ? totalHours : 0;
+        ideal = 0; // Handle duration <= 1
       }
 
       bool isPastOrToday = currentDay.isBefore(now) || 

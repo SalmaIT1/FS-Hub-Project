@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
+import 'package:fs_hub/shared/widgets/authenticated_image.dart';
 
 class GlassAvatarPicker extends StatefulWidget {
   final String? initialImageUrl;
@@ -125,12 +126,10 @@ class _GlassAvatarPickerState extends State<GlassAvatarPicker> {
     }
 
     if (widget.initialImageUrl != null) {
-      return Image.network(
-        widget.initialImageUrl!,
+      return AuthenticatedImage(
+        url: widget.initialImageUrl!,
         fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) {
-          return _buildPlaceholder(isDark);
-        },
+        errorWidget: _buildPlaceholder(isDark),
       );
     }
 
