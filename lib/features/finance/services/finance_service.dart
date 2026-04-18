@@ -127,4 +127,54 @@ class FinanceService {
       return {};
     }
   }
+
+  // QUOTES (DEVIS)
+  static Future<List<Quote>> getMyQuotes() async {
+    try {
+      final response = await AuthService.authenticatedRequest(
+        '$_endpoint/quotes/mine',
+        'GET',
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data.map((json) => Quote.fromJson(json)).toList();
+      }
+      return [];
+    } catch (e) {
+      print('Error fetching personal quotes: $e');
+      return [];
+    }
+  }
+
+  static Future<List<Quote>> getQuotesByClient(int clientId) async {
+    try {
+      final response = await AuthService.authenticatedRequest(
+        '$_endpoint/quotes/client/$clientId',
+        'GET',
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data.map((json) => Quote.fromJson(json)).toList();
+      }
+      return [];
+    } catch (e) {
+      print('Error fetching quotes: $e');
+      return [];
+    }
+  }
+
+  static Future<Map<String, dynamic>> approveQuote(int quoteId) async {
+    try {
+      final response = await AuthService.authenticatedRequest(
+        '$_endpoint/quotes/$quoteId/approve',
+        'POST',
+      );
+
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'error': e.toString()};
+    }
+  }
 }

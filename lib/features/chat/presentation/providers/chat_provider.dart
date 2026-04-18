@@ -153,11 +153,14 @@ class ChatController extends ChangeNotifier {
       
       print('[CTRL] Sending message as userId=$userId');
       
-      await repository.sendTextMessage(
+      final message = await repository.sendTextMessage(
         conversationId: _currentConversationId!,
         senderId: userId,
         content: content,
       );
+      
+      // Manually update cache to ensure immediate UI refresh
+      _handleMessageUpdate(message);
       notifyListeners();
     } catch (e) {
       _lastError = 'Failed to send message: $e';
@@ -194,7 +197,7 @@ class ChatController extends ChangeNotifier {
         messageType = voiceMetadata != null ? 'voice' : 'file';
       }
       
-      await repository.sendMessageWithAttachments(
+      final message = await repository.sendMessageWithAttachments(
         conversationId: _currentConversationId!,
         senderId: userId,
         content: content,
@@ -202,6 +205,9 @@ class ChatController extends ChangeNotifier {
         uploadIds: uploadIds,
         voiceMetadata: voiceMetadata,
       );
+      
+      // Manually update cache to ensure immediate UI refresh
+      _handleMessageUpdate(message);
       notifyListeners();
     } catch (e) {
       _lastError = 'Failed to send message with attachments: $e';
@@ -250,47 +256,7 @@ class ChatController extends ChangeNotifier {
   /// Subscribe to repository state changes
   void _subscribeToState() {
     _messageSubscription = repository.messageUpdated.listen((msg) {
-      final convId = msg.conversationId;
-      print('[CTRL] messageUpdated stream: id=${msg.id} convId=$convId');
-      print('[CTRL] Current conversation: $_currentConversationId');
-      print('[CTRL] Has conversation in store: ${_conversationMessages.containsKey(convId)}');
-      
-      // CRITICAL: Always ensure the conversation exists in the store
-      // This handles race conditions where a message arrives before the conversation is explicitly loaded
-      final messages = _conversationMessages.putIfAbsent(convId, () => []);
-      print('[CTRL] Store has ${messages.length} messages before update');
-      
-      // If this is a canonical message with clientMessageId, remove optimistic version
-      if (msg.clientMessageId != null && msg.clientMessageId!.isNotEmpty) {
-        print('[CTRL] Removing optimistic: clientMsgId=${msg.clientMessageId}');
-        messages.removeWhere((m) => m.clientMessageId == msg.clientMessageId);
-      }
-      
-      // Replace or add the message
-      final idx = messages.indexWhere((m) => m.id == msg.id);
-      if (idx >= 0) {
-        print('[CTRL] Replacing message at index $idx');
-        messages[idx] = msg;
-      } else {
-        print('[CTRL] Adding new message');
-        messages.add(msg);
-      }
-      messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
-      print('[CTRL] Store now has ${messages.length} messages after update');
-
-      if (convId == _currentConversationId) {
-        print('[CTRL] Current conversation updated, notifying listeners');
-        notifyListeners();
-      } else {
-        // If message is for a convo not in our list, it might have been hidden/cleared
-        // and now needs to reappear.
-        if (!_conversations.any((c) => c.id == convId)) {
-          print('[CTRL] New message for hidden conversation, reloading list');
-          loadConversations();
-        } else {
-          notifyListeners(); // Update unread counts/last message in list
-        }
-      }
+      _handleMessageUpdate(msg);
     });
 
     _conversationSubscription = repository.conversationUpdated.listen((conv) {
@@ -336,7 +302,7 @@ class ChatController extends ChangeNotifier {
     _typingSubscription = repository.typingUpdated.listen((data) {
       final conversationId = data['conversationId']?.toString();
       final userId = data['userId']?.toString();
-      final isTyping = data['isTyping'] == true;
+      final isTyping = data['isTyping'] == true || data['state'] == 'typing';
       
       if (conversationId != null && userId != null) {
         final idx = _conversations.indexWhere((c) => c.id == conversationId);
@@ -456,6 +422,13 @@ class ChatController extends ChangeNotifier {
       _lastError = 'Failed to delete conversation: $e';
       notifyListeners();
       rethrow;
+    }
+  }
+
+  /// Send typing status for the current conversation
+  void setTypingStatus(bool isTyping) {
+    if (_currentConversationId != null) {
+      repository.sendTypingStatus(_currentConversationId!, isTyping);
     }
   }
 
@@ -606,6 +579,42 @@ class ChatController extends ChangeNotifier {
     _currentQueue.clear();
     _currentConversationId = null;
     notifyListeners();
+  }
+
+  /// Internal helper to process message updates from any source (Socket or REST)
+  void _handleMessageUpdate(ChatMessage msg) {
+    final convId = msg.conversationId;
+    print('[CTRL] _handleMessageUpdate: id=${msg.id} convId=$convId');
+    
+    // CRITICAL: Always ensure the conversation exists in the store
+    final messages = _conversationMessages.putIfAbsent(convId, () => []);
+    
+    // If this is a canonical message with clientMessageId, remove optimistic version
+    if (msg.clientMessageId != null && msg.clientMessageId!.isNotEmpty) {
+      messages.removeWhere((m) => m.clientMessageId == msg.clientMessageId);
+    }
+    
+    // Replace or add the message
+    final idx = messages.indexWhere((m) => m.id == msg.id);
+    if (idx >= 0) {
+      messages[idx] = msg;
+    } else {
+      messages.add(msg);
+    }
+    
+    // Re-sort all messages by date
+    messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+
+    if (convId == _currentConversationId) {
+      notifyListeners();
+    } else {
+      // If message is for a convo not in our list, reload it
+      if (!_conversations.any((c) => c.id == convId)) {
+        loadConversations();
+      } else {
+        notifyListeners(); // Update unread counts in list
+      }
+    }
   }
 
   @override

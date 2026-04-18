@@ -275,7 +275,7 @@ class ExpenseService {
       await NotificationService.createNotification(
         userId: expense.createdBy!,
         title: 'Depense Approuvée',
-        message: 'Votre dépense (\$type) de \${expense.montant} € a été approuvée ($newStatus).',
+        message: 'Votre dépense ($type) de ${expense.montant} DT a été approuvée ($newStatus).',
         type: 'EXPENSE_APPROVED',
       );
       
@@ -302,7 +302,7 @@ class ExpenseService {
         await NotificationService.createNotification(
           userId: expense.createdBy!,
           title: 'Depense Rejetée',
-          message: 'Votre dépense (\$type) de \${expense.montant} € a été rejetée.',
+          message: 'Votre dépense ($type) de ${expense.montant} DT a été rejetée.',
           type: 'EXPENSE_REJECTED',
         );
       }

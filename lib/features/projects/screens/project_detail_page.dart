@@ -14,6 +14,7 @@ import 'package:fs_hub/shared/models/project_member_model.dart';
 import 'package:fs_hub/features/projects/services/task_service.dart';
 import 'package:fs_hub/shared/widgets/reporting/burndown_chart.dart';
 import 'package:fs_hub/shared/widgets/luxury/luxury_status_dialog.dart';
+import 'package:fs_hub/features/finance/services/financial_calculation_service.dart';
 
 class ProjectDetailPage extends StatefulWidget {
   final Project project;
@@ -29,10 +30,12 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> with SingleTicker
   List<Sprint> _sprints = [];
   List<ProjectMember> _members = [];
   Map<int, List<dynamic>> _sprintBurndowns = {};
+  Map<String, dynamic>? _financialData;
   int? _selectedBurndownSprintId;
   bool _isLoadingSprints = true;
   bool _isLoadingMembers = true;
   bool _isLoadingBurndowns = true;
+  bool _isLoadingFinance = true;
   late AnimationController _listController;
 
   @override
@@ -58,6 +61,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> with SingleTicker
         _isLoadingSprints = true;
         _isLoadingMembers = true;
         _isLoadingBurndowns = true;
+        _isLoadingFinance = true;
       });
     }
     
@@ -82,14 +86,19 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> with SingleTicker
       // Load members
       final members = await ProjectService.getProjectMembers(_project.id!);
 
+      // Load financial data
+      final financeSummary = await FinancialCalculationService.calculateProjectFinancialSummary(_project.id!);
+
       if (mounted) {
         setState(() {
           _sprints = sprints;
           _members = members;
           _sprintBurndowns = burndownMap;
+          _financialData = financeSummary['success'] ? financeSummary['data'] : null;
           _isLoadingSprints = false;
           _isLoadingMembers = false;
           _isLoadingBurndowns = false;
+          _isLoadingFinance = false;
         });
         _listController.forward(from: 0);
       }
@@ -324,9 +333,18 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> with SingleTicker
           ],
           Row(
             children: [
-              _buildMetricItem('Budget', NumberFormat.currency(symbol: '€').format(_project.budget)),
+              _buildMetricItem('Budget', NumberFormat.currency(symbol: 'DT', decimalDigits: 3).format(_project.budget)),
               const Spacer(),
-              _buildMetricItem('Estimated', NumberFormat.currency(symbol: '€').format(_project.coutEstime)),
+              if (_isLoadingFinance)
+                const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.accentGold))
+              else
+                _buildMetricItem(
+                  'Encaissé (Crédit)', 
+                  NumberFormat.currency(symbol: 'DT', decimalDigits: 3).format(_financialData?['total_credits'] ?? 0.0),
+                  color: Colors.green
+                ),
+              const Spacer(),
+              _buildMetricItem('Estimated', NumberFormat.currency(symbol: 'DT', decimalDigits: 3).format(_project.coutEstime)),
             ],
           ),
           const SizedBox(height: 24),
@@ -337,18 +355,57 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> with SingleTicker
               _buildMetricItem('Finish Due', _formatDate(_project.dateFinPrevue)),
             ],
           ),
+          const SizedBox(height: 20),
+          // Contract status badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: _project.hasContract
+                  ? Colors.green.withOpacity(0.08)
+                  : Colors.amber.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: _project.hasContract
+                    ? Colors.green.withOpacity(0.3)
+                    : Colors.amber.withOpacity(0.3),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  _project.hasContract ? Icons.verified_rounded : Icons.warning_amber_rounded,
+                  size: 16,
+                  color: _project.hasContract ? Colors.green : Colors.amber,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _project.hasContract
+                        ? 'Contrat d\'engagement client : Signé ✓${_project.contractFilename != null ? '\n${_project.contractFilename}' : ''}'
+                        : 'Contrat d\'engagement client : Non uploadé — le projet ne peut pas démarrer.',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: _project.hasContract ? Colors.green : Colors.amber.shade700,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildMetricItem(String label, String value) {
+  Widget _buildMetricItem(String label, String value, {Color? color}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
         const SizedBox(height: 4),
-        Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppTheme.accentGold)),
+        Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color ?? AppTheme.accentGold)),
       ],
     );
   }

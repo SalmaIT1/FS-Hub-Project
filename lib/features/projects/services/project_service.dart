@@ -1,5 +1,8 @@
 import 'dart:convert';
+import 'dart:typed_data';
+import 'package:http/http.dart' as http;
 import '../../../features/auth/data/services/auth_service.dart';
+import 'package:fs_hub/core/config/app_config.dart';
 import 'package:fs_hub/shared/models/project_model.dart';
 import 'package:fs_hub/shared/models/project_member_model.dart';
 import '../../clients/models/client_model.dart';
@@ -82,22 +85,50 @@ class ProjectService {
         body: project.toJson(),
       );
 
-      String message = response.statusCode == 200 ? 'Project updated successfully' : 'Failed to update project';
-      if (response.statusCode != 200) {
-        try {
-          final errorBody = jsonDecode(response.body);
-          if (errorBody is Map && errorBody.containsKey('error')) {
-            message = errorBody['error'];
-          }
-        } catch (_) {}
+      if (response.statusCode == 200) {
+        return {'success': true, 'message': 'Project updated successfully'};
       }
 
-      return {
-        'success': response.statusCode == 200,
-        'message': message,
-      };
+      // Parse structured error from backend
+      try {
+        final errorBody = jsonDecode(response.body) as Map<String, dynamic>;
+        if (errorBody['error'] == 'contract_required') {
+          return {
+            'success': false,
+            'error': 'contract_required',
+            'message': errorBody['message'] ?? 'Contrat d\'engagement requis avant de démarrer le projet.',
+          };
+        }
+        return {'success': false, 'message': errorBody['error'] ?? errorBody['message'] ?? 'Failed to update project'};
+      } catch (_) {
+        return {'success': false, 'message': 'Failed to update project'};
+      }
     } catch (e) {
       return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  /// Upload a signed engagement contract for a given project.
+  static Future<Map<String, dynamic>> uploadContract(int projectId, Uint8List fileBytes, String filename) async {
+    try {
+      final token = await AuthService.getToken();
+      final baseUrl = AppConfig.apiV1BaseUrl;
+      final uri = Uri.parse('$baseUrl/projects/$projectId/contract');
+
+      final request = http.MultipartRequest('POST', uri)
+        ..headers['Authorization'] = 'Bearer $token'
+        ..files.add(http.MultipartFile.fromBytes('file', fileBytes, filename: filename));
+
+      final streamedResponse = await request.send();
+      final body = await streamedResponse.stream.bytesToString();
+
+      if (streamedResponse.statusCode == 200) {
+        final data = jsonDecode(body) as Map<String, dynamic>;
+        return {'success': true, 'message': 'Contrat téléchargé avec succès', 'data': data['data']};
+      }
+      return {'success': false, 'message': 'Échec du téléchargement du contrat'};
+    } catch (e) {
+      return {'success': false, 'message': 'Erreur réseau: $e'};
     }
   }
 

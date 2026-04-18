@@ -281,6 +281,8 @@ class Translations {
       'done': 'Done',
       'new_task': 'New Task',
       'delayed': 'Delayed',
+      'new_direct_chat': 'New Direct Chat',
+      'new_group_chat': 'New Group Chat',
     },
     'fr': {
       'app_title': 'FS Hub',
@@ -564,6 +566,8 @@ class Translations {
       'done': 'Terminé',
       'new_task': 'Nouvelle Tâche',
       'delayed': 'En retard',
+      'new_direct_chat': 'Nouveau Chat Direct',
+      'new_group_chat': 'Nouveau Groupe',
     },
   };
 

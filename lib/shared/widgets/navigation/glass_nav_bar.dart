@@ -6,11 +6,13 @@ import 'package:fs_hub/core/state/settings_controller.dart';
 class GlassNavigationBar extends StatelessWidget {
   final int currentIndex;
   final Function(int) onTap;
+  final List<Map<String, dynamic>> items;
 
   const GlassNavigationBar({
     super.key,
     required this.currentIndex,
     required this.onTap,
+    required this.items,
   });
 
   @override
@@ -48,19 +50,42 @@ class GlassNavigationBar extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 10),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildNavItem(context, 0, Icons.home_rounded, settings.translate('home')),
-                _buildNavItem(context, 1, Icons.task_alt_rounded, settings.translate('tasks')),
-                _buildNavItem(context, 2, Icons.badge_rounded, settings.languageCode == 'fr' ? 'Équipe' : 'Team'),
-                _buildNavItem(context, 3, Icons.assignment_rounded, settings.translate('demands')),
-                _buildNavItem(context, 4, Icons.chat_bubble_rounded, settings.translate('chat')),
-                _buildNavItem(context, 5, Icons.person_rounded, settings.translate('profile')),
-              ],
+              children: List.generate(items.length, (index) {
+                final item = items[index];
+                final route = item['route'] as String?;
+                final title = item['title'] as String?;
+                final iconName = item['icon'] as String?;
+
+                final label = title ?? (route == '/' ? settings.translate('home') : '');
+                final icon = _iconForName(iconName);
+                return _buildNavItem(context, index, icon, label);
+              }),
             ),
           ),
         ),
       ),
     );
+  }
+
+  IconData _iconForName(String? iconName) {
+    switch (iconName) {
+      case 'home':
+        return Icons.home_rounded;
+      case 'people':
+        return Icons.badge_rounded;
+      case 'assignment':
+        return Icons.task_alt_rounded;
+      case 'description':
+        return Icons.assignment_rounded;
+      case 'chat':
+        return Icons.chat_bubble_rounded;
+      case 'person':
+        return Icons.person_rounded;
+      case 'settings':
+        return Icons.settings_rounded;
+      default:
+        return Icons.home_rounded;
+    }
   }
 
   Widget _buildNavItem(BuildContext context, int index, IconData icon, String label) {

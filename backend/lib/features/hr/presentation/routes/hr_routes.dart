@@ -41,7 +41,11 @@ class HrRoutes {
       ..get('/bonuses', _getBonuses)
       ..get('/bonuses/<employeeId>', (Request req, String id) => _getBonuses(req, targetEmployeeId: id))
       ..post('/bonuses', Pipeline().addMiddleware(requirePermission('manage_bonuses')).addHandler(_grantBonus))
-      ..post('/bonuses/bulk', Pipeline().addMiddleware(requirePermission('manage_bonuses')).addHandler(_bulkGrantBonuses));
+      ..post('/bonuses/bulk', Pipeline().addMiddleware(requirePermission('manage_bonuses')).addHandler(_bulkGrantBonuses))
+      
+      // Payslip Export (HTML Print)
+      // Allow ANY authenticated user or at least allow it if they are viewing salaries
+      ..get('/salaries/<id>/payslip', _getPayslipHtml);
   }
 
   // --- Attendance ---
@@ -209,6 +213,30 @@ class HrRoutes {
     final res = await HrService.updateSalaryStatus(int.parse(id), status, callerId: request.authUserId);
     if (!res['success']) return Response.internalServerError(body: jsonEncode(res), headers: {'Content-Type': 'application/json; charset=utf-8'});
     return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json; charset=utf-8'});
+  }
+
+  Future<Response> _getPayslipHtml(Request request, String id) async {
+    final callerId = request.authUserId;
+    final callerRole = request.authUserRole;
+    final isAdminOrRH = callerRole == 'Admin' || callerRole == 'RH' || callerRole == 'Comptable';
+    
+    // Check ownership
+    if (!isAdminOrRH) {
+      final salaryOwnerId = await HrService.getSalaryEmployeeId(int.parse(id));
+      if (salaryOwnerId != callerId) {
+        return Response.forbidden(jsonEncode({'success': false, 'message': 'You are not authorized to view this payslip.'}));
+      }
+    }
+
+    final html = await HrService.generatePayslipHtmlForSalary(int.parse(id));
+    if (html == null) {
+      return Response.notFound('Fiche de paie introuvable.');
+    }
+    // Set headers so the browser renders it immediately and can use window.print()
+    return Response.ok(
+      '$html<script>window.onload = function() { window.print(); }</script>', 
+      headers: {'Content-Type': 'text/html; charset=utf-8'}
+    );
   }
 
   // --- Bulk Salary Generation ---

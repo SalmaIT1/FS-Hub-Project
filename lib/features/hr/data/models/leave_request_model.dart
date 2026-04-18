@@ -28,17 +28,17 @@ class LeaveRequest {
 
   factory LeaveRequest.fromJson(Map<String, dynamic> json) {
     return LeaveRequest(
-      id: json['id'],
-      employeeId: json['employee_id'],
-      leaveType: json['leave_type'],
+      id: json['id'] != null ? int.tryParse(json['id'].toString()) : null,
+      employeeId: json['employee_id']?.toString() ?? '',
+      leaveType: json['leave_type']?.toString() ?? '',
       startDate: DateTime.parse(json['start_date']),
       endDate: DateTime.parse(json['end_date']),
-      totalDays: json['total_days'],
-      status: json['status'],
-      reason: json['reason'],
-      approvedBy: json['approved_by'],
-      employeeNom: json['nom'],
-      employeePrenom: json['prenom'],
+      totalDays: json['total_days'] != null ? int.tryParse(json['total_days'].toString()) : null,
+      status: json['status']?.toString() ?? 'pending',
+      reason: json['reason']?.toString(),
+      approvedBy: json['approved_by']?.toString(),
+      employeeNom: json['nom']?.toString(),
+      employeePrenom: json['prenom']?.toString(),
     );
   }
 

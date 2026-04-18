@@ -21,6 +21,13 @@ class EmployeeModel {
   final String? username;
   final String? role;
 
+  // Recruitment documents
+  final String? cinDocument;
+  final String? cvDocument;
+  final String? bacDocument;
+  final String? degreeDocument;
+  final String? transcriptsDocuments;
+
   EmployeeModel({
     required this.id,
     required this.userId,
@@ -43,6 +50,11 @@ class EmployeeModel {
     this.updatedAt,
     this.username,
     this.role,
+    this.cinDocument,
+    this.cvDocument,
+    this.bacDocument,
+    this.degreeDocument,
+    this.transcriptsDocuments,
   });
 
   Map<String, dynamic> toJson({bool includePrivate = false}) {
@@ -68,6 +80,12 @@ class EmployeeModel {
       'updatedAt': updatedAt,
       'username': username,
       'role': role,
+      // Documents always included (RH/Admin visibility controlled at service layer)
+      'cin_document': includePrivate ? cinDocument : null,
+      'cv_document': includePrivate ? cvDocument : null,
+      'bac_document': includePrivate ? bacDocument : null,
+      'degree_document': includePrivate ? degreeDocument : null,
+      'transcripts_documents': includePrivate ? transcriptsDocuments : null,
     };
   }
 
@@ -94,6 +112,11 @@ class EmployeeModel {
       updatedAt: map['updated_at']?.toString(),
       username: map['username'],
       role: map['role'],
+      cinDocument: map['cin_document'],
+      cvDocument: map['cv_document'],
+      bacDocument: map['bac_document'],
+      degreeDocument: map['degree_document'],
+      transcriptsDocuments: map['transcripts_documents'],
     );
   }
 }

@@ -7,6 +7,10 @@ class Client {
   final String? telephone;
   final ClientType type;
   final int scoreCredit;
+  final double credit;
+  final String? matriculeFiscale;
+  final String? adresse;
+  final String? patenteDocument;
 
   const Client({
     this.id,
@@ -17,6 +21,10 @@ class Client {
     this.telephone,
     required this.type,
     this.scoreCredit = 0,
+    this.credit = 0.0,
+    this.matriculeFiscale,
+    this.adresse,
+    this.patenteDocument,
   });
 
   factory Client.fromJson(Map<String, dynamic> json) {
@@ -32,6 +40,10 @@ class Client {
         orElse: () => ClientType.particulier,
       ),
       scoreCredit: int.tryParse((json['scoreCredit'] ?? json['score_credit'])?.toString() ?? '0') ?? 0,
+      credit: double.tryParse((json['credit'])?.toString() ?? '0.0') ?? 0.0,
+      matriculeFiscale: json['matriculeFiscale'] as String? ?? json['matricule_fiscale'] as String?,
+      adresse: json['adresse'] as String?,
+      patenteDocument: json['patenteDocument'] as String? ?? json['patente_document'] as String?,
     );
   }
 
@@ -45,6 +57,10 @@ class Client {
       'telephone': telephone,
       'type': type.name,
       'scoreCredit': scoreCredit,
+      'credit': credit,
+      'matriculeFiscale': matriculeFiscale,
+      'adresse': adresse,
+      'patenteDocument': patenteDocument,
     };
   }
 
@@ -57,6 +73,10 @@ class Client {
     String? telephone,
     ClientType? type,
     int? scoreCredit,
+    double? credit,
+    String? matriculeFiscale,
+    String? adresse,
+    String? patenteDocument,
   }) {
     return Client(
       id: id ?? this.id,
@@ -67,6 +87,10 @@ class Client {
       telephone: telephone ?? this.telephone,
       type: type ?? this.type,
       scoreCredit: scoreCredit ?? this.scoreCredit,
+      credit: credit ?? this.credit,
+      matriculeFiscale: matriculeFiscale ?? this.matriculeFiscale,
+      adresse: adresse ?? this.adresse,
+      patenteDocument: patenteDocument ?? this.patenteDocument,
     );
   }
 

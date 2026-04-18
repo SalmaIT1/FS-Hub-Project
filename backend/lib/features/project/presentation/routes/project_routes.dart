@@ -1,12 +1,16 @@
 import 'dart:convert';
+import 'dart:typed_data';
+import 'package:mime/mime.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 import '../../domain/services/project_service.dart';
+import '../../data/repositories/project_repository.dart';
 import '../../../../core/middleware/auth_middleware.dart';
 import '../../../../core/middleware/permission_middleware.dart';
 
 class ProjectRoutes {
   late final Router router;
+  final _repo = ProjectRepository();
 
   ProjectRoutes() {
     router = Router()
@@ -19,7 +23,10 @@ class ProjectRoutes {
       ..delete('/<id>', (Request request, String id) => Pipeline().addMiddleware(requirePermission('manage_projects')).addHandler((req) => _deleteProject(req, id))(request))
       ..get('/<id>/members', (Request request, String id) => Pipeline().addMiddleware(requirePermission('view_projects')).addHandler((req) => _getProjectMembers(req, id))(request))
       ..post('/<id>/members', (Request request, String id) => Pipeline().addMiddleware(requirePermission('manage_projects')).addHandler((req) => _addProjectMember(req, id))(request))
-      ..delete('/<id>/members/<employeeId>', (Request request, String id, String employeeId) => Pipeline().addMiddleware(requirePermission('manage_projects')).addHandler((req) => _removeProjectMember(req, id, employeeId))(request));
+      ..delete('/<id>/members/<employeeId>', (Request request, String id, String employeeId) => Pipeline().addMiddleware(requirePermission('manage_projects')).addHandler((req) => _removeProjectMember(req, id, employeeId))(request))
+      // Contract upload — Admin only
+      ..post('/<id>/contract', (Request request, String id) => Pipeline().addMiddleware(requirePermission('manage_projects')).addHandler((req) => _uploadContract(req, id))(request))
+      ..get('/<id>/contract/status', (Request request, String id) => Pipeline().addMiddleware(requirePermission('view_projects')).addHandler((req) => _getContractStatus(req, id))(request));
   }
 
   Future<Response> _getAllProjects(Request request) async {
@@ -82,7 +89,15 @@ class ProjectRoutes {
       await ProjectService.updateProject(id, data, callerId: request.authUserId);
       return Response.ok(jsonEncode({'success': true, 'message': 'Project updated'}));
     } catch (e) {
-      return Response.badRequest(body: jsonEncode({'error': e.toString().replaceFirst('Exception: ', '')}));
+      final msg = e.toString().replaceFirst('Exception: ', '');
+      if (msg.startsWith('CONTRACT_REQUIRED')) {
+        return Response(
+          422,
+          body: jsonEncode({'success': false, 'error': 'contract_required', 'message': 'Un contrat d\'engagement signé doit être uploadé avant de démarrer ce projet.'}),
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
+        );
+      }
+      return Response.badRequest(body: jsonEncode({'error': msg}));
     }
   }
 
@@ -144,6 +159,68 @@ class ProjectRoutes {
       return Response.ok(jsonEncode({'success': true, 'message': 'Member removed'}));
     } catch (e) {
       return Response.internalServerError(body: jsonEncode({'error': 'Internal server error'}));
+    }
+  }
+
+  // ── POST /<id>/contract ────────────────────────────────────────────────────
+  Future<Response> _uploadContract(Request request, String idString) async {
+    try {
+      final id = int.tryParse(idString);
+      if (id == null) return Response.badRequest(body: jsonEncode({'success': false, 'error': 'Invalid project ID'}));
+
+      final contentType = request.headers['content-type'] ?? '';
+      if (!contentType.contains('multipart/form-data')) {
+        return Response.badRequest(body: jsonEncode({'success': false, 'error': 'Expected multipart/form-data'}));
+      }
+
+      final boundary = contentType.split('boundary=').last.trim();
+      final transformer = MimeMultipartTransformer(boundary);
+      final bodyStream = request.read();
+      final parts = await transformer.bind(bodyStream).toList();
+
+      if (parts.isEmpty) {
+        return Response.badRequest(body: jsonEncode({'success': false, 'error': 'No file found in request'}));
+      }
+
+      final part = parts.first;
+      final disposition = part.headers['content-disposition'] ?? '';
+      final filenameMatch = RegExp(r'filename="([^"]+)"').firstMatch(disposition);
+      final filename = filenameMatch?.group(1) ?? 'contract.pdf';
+
+      final bytes = await part.fold<List<int>>([], (buf, chunk) => buf..addAll(chunk));
+      if (bytes.isEmpty) {
+        return Response.badRequest(body: jsonEncode({'success': false, 'error': 'Empty file'}));
+      }
+
+      final result = await _repo.uploadContract(id, bytes, filename);
+      return Response.ok(
+        jsonEncode({'success': true, 'message': 'Contract uploaded successfully', 'data': result}),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
+      );
+    } catch (e) {
+      return Response.internalServerError(
+        body: jsonEncode({'success': false, 'error': e.toString()}),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
+      );
+    }
+  }
+
+  // ── GET /<id>/contract/status ──────────────────────────────────────────────
+  Future<Response> _getContractStatus(Request request, String idString) async {
+    try {
+      final id = int.tryParse(idString);
+      if (id == null) return Response.badRequest(body: jsonEncode({'success': false, 'error': 'Invalid project ID'}));
+
+      final hasContract = await _repo.hasContract(id);
+      return Response.ok(
+        jsonEncode({'success': true, 'hasContract': hasContract}),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
+      );
+    } catch (e) {
+      return Response.internalServerError(
+        body: jsonEncode({'success': false, 'error': e.toString()}),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
+      );
     }
   }
 }

@@ -156,9 +156,11 @@ class FinancialCalculationService {
 
   static Future<Map<String, dynamic>> calculateClientFinancialSummary(int clientId) async {
     try {
-      // Récupérer les informations du client et les crédits
+      // Récupérer les informations du client, ses projets et ses crédits (paiements)
       final response = await ClientService.getClientById(clientId);
       final credits = await CreditService.getClientCredits(clientId);
+      final allProjects = await ProjectService.getAllProjects();
+      final clientProjects = allProjects.where((p) => p.clientId == clientId).toList();
       
       if (response['success'] != true) {
         return {
@@ -171,19 +173,19 @@ class FinancialCalculationService {
       final client = response['data'] as Client;
       
       // Calculer les totaux
-      final totalCredits = credits.fold(0.0, (sum, credit) => sum + (credit['montant'] as num).toDouble());
+      // totalPaid = somme de tous les crédits (paiements) reçus du client
+      final totalPaid = credits.fold(0.0, (sum, credit) => sum + (credit['montant'] as num).toDouble());
       
-      // If the model doesn't have these, we might need a separate service or to update the model.
-      // For now, let's use default values.
-      final totalInvoices = 0.0; // Placeholder until model updated
-      final totalPaid = 0.0; // Placeholder until model updated
-      final outstandingBalance = totalInvoices - totalPaid;
+      // totalInvoiced = somme des budgets de tous les projets du client
+      final totalInvoiced = clientProjects.fold(0.0, (sum, project) => sum + project.budget);
+      
+      final outstandingBalance = totalInvoiced - totalPaid;
       
       // Calculer les indicateurs
-      final paymentRatio = totalInvoices > 0 ? (totalPaid / totalInvoices) * 100 : 0.0;
-      final creditUsage = totalCredits > 0 ? (outstandingBalance / totalCredits) * 100 : 0.0;
+      // paymentRatio = pourcentage de la somme totale payée par rapport au budget total des projets
+      final paymentRatio = totalInvoiced > 0 ? (totalPaid / totalInvoiced) * 100 : 0.0;
       
-      // Déterminer le statut du client
+      // Déterminer le statut du client basé sur le recouvrement
       String clientStatus = 'active';
       if (paymentRatio >= 95) {
         clientStatus = 'excellent';
@@ -202,12 +204,11 @@ class FinancialCalculationService {
         'data': {
           'client_id': clientId,
           'client_name': client.displayName,
-          'total_invoices': totalInvoices,
+          'total_invoiced': totalInvoiced,
           'total_paid': totalPaid,
-          'outstanding_balance': outstandingBalance,
-          'total_credits': totalCredits,
+          'outstanding_balance': outstandingBalance > 0 ? outstandingBalance : 0.0,
+          'total_credits': totalPaid, // On utilise totalPaid car "crédit" = somme payée selon l'utilisateur
           'payment_ratio': paymentRatio,
-          'credit_usage': creditUsage,
           'client_status': clientStatus,
           'last_updated': DateTime.now().toIso8601String(),
         },

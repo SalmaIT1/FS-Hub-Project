@@ -61,7 +61,10 @@ class HrRepository {
          ORDER BY lr.created_at DESC''',
       {},
     );
-    return result.rows.map((row) => row.assoc()).toList();
+    return result.rows.map((row) {
+      final map = row.assoc();
+      return LeaveRequestModel.fromMap(map).toMap()..['nom'] = map['nom']..['prenom'] = map['prenom'];
+    }).toList();
   }
 
   Future<void> submitLeaveRequest(Map<String, dynamic> data) async {
@@ -102,7 +105,10 @@ class HrRepository {
          ORDER BY rw.created_at DESC''',
       {},
     );
-    return result.rows.map((row) => row.assoc()).toList();
+    return result.rows.map((row) {
+      final map = row.assoc();
+      return RemoteWorkModel.fromMap(map).toMap()..['nom'] = map['nom']..['prenom'] = map['prenom'];
+    }).toList();
   }
 
   Future<void> submitRemoteWorkRequest(Map<String, dynamic> data) async {
@@ -153,7 +159,9 @@ class HrRepository {
 
   Future<List<SalaryModel>> getSalaries(String employeeId) async {
     final result = await _db.execute(
-      'SELECT * FROM salaries WHERE employee_id = :employeeId ORDER BY salary_month DESC',
+      '''SELECT s.*, e.nom, e.prenom FROM salaries s 
+         JOIN employees e ON s.employee_id = e.id 
+         WHERE s.employee_id = :employeeId ORDER BY s.salary_month DESC''',
       {'employeeId': employeeId},
     );
     return result.rows.map((row) => SalaryModel.fromMap(row.assoc())).toList();
@@ -161,7 +169,9 @@ class HrRepository {
   
   Future<List<SalaryModel>> getAllSalaries() async {
     final result = await _db.execute(
-      'SELECT * FROM salaries ORDER BY salary_month DESC',
+      '''SELECT s.*, e.nom, e.prenom FROM salaries s 
+         JOIN employees e ON s.employee_id = e.id 
+         ORDER BY s.salary_month DESC''',
       {},
     );
     return result.rows.map((row) => SalaryModel.fromMap(row.assoc())).toList();
@@ -198,64 +208,143 @@ class HrRepository {
   }
 
   Future<int> bulkGenerateSalaries(String month) async {
-    // 1. Get all active employees with their base salary
-    final employeesRes = await _db.execute("SELECT id, base_salary FROM employees WHERE statut = 'actif' AND is_deleted = FALSE");
-    final employees = employeesRes.rows.map((r) => {'id': r.colAt(0), 'base': double.tryParse(r.colAt(1).toString()) ?? 0.0}).toList();
-
+    // We ignore the 'month' parameter and generate all historical payroll 
+    // since the hiring date up to the current date (April 2026).
+    final today = DateTime(2026, 4, 8);
+    final endPeriod = DateTime(2026, 4, 8);
+    
+    final employeesRes = await _db.execute('SELECT id, dateEmbauche, base_salary FROM employees WHERE statut = "actif"');
+    
     int generatedCount = 0;
-    final year = month.split('-')[0];
 
-    for (final emp in employees) {
-      final empId = emp['id'];
-      final baseSalary = emp['base'] as double;
+    for (final empRow in employeesRes.rows) {
+      final empId = empRow.colAt(0).toString();
+      final hireDateStr = empRow.colAt(1).toString();
+      final baseSalary = double.tryParse(empRow.colAt(2).toString()) ?? 1200.0;
 
-      // 2. Fetch total bonuses for this month
-      final bonusRes = await _db.execute(
-        "SELECT SUM(amount) as total FROM bonuses WHERE employee_id = :id AND MONTH(granted_date) = MONTH(:m) AND YEAR(granted_date) = YEAR(:m)",
-        {'id': empId, 'm': '$month-01'}
-      );
-      final bonuses = double.tryParse(bonusRes.rows.first.colByName('total')?.toString() ?? '0') ?? 0.0;
+      DateTime hireDate;
+      try { hireDate = DateTime.parse(hireDateStr); } catch (_) { hireDate = DateTime(2025, 1, 1); }
 
-      // 3. Fetch total approved leaves for the year so far
-      final leaveRes = await _db.execute(
-        "SELECT SUM(total_days) as total FROM leave_requests WHERE employee_id = :id AND status = 'approved' AND YEAR(start_date) = :year",
-        {'id': empId, 'year': year}
-      );
-      final daysTaken = int.tryParse(leaveRes.rows.first.colByName('total')?.toString() ?? '0') ?? 0;
-      
-      double deductions = 0.0;
-      if (daysTaken > 21) {
-        // Simple formula: Deduction = (Days over 21) * (Daily rate)
-        // Daily rate is approximately Salary / 26 working days
-        final dailyRate = baseSalary / 26;
-        final overflow = daysTaken - 21;
-        deductions = overflow * dailyRate;
+      DateTime currentMonth = DateTime(hireDate.year, hireDate.month, 1);
+      int leaveDaysUsedThisYear = 0;
+      int unpaidDaysDeductedThisYear = 0;
+      int currentYear = currentMonth.year;
+
+      while (currentMonth.isBefore(endPeriod) || (currentMonth.year == endPeriod.year && currentMonth.month == endPeriod.month)) {
+        if (currentMonth.year != currentYear) {
+          leaveDaysUsedThisYear = 0;
+          unpaidDaysDeductedThisYear = 0;
+          currentYear = currentMonth.year;
+        }
+
+        final monthStart = DateTime(currentMonth.year, currentMonth.month, 1);
+        final monthEnd = DateTime(currentMonth.year, currentMonth.month + 1, 0);
+        final monthStr = monthStart.toIso8601String().split('T')[0];
+
+        // 1. Fetch Attendance and Leave Types
+        final attendanceRes = await _db.execute(
+          'SELECT a.status, a.check_out, a.attendance_date, lr.leave_type '
+          'FROM attendance a '
+          'LEFT JOIN leave_requests lr ON a.employee_id = lr.employee_id '
+          'AND a.attendance_date BETWEEN lr.start_date AND lr.end_date '
+          'AND lr.status = "approved" '
+          'WHERE a.employee_id = :id AND a.attendance_date BETWEEN :start AND :end',
+          {'id': empId, 'start': monthStart.toIso8601String().split('T')[0], 'end': monthEnd.toIso8601String().split('T')[0]}
+        );
+
+        int presentDays = 0;
+        int remoteDays = 0;
+        int absentDays = 0;
+        int lateCount = 0;
+        int paidLeaveDaysThisMonth = 0;
+        int forcedUnpaidDaysThisMonth = 0; // Days marked as 'unpaid_leave' in request
+        double otHours = 0;
+
+        for (final att in attendanceRes.rows) {
+          final status = att.colByName('status')?.toString();
+          final leaveType = att.colByName('leave_type')?.toString();
+          final checkOutStr = att.colByName('check_out')?.toString();
+
+          if (status == 'present') presentDays++;
+          else if (status == 'remote') remoteDays++;
+          else if (status == 'absent') absentDays++;
+          else if (status == 'late') { presentDays++; lateCount++; }
+          else if (status == 'leave') {
+            if (leaveType == 'unpaid_leave') {
+              forcedUnpaidDaysThisMonth++;
+            } else if (leaveType == 'paid_leave' || leaveType == null) {
+              // null defaults to paid_leave for backward compatibility or direct logs
+              paidLeaveDaysThisMonth++;
+            }
+            // Sick leave or others don't increment quotas here for simplicity in this MVP
+          }
+
+          if (checkOutStr != null && checkOutStr != 'null' && checkOutStr.isNotEmpty) {
+             try {
+               final checkOut = DateTime.parse(checkOutStr);
+               final baseline = DateTime(checkOut.year, checkOut.month, checkOut.day, 17, 30);
+               if (checkOut.isAfter(baseline)) otHours += checkOut.difference(baseline).inMinutes / 60.0;
+             } catch (_) {}
+          }
+        }
+
+        // 2. Calculations
+        final dailyRate = baseSalary / 22.0;
+        final hourlyRate = dailyRate / 8.0;
+
+        // PAID LEAVE QUOTA LOGIC (21 days/year)
+        final totalPaidLeaveSoFar = leaveDaysUsedThisYear + paidLeaveDaysThisMonth;
+        final spilloverUnpaidNeeded = (totalPaidLeaveSoFar > 21) ? (totalPaidLeaveSoFar - 21) : 0;
+        
+        int unpaidDueToQuotaThisMonth = spilloverUnpaidNeeded - unpaidDaysDeductedThisYear;
+        if (unpaidDueToQuotaThisMonth < 0) unpaidDueToQuotaThisMonth = 0;
+        if (unpaidDueToQuotaThisMonth > paidLeaveDaysThisMonth) unpaidDueToQuotaThisMonth = paidLeaveDaysThisMonth;
+
+        unpaidDaysDeductedThisYear += unpaidDueToQuotaThisMonth;
+        leaveDaysUsedThisYear += paidLeaveDaysThisMonth;
+
+        final otAmount = otHours * hourlyRate * 1.25;
+        // Deduction includes: Absences + Forced Unpaid Leave + Paid Leave exceeding 21-day quota
+        final totalUnpaidDays = absentDays + forcedUnpaidDaysThisMonth + unpaidDueToQuotaThisMonth;
+        final absenceDeduction = totalUnpaidDays * dailyRate;
+        final latePenalty = lateCount * dailyRate * 0.05;
+
+        double perfBonus = 0;
+        if (presentDays + remoteDays > 15) {
+            perfBonus = baseSalary * (0.05 + (0.1 * (presentDays / 22.0)));
+        }
+        final attendanceBonus = (absentDays == 0) ? baseSalary * 0.05 : 0.0;
+        final totalBonus = perfBonus + attendanceBonus;
+
+        final grossSalary = baseSalary + otAmount + totalBonus - absenceDeduction - latePenalty;
+        final cnss = grossSalary * 0.0918;
+        final netSalary = grossSalary - cnss;
+
+        // 3. Upsert
+        await _db.execute(
+          '''INSERT INTO salaries (employee_id, base_salary, bonus_amount, deductions, net_salary, salary_month, payment_status)
+             VALUES (:id, :base, :bonus, :deduc, :net, :month, "paid")
+             ON DUPLICATE KEY UPDATE 
+             base_salary = VALUES(base_salary), bonus_amount = VALUES(bonus_amount), 
+             deductions = VALUES(deductions), net_salary = VALUES(net_salary), payment_status = VALUES(payment_status)''',
+          {
+            'id': empId,
+            'base': baseSalary,
+            'bonus': totalBonus + otAmount,
+            'deduc': cnss + absenceDeduction + latePenalty,
+            'net': netSalary,
+            'month': monthStr
+          }
+        );
+        generatedCount++;
+
+        currentMonth = DateTime(currentMonth.year, currentMonth.month + 1, 1);
       }
-
-      final netSalary = baseSalary + bonuses - deductions;
-
-      // 4. Upsert salary record
-      await _db.execute('''
-        INSERT INTO salaries (employee_id, base_salary, bonus_amount, deductions, net_salary, salary_month, payment_status)
-        VALUES (:id, :base, :bonus, :deduc, :net, :month, 'pending')
-        ON DUPLICATE KEY UPDATE 
-          base_salary = VALUES(base_salary),
-          bonus_amount = VALUES(bonus_amount),
-          deductions = VALUES(deductions),
-          net_salary = VALUES(net_salary)
-      ''', {
-        'id': empId,
-        'base': baseSalary,
-        'bonus': bonuses,
-        'deduc': deductions,
-        'net': netSalary,
-        'month': '$month-01'
-      });
-      generatedCount++;
     }
 
     return generatedCount;
   }
+
 
   Future<List<Map<String, dynamic>>> getBonuses(String employeeId) async {
     final result = await _db.execute(
@@ -265,7 +354,10 @@ class HrRepository {
          ORDER BY b.created_at DESC''',
       {'employeeId': employeeId},
     );
-    return result.rows.map((row) => row.assoc()).toList();
+    return result.rows.map((row) {
+      final map = row.assoc();
+      return BonusModel.fromMap(map).toMap()..['nom'] = map['nom']..['prenom'] = map['prenom'];
+    }).toList();
   }
 
   Future<List<Map<String, dynamic>>> getAllBonuses() async {
@@ -275,7 +367,10 @@ class HrRepository {
          ORDER BY b.created_at DESC''',
       {},
     );
-    return result.rows.map((row) => row.assoc()).toList();
+    return result.rows.map((row) {
+      final map = row.assoc();
+      return BonusModel.fromMap(map).toMap()..['nom'] = map['nom']..['prenom'] = map['prenom'];
+    }).toList();
   }
 
   Future<void> grantBonus(Map<String, dynamic> data) async {
@@ -322,5 +417,164 @@ class HrRepository {
       totalInserted += res.affectedRows.toInt();
     }
     return totalInserted;
+  }
+
+  Future<String?> generatePayslipHtmlForSalary(int salaryId, {String? logoBase64}) async {
+    final result = await _db.execute(
+      '''SELECT s.*, e.nom, e.prenom, e.departement, e.poste, e.dateEmbauche 
+         FROM salaries s 
+         JOIN employees e ON s.employee_id = e.id 
+         WHERE s.id = :id''',
+      {'id': salaryId},
+    );
+    if (result.rows.isEmpty) return null;
+    
+    final row = result.rows.first.assoc();
+    final nom = row['nom']?.toString() ?? '';
+    final prenom = row['prenom']?.toString() ?? '';
+    final dept = row['departement']?.toString() ?? '';
+    final poste = row['poste']?.toString() ?? '';
+    final hireDate = row['dateEmbauche']?.toString() ?? '';
+    
+    final monthStr = row['salary_month']?.toString() ?? '';
+    String monthLabel = monthStr;
+    try {
+      final parts = monthStr.split('-');
+      if (parts.length >= 2) monthLabel = '${parts[1]}/${parts[0]}';
+    } catch (_) {}
+
+    final base = double.tryParse(row['base_salary']?.toString() ?? '0') ?? 0;
+    final bonus = double.tryParse(row['bonus_amount']?.toString() ?? '0') ?? 0;
+    final deduc = double.tryParse(row['deductions']?.toString() ?? '0') ?? 0;
+    final net = double.tryParse(row['net_salary']?.toString() ?? '0') ?? 0;
+
+    return '''
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Bulletin de Paie - $prenom $nom - $monthLabel</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; line-height: 1.4; padding: 20px; background: #f5f5f5; }
+        .payslip-container { 
+            max-width: 800px; 
+            margin: 0 auto; 
+            border: 1px solid #ddd; 
+            padding: 30px; 
+            box-shadow: 0 0 10px rgba(0,0,0,0.1); 
+            background: white;
+            position: relative;
+            min-height: 270mm; /* A4 height approx */
+            display: flex;
+            flex-direction: column;
+        }
+        .header { display: flex; align-items: center; border-bottom: 2px solid #C9A24D; padding-bottom: 15px; margin-bottom: 20px; }
+        .logo { height: 60px; margin-right: 20px; }
+        .company-info { flex-grow: 1; }
+        .company-info h1 { margin: 0; color: #C9A24D; font-size: 22px; }
+        .company-info p { margin: 2px 0; font-size: 13px; color: #666; }
+        .period { text-align: right; font-weight: bold; font-size: 16px; border-left: 2px solid #eee; padding-left: 20px; }
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; background: #fcfcfc; padding: 15px; border-radius: 8px; border: 1px solid #eee; }
+        .info-item span { font-weight: bold; color: #999; font-size: 10px; text-transform: uppercase; display: block; }
+        .info-item p { margin: 2px 0 0 0; font-size: 14px; font-weight: 600; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        th { background: #f9f9f9; text-align: left; padding: 10px; border-bottom: 2px solid #eee; font-size: 13px; }
+        td { padding: 10px; border-bottom: 1px solid #eee; font-size: 13px; }
+        .text-right { text-align: right; }
+        .bold { font-weight: bold; }
+        .negative { color: #d32f2f; }
+        .content-wrap { flex-grow: 1; }
+        .footer { margin-top: auto; display: flex; justify-content: space-between; border-top: 1px solid #eee; padding-top: 20px; }
+        .summary-box { background: #fcf8ef; border: 1px solid #e9dcb9; padding: 15px; border-radius: 8px; margin-left: auto; width: 250px; }
+        .summary-item { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px; }
+        .net-salary { font-size: 18px; color: #C9A24D; border-top: 2px solid #C9A24D; padding-top: 8px; margin-top: 8px; }
+
+        @media print {
+            body { padding: 0; margin: 0; background: white; }
+            .payslip-container { 
+                border: none; 
+                box-shadow: none; 
+                padding: 10mm; 
+                max-width: 100%; 
+                width: calc(100% - 20mm);
+                margin: 0;
+                min-height: auto;
+            }
+            @page {
+                size: A4;
+                margin: 0;
+            }
+            .no-print { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="payslip-container">
+        <div class="header">
+            ${logoBase64 != null ? '<img src="data:image/png;base64,$logoBase64" class="logo" alt="Logo">' : ''}
+            <div class="company-info">
+                <h1>FS HUB ENTERPRISE</h1>
+                <p>Tunis, Tunisie</p>
+                <p>Matricule Fiscale: 1234567/A/B/C/000</p>
+            </div>
+            <div class="period">BULLETIN DE PAIE<br><small style="color: #C9A24D; font-size: 14px;">$monthLabel</small></div>
+        </div>
+
+        <div class="content-wrap">
+            <div class="info-grid">
+                <div class="info-item"><span>Employé</span><p>$prenom $nom</p></div>
+                <div class="info-item"><span>Département</span><p>$dept</p></div>
+                <div class="info-item"><span>Poste</span><p>$poste</p></div>
+                <div class="info-item"><span>Date d'embauche</span><p>$hireDate</p></div>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Libellé</th>
+                        <th class="text-right">Gain</th>
+                        <th class="text-right">Retenu</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Salaire de Base</td>
+                        <td class="text-right">${base.toStringAsFixed(3)}</td>
+                        <td class="text-right"></td>
+                    </tr>
+                    <tr>
+                        <td>Primes & Heures sup.</td>
+                        <td class="text-right">${bonus.toStringAsFixed(3)}</td>
+                        <td class="text-right"></td>
+                    </tr>
+                    <tr>
+                        <td>Total Déductions (Abs, Retard, CNSS)</td>
+                        <td class="text-right"></td>
+                        <td class="text-right negative">${deduc.toStringAsFixed(3)}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="summary-box">
+            <div class="summary-item"><span>Total Gains</span><span class="bold">${(base + bonus).toStringAsFixed(3)}</span></div>
+            <div class="summary-item"><span>Total Retenues</span><span class="bold negative">${deduc.toStringAsFixed(3)}</span></div>
+            <div class="summary-item net-salary"><span>NET À PAYER</span><span class="bold">${net.toStringAsFixed(3)} TND</span></div>
+        </div>
+
+        <div class="footer">
+            <div>
+                <p>Date d'impression : ${DateTime.now().toIso8601String().split('T')[0]}</p>
+            </div>
+            <div style="text-align: right;">
+                <p>Signature de l'employeur</p>
+                <div style="height: 60px;"></div>
+                <p>Cachet FS HUB</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+    ''';
   }
 }

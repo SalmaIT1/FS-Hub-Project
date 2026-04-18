@@ -5,6 +5,7 @@ import '../models/leave_request_model.dart';
 import '../models/remote_work_model.dart';
 import '../models/salary_model.dart';
 import '../models/bonus_model.dart';
+import '../models/audit_log.dart';
 
 class HrService {
   // --- Attendance ---
@@ -309,6 +310,58 @@ class HrService {
       return false;
     } catch (e) {
       print('bulkGenerateSalaries error: $e');
+      return false;
+    }
+  }
+
+  // --- Audit Logs ---
+
+  static Future<List<AuditLog>> getAuditLogs({
+    int limit = 100,
+    String? action,
+    String? userId,
+    String? startDate,
+    String? endDate,
+  }) async {
+    try {
+      String url = '/audit/audit-logs?limit=$limit';
+      if (action != null && action.isNotEmpty) url += '&action=$action';
+      if (userId != null && userId.isNotEmpty) url += '&userId=$userId';
+      if (startDate != null) url += '&startDate=$startDate';
+      if (endDate != null) url += '&endDate=$endDate';
+
+      final response = await AuthService.authenticatedRequest(url, 'GET');
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(response.body);
+        if (data['success'] == true && data['data'] != null) {
+          final List<dynamic> list = data['data'];
+          return list.map((item) => AuditLog.fromJson(item)).toList();
+        }
+      }
+      return [];
+    } catch (e) {
+      print('getAuditLogs error: $e');
+      return [];
+    }
+  }
+
+  static Future<bool> logSystemAction(String action, Map<String, dynamic> details) async {
+    try {
+      final response = await AuthService.authenticatedRequest(
+        '/audit/log',
+        'POST',
+        body: {
+          'action': action,
+          'details': details,
+        },
+      );
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final Map<String, dynamic> data = jsonDecode(response.body);
+        return data['success'] == true;
+      }
+      return false;
+    } catch (e) {
+      print('logSystemAction error: $e');
       return false;
     }
   }

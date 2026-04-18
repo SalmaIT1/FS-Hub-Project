@@ -26,18 +26,34 @@ class AttendanceModel {
   });
 
   factory AttendanceModel.fromMap(Map<String, dynamic> map) {
+    DateTime parseDate(dynamic val) {
+      if (val is DateTime) return val;
+      return DateTime.parse(val.toString());
+    }
+
+    DateTime? parseNullableDate(dynamic val) {
+      if (val == null) return null;
+      if (val is DateTime) return val;
+      try {
+        return DateTime.parse(val.toString());
+      } catch (e) {
+        print('Error parsing date: $val - $e');
+        return null;
+      }
+    }
+
     return AttendanceModel(
       id: map['id'] != null ? int.tryParse(map['id'].toString()) : null,
       employeeId: map['employee_id'],
-      attendanceDate: DateTime.parse(map['attendance_date'].toString()),
-      checkIn: map['check_in'] != null ? DateTime.parse(map['check_in'].toString()) : null,
-      checkOut: map['check_out'] != null ? DateTime.parse(map['check_out'].toString()) : null,
+      attendanceDate: parseDate(map['attendance_date']),
+      checkIn: parseNullableDate(map['check_in']),
+      checkOut: parseNullableDate(map['check_out']),
       status: map['status'] ?? 'present',
       workHours: map['work_hours'] != null ? double.tryParse(map['work_hours'].toString()) : 0.0,
       overtimeHours: map['overtime_hours'] != null ? double.tryParse(map['overtime_hours'].toString()) : 0.0,
       notes: map['notes'],
-      createdAt: map['created_at'] != null ? DateTime.parse(map['created_at'].toString()) : null,
-      updatedAt: map['updated_at'] != null ? DateTime.parse(map['updated_at'].toString()) : null,
+      createdAt: parseNullableDate(map['created_at']),
+      updatedAt: parseNullableDate(map['updated_at']),
     );
   }
 

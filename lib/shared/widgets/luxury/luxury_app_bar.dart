@@ -521,7 +521,18 @@ class _LuxuryAppBarState extends State<LuxuryAppBar> with TickerProviderStateMix
   List<Widget> _buildPremiumControls(BuildContext context, bool isDark) {
     List<Widget> controls = [];
     
-    // Always add notification badge – now opens a dropdown instead of navigating
+    // 1. Add custom actions if provided
+    if (widget.actions != null) {
+      for (var action in widget.actions!) {
+        // Skip notification badge if we're adding it manually below
+        if (!action.runtimeType.toString().contains('NotificationBadge')) {
+          controls.add(action);
+          controls.add(const SizedBox(width: 8));
+        }
+      }
+    }
+
+    // 2. Add notification badge dropdown
     controls.add(_NotificationDropdownButton(
       notificationCount: _notificationCount,
       isDark: isDark,
@@ -529,24 +540,9 @@ class _LuxuryAppBarState extends State<LuxuryAppBar> with TickerProviderStateMix
         if (mounted) setState(() => _notificationCount = count);
       },
     ));
-    controls.add(const SizedBox(width: 4)); // Reduced spacing
+    controls.add(const SizedBox(width: 8));
     
-    // Add notification badge if present in actions
-    if (widget.actions != null) {
-      for (var action in widget.actions!) {
-        // Look for notification badge based on type
-        if (action.runtimeType.toString().contains('NotificationBadge')) {
-          controls.add(SizedBox(
-            width: 48,
-            height: 48,
-            child: action,
-          ));
-          controls.add(const SizedBox(width: 4)); // Reduced spacing
-          break; // Add only the first notification badge
-        }
-      }
-    }
-
+    // 3. Add user menu dropdown
     controls.add(_UserMenuDropdownButton(isDark: isDark, appBarContext: context));
 
     return controls;

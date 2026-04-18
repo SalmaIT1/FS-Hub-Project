@@ -1,3 +1,4 @@
+import 'dart:io';
 import '../../../../shared/database/connection.dart';
 import '../models/project_model.dart';
 
@@ -81,6 +82,20 @@ class ProjectRepository {
   }
 
   Future<void> updateProject(int id, Map<String, dynamic> data) async {
+    // Business rule: project cannot be set to 'En cours' without a signed contract
+    final newStatut = data['statut']?.toString();
+    if (newStatut == 'En cours') {
+      final contractCheck = await _db.execute(
+        'SELECT contract_url FROM projets WHERE id = :id',
+        {'id': id},
+      );
+      final hasContract = contractCheck.rows.isNotEmpty &&
+          (contractCheck.rows.first.colByName('contract_url')?.toString().isNotEmpty ?? false);
+      if (!hasContract) {
+        throw Exception('CONTRACT_REQUIRED: A signed engagement contract must be uploaded before activating this project.');
+      }
+    }
+
     await _db.execute('''
       UPDATE projets SET 
         nom = :nom, 
@@ -105,6 +120,39 @@ class ProjectRepository {
       'priorite': data['priorite'],
       'statut': data['statut'],
     });
+  }
+
+  /// Saves the uploaded contract file to disk and records the path in the DB.
+  Future<Map<String, dynamic>> uploadContract(int projectId, List<int> bytes, String filename) async {
+    final uploadsDir = Directory('uploads/contracts');
+    if (!uploadsDir.existsSync()) uploadsDir.createSync(recursive: true);
+
+    final safeName = '${DateTime.now().millisecondsSinceEpoch}_${filename.replaceAll(RegExp(r'[^\w.]'), '_')}';
+    final filePath = '${uploadsDir.path}/$safeName';
+    File(filePath).writeAsBytesSync(bytes);
+
+    await _db.execute('''
+      UPDATE projets SET
+        contract_url = :url,
+        contract_filename = :filename,
+        contract_uploaded_at = NOW()
+      WHERE id = :id
+    ''', {
+      'url': filePath,
+      'filename': filename,
+      'id': projectId,
+    });
+
+    return {'contractUrl': filePath, 'contractFilename': filename};
+  }
+
+  Future<bool> hasContract(int projectId) async {
+    final res = await _db.execute(
+      'SELECT contract_url FROM projets WHERE id = :id',
+      {'id': projectId},
+    );
+    return res.rows.isNotEmpty &&
+        (res.rows.first.colByName('contract_url')?.toString().isNotEmpty ?? false);
   }
 
   Future<void> deleteProject(int id) async {

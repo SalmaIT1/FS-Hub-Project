@@ -1,6 +1,7 @@
 import '../../data/repositories/project_repository.dart';
 import '../../../../shared/services/audit_service.dart';
 import '../../../../core/services/data_integrity_service.dart';
+import '../../../finance/data/repositories/finance_repository.dart';
 
 class ProjectService {
   static final _repository = ProjectRepository();
@@ -61,10 +62,28 @@ class ProjectService {
   }
 
   static Future<void> updateProject(int id, Map<String, dynamic> data, {String? callerId}) async {
-    if (data['statut'] == 'En cours') {
+    if (data['statut'] == 'En cours' || data['statut'] == 'Active') {
       final members = await _repository.getProjectMembers(id);
       if (members.isEmpty) {
         throw Exception('Impossible de démarrer le projet : aucun membre assigné.');
+      }
+      
+      // Validation: 50% upfront payment check
+      final financeRepo = FinanceRepository();
+      final invoices = await financeRepo.getInvoicesByProject(id);
+      double totalBilled = 0.0;
+      double totalPaid = 0.0;
+      for (var invoice in invoices) {
+         totalBilled += invoice.montantTtc ?? 0.0;
+         final payments = await financeRepo.getPaymentsByInvoice(invoice.id!);
+         for (var p in payments) {
+            totalPaid += p.montant ?? 0.0;
+         }
+      }
+      // Assuming devis amount if no invoices yet, but strictly speaking "invoice/quote_amount * 0.5"
+      // If totalBilled is 0, we can't calculate 50%. We should check the quote.
+      if (totalBilled > 0 && totalPaid < (totalBilled * 0.5)) {
+         throw Exception("50% upfront payment required to activate project.");
       }
     }
 

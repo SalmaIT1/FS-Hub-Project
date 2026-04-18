@@ -7,6 +7,7 @@ import '../../../employees/services/employee_service.dart';
 import '../../../notifications/services/notification_service.dart';
 import 'package:fs_hub/core/routes/app_routes.dart';
 import '../../../../navigation/chat_router.dart';
+import 'package:fs_hub/core/security/permission_guard.dart';
 
 import 'package:provider/provider.dart';
 import 'package:fs_hub/core/state/settings_controller.dart';
@@ -38,6 +39,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     _fadeIn = CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic);
     _animController.forward();
     _loadUserData();
+    // Temporarily force re-initialization to apply employee fallback permissions
+    PermissionGuard.initialize();
   }
 
   @override
@@ -734,7 +737,7 @@ class _PrimaryGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final items = [
+    final allItems = [
       _Module(
         title: settings.translate('employees'),
         caption: isFr ? 'Personnel & Rôles' : 'Staff Details',
@@ -771,12 +774,14 @@ class _PrimaryGrid extends StatelessWidget {
         caption: isFr ? 'Gestion des Crédits' : 'Credit Management',
         icon: Icons.credit_card_outlined,
         route: AppRoutes.credits,
+        isAdminOnly: true, // Mark as redundant if HR Portal is present
       ),
       _Module(
         title: 'Expenses',
         caption: isFr ? 'Dépenses & Budgets' : 'Expenses & Budgets',
         icon: Icons.receipt_long_outlined,
         route: AppRoutes.expenses,
+        isAdminOnly: true,
       ),
       _Module(
         title: 'Roles & Permissions',
@@ -784,7 +789,30 @@ class _PrimaryGrid extends StatelessWidget {
         icon: Icons.admin_panel_settings_outlined,
         route: AppRoutes.roles,
       ),
+      _Module(
+        title: 'Intelligence IA',
+        caption: isFr ? 'Analyses Prédictives' : 'Predictive Insights',
+        icon: Icons.auto_awesome,
+        route: '/ai',
+        isAdminOnly: false, // Keep visible for Admin/RH hubs
+      ),
     ];
+
+    // Get current user role from state if available, or fetch
+    final userRole = PermissionGuard.currentRole;
+
+    final visibleItems = allItems.where((item) {
+      final route = item.route ?? '/';
+      if (!PermissionGuard.canAccessRoute(route)) return false;
+      
+      // Declutter logic: If user is Admin/Manager, hide redundant sub-modules
+      // that are already accessible via HR Portal or Finance
+      if (userRole == 'Admin' || userRole == 'RH') {
+        if (item.isAdminOnly == true) return false;
+      }
+      
+      return true;
+    }).toList();
 
     return LayoutBuilder(builder: (context, constraints) {
       final w = constraints.maxWidth;
@@ -795,7 +823,7 @@ class _PrimaryGrid extends StatelessWidget {
       return Wrap(
         spacing: gap,
         runSpacing: gap,
-        children: items.map((item) {
+        children: visibleItems.map((item) {
           return _LuxCard(
             item: item,
             isDark: isDark,
@@ -826,16 +854,74 @@ class _SecondaryGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final items = [
+    final allItems = [
       _Module(title: settings.translate('tasks'), caption: 'Pipeline', icon: Icons.rule_outlined, route: AppRoutes.myTasks),
       _Module(title: settings.translate('clients'), caption: 'Partnerships', icon: Icons.handshake_outlined, route: '/clients'),
       _Module(title: settings.translate('invoices'), caption: 'Settlements', icon: Icons.receipt_long_outlined, route: '/invoices'),
       _Module(title: settings.translate('reports'), caption: 'Analytics', icon: Icons.insert_chart_outlined, route: AppRoutes.reports),
-      _Module(title: settings.translate('messages'), caption: 'Collaboration', icon: Icons.mail_outline, isChat: true),
       _Module(title: settings.translate('profile'), caption: 'My Account', icon: Icons.person_outline, route: '/profile'),
       _Module(title: 'Departments', caption: 'Structure', icon: Icons.domain_outlined, route: AppRoutes.departments),
-      _Module(title: settings.translate('settings'), caption: 'Preferences', icon: Icons.tune_outlined, route: '/settings'),
+      _Module(title: settings.translate('settings'), caption: 'Preferences', icon: Icons.tune_outlined, route: AppRoutes.settings),
+      _Module(
+        title: isFr ? 'Historique Présence' : 'Attendance History',
+        caption: isFr ? 'Consulter vos présences' : 'View your attendance',
+        icon: Icons.history_rounded,
+        route: AppRoutes.hrAttendanceHistory,
+      ),
+      _Module(
+        title: isFr ? 'Demande de Congé' : 'Leave Request',
+        caption: isFr ? 'Soumettre une demande' : 'Submit a request',
+        icon: Icons.event_available_rounded,
+        route: AppRoutes.hrLeaves,
+      ),
+      _Module(
+        title: isFr ? 'Télétravail' : 'Remote Work',
+        caption: isFr ? 'Demande de télétravail' : 'Remote work request',
+        icon: Icons.home_work_rounded,
+        route: AppRoutes.hrRemoteWork,
+      ),
+      _Module(
+        title: isFr ? 'Bulletin de Paie' : 'Payslip',
+        caption: isFr ? 'Consulter vos bulletins' : 'View your payslips',
+        icon: Icons.payments_rounded,
+        route: AppRoutes.hrSalaries,
+      ),
+      _Module(
+        title: isFr ? 'Mes Bonus' : 'My Bonuses',
+        caption: isFr ? 'Voir vos primes' : 'View your bonuses',
+        icon: Icons.stars_rounded,
+        route: AppRoutes.hrBonuses,
+      ),
+      _Module(
+        title: settings.translate('messages'),
+        caption: isFr ? 'Discuter avec l\'équipe' : 'Chat with team',
+        icon: Icons.chat_outlined,
+        route: '/chat',
+      ),
     ];
+
+    final userRole = PermissionGuard.currentRole;
+
+    final visibleItems = allItems.where((item) {
+      final route = item.isChat ? '/chat' : (item.route ?? '/');
+      if (!PermissionGuard.canAccessRoute(route)) return false;
+
+      // Declutter logic: Admins don't need "My Profile-only" modules duplicating HR modules
+      // unless they want to specifically submit something for themselves.
+      // But for a clean UI, we group them.
+      if (userRole == 'Admin') {
+        final redundantRoutes = [
+          AppRoutes.hrAttendanceHistory,
+          AppRoutes.hrLeaves,
+          AppRoutes.hrRemoteWork,
+          AppRoutes.hrSalaries,
+          AppRoutes.hrBonuses
+        ];
+        if (redundantRoutes.contains(route)) return false;
+      }
+
+      return true;
+    }).toList();
 
     return LayoutBuilder(builder: (context, constraints) {
       final w = constraints.maxWidth;
@@ -846,7 +932,7 @@ class _SecondaryGrid extends StatelessWidget {
       return Wrap(
         spacing: gap,
         runSpacing: gap,
-        children: items.map((item) {
+        children: visibleItems.map((item) {
           return _LuxCard(
             item: item,
             isDark: isDark,
@@ -1091,7 +1177,9 @@ class _Module {
     this.route,
     this.badge,
     this.isChat = false,
+    this.isAdminOnly = false,
   });
+  final bool isAdminOnly;
 }
 
 

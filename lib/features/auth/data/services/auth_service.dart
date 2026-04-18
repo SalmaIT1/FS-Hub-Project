@@ -22,11 +22,15 @@ class AuthService {
         // Backend returns { success, message, data: { accessToken, refreshToken, user } }
         final sessionData = data['data'] as Map<String, dynamic>?;
         if (sessionData != null) {
-          if (sessionData['accessToken'] != null) {
-            await prefs.setString('access_token', sessionData['accessToken'] as String);
+          // Robust mapping: check for 'accessToken' or 'token'
+          final accessToken = sessionData['accessToken'] ?? sessionData['token'];
+          final refreshToken = sessionData['refreshToken'];
+
+          if (accessToken != null) {
+            await prefs.setString('access_token', accessToken as String);
           }
-          if (sessionData['refreshToken'] != null) {
-            await prefs.setString('refresh_token', sessionData['refreshToken'] as String);
+          if (refreshToken != null) {
+            await prefs.setString('refresh_token', refreshToken as String);
           }
           if (sessionData['user'] != null) {
             await prefs.setString('user_data', jsonEncode(sessionData['user']));
@@ -201,10 +205,21 @@ class AuthService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data['token'] != null) {
-          await prefs.setString('access_token', data['token']);
+        final sessionData = data['data'] as Map<String, dynamic>?;
+        
+        if (sessionData != null) {
+          final accessToken = sessionData['accessToken'] ?? sessionData['token'];
+          final refreshToken = sessionData['refreshToken'];
+
+          if (accessToken != null) {
+            await prefs.setString('access_token', accessToken as String);
+          }
+          if (refreshToken != null) {
+            await prefs.setString('refresh_token', refreshToken as String);
+          }
+          return {'success': true, 'data': sessionData};
         }
-        return {'success': true, 'data': data};
+        return {'success': false, 'error': 'Invalid session data'};
       } else {
         return {'success': false, 'error': 'Token refresh failed'};
       }

@@ -107,8 +107,67 @@ class ExpenseRepository {
         ORDER BY e.date_depense DESC
       ''');
       
-      return results.rows.map((row) => ExpenseModel.fromJson(row.assoc())).toList();
+      final expenses = results.rows.map((row) => ExpenseModel.fromJson(row.assoc())).toList();
+      
+      // Fetch ALL bonuses as individual expenses
+      final bonusResults = await _db.execute('''
+        SELECT b.id, b.amount as montant, b.granted_date as date_depense, 
+               CONCAT('Bonus/Prime: ', e.nom, ' ', e.prenom, ' (', b.bonus_type, ') - ', IFNULL(b.reason, '')) as description,
+               'RH/Bonus-Primes' as category_name
+        FROM bonuses b
+        JOIN employees e ON b.employee_id = e.id
+        ORDER BY b.granted_date DESC
+      ''');
+
+      for (final row in bonusResults.rows) {
+        final data = row.assoc();
+        final dateStr = data['date_depense']?.toString();
+        final date = (dateStr != null && dateStr != 'null') ? DateTime.parse(dateStr) : DateTime.now();
+        
+        expenses.add(ExpenseModel(
+          id: -200000 - int.parse(data['id'].toString()), // Unique negative ID offset
+          montant: double.tryParse(data['montant'].toString()) ?? 0.0,
+          dateDepense: date,
+          description: data['description'],
+          categorie: 'RH/Bonus-Primes',
+          status: 'approved_finance',
+        ));
+      }
+
+      // Fetch ALL salaries as expenses (Base part only to avoid double counting with bonuses)
+      final salaryResults = await _db.execute('''
+        SELECT s.id, (s.net_salary - s.bonus_amount) as base_montant, s.salary_month as date_depense, 
+               CONCAT('Salaire (Base): ', e.nom, ' ', e.prenom, ' - ', DATE_FORMAT(s.salary_month, '%m/%Y')) as description,
+               'RH/Salaires' as category_name
+        FROM salaries s
+        JOIN employees e ON s.employee_id = e.id
+        ORDER BY s.salary_month DESC
+      ''');
+
+      for (final row in salaryResults.rows) {
+        final data = row.assoc();
+        final dateStr = data['date_depense']?.toString();
+        final date = (dateStr != null && dateStr != 'null') ? DateTime.parse(dateStr) : DateTime.now();
+        final baseMontant = double.tryParse(data['base_montant'].toString()) ?? 0.0;
+        
+        if (baseMontant > 0) {
+          expenses.add(ExpenseModel(
+            id: -100000 - int.parse(data['id'].toString()), // Unique negative ID offset
+            montant: baseMontant,
+            dateDepense: date,
+            description: data['description'],
+            categorie: 'RH/Salaires',
+            status: 'approved_finance',
+          ));
+        }
+      }
+
+      // Re-sort all by date
+      expenses.sort((a, b) => b.dateDepense.compareTo(a.dateDepense));
+      
+      return expenses;
     } catch (e) {
+      print('Error merging company expenses with salaries: $e');
       return [];
     }
   }

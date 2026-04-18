@@ -129,7 +129,7 @@ class _InvoicesListPageState extends State<InvoicesListPage> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        invoice.numeroFacture,
+                        '${invoice.numeroFacture} ${invoice.type == 'DELIVERY_NOTE' ? '(Delivery Note)' : ''}',
                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                       ),
                       _buildStatusTag(invoice.statut),
@@ -149,7 +149,7 @@ class _InvoicesListPageState extends State<InvoicesListPage> {
                         children: [
                           const Text('Amount', style: TextStyle(color: Colors.grey, fontSize: 11)),
                           Text(
-                            '${invoice.montantTtc.toStringAsFixed(2)} €',
+                            '${invoice.montantTtc.toStringAsFixed(3)} DT',
                             style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
                           ),
                         ],
@@ -222,6 +222,7 @@ class _AddInvoiceDialog extends StatefulWidget {
 class _AddInvoiceDialogState extends State<_AddInvoiceDialog> {
   final _formKey = GlobalKey<FormState>();
   String _num = '';
+  String _type = 'INVOICE';
   double _ht = 0;
   double _tva = 20;
   int? _selectedProjectId;
@@ -287,13 +288,23 @@ class _AddInvoiceDialogState extends State<_AddInvoiceDialog> {
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
-                    decoration: const InputDecoration(labelText: 'Invoice Number'),
+                    decoration: const InputDecoration(labelText: 'Document Number'),
                     validator: (v) => v?.isEmpty == true ? 'Required' : null,
                     onChanged: (v) => _num = v,
                   ),
                   const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: _type,
+                    decoration: const InputDecoration(labelText: 'Document Type'),
+                    items: const [
+                      DropdownMenuItem(value: 'INVOICE', child: Text('Invoice')),
+                      DropdownMenuItem(value: 'DELIVERY_NOTE', child: Text('Delivery Note')),
+                    ],
+                    onChanged: (v) => setState(() => _type = v!),
+                  ),
+                  const SizedBox(height: 12),
                   TextFormField(
-                    decoration: const InputDecoration(labelText: 'Amount (HT)', suffixText: '€'),
+                    decoration: const InputDecoration(labelText: 'Amount (HT)', suffixText: 'DT'),
                     keyboardType: TextInputType.number,
                     onChanged: (v) => setState(() => _ht = double.tryParse(v) ?? 0),
                   ),
@@ -321,7 +332,12 @@ class _AddInvoiceDialogState extends State<_AddInvoiceDialog> {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'Total TTC: ${(_ht * (1 + _tva / 100)).toStringAsFixed(2)} €',
+                    'Timbre: ${_type == 'DELIVERY_NOTE' ? '0.00' : '1.000'} DT',
+                    style: const TextStyle(fontSize: 14, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Total TTC: ${((_ht * (1 + _tva / 100)) + (_type == 'DELIVERY_NOTE' ? 0 : 1)).toStringAsFixed(3)} DT',
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.accentGold),
                   ),
                 ],
@@ -335,9 +351,11 @@ class _AddInvoiceDialogState extends State<_AddInvoiceDialog> {
             if (_formKey.currentState?.validate() == true) {
               final invoice = Invoice(
                 numeroFacture: _num,
+                type: _type,
                 montantHt: _ht,
                 tva: _tva,
-                montantTtc: _ht * (1 + _tva / 100),
+                timbre: _type == 'DELIVERY_NOTE' ? 0.0 : 1.0,
+                montantTtc: (_ht * (1 + _tva / 100)) + (_type == 'DELIVERY_NOTE' ? 0 : 1),
                 dateEmission: DateTime.now(),
                 dateEcheance: _dateEcheance,
                 statut: 'Brouillon',
@@ -434,13 +452,49 @@ class _InvoiceDetailsSheetState extends State<_InvoiceDetailsSheet> {
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      _buildInfoTile('Total Amount', '${widget.invoice.montantTtc.toStringAsFixed(2)} €', isDark),
+                      _buildInfoTile('Total Amount', '${widget.invoice.montantTtc.toStringAsFixed(3)} DT', isDark),
                       const SizedBox(width: 12),
-                      _buildInfoTile('Total Paid', '${totalPaid.toStringAsFixed(2)} €', isDark, valueColor: Colors.green),
+                      _buildInfoTile('Total Paid', '${totalPaid.toStringAsFixed(3)} DT', isDark, valueColor: Colors.green),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  _buildInfoTile('Remaining Balance', '${remaining.toStringAsFixed(2)} €', isDark, valueColor: remaining > 0 ? Colors.orange : Colors.green, fullWidth: true),
+                  _buildInfoTile('Remaining Balance', '${remaining.toStringAsFixed(3)} DT', isDark, valueColor: remaining > 0 ? Colors.orange : Colors.green, fullWidth: true),
+                  
+                  if (widget.invoice.type == 'DELIVERY_NOTE') ...[
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.accentGold,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                        onPressed: () async {
+                          // Duplicate as INVOICE
+                          final newInvoice = Invoice(
+                            numeroFacture: '${widget.invoice.numeroFacture}-INV',
+                            type: 'INVOICE',
+                            montantHt: widget.invoice.montantHt,
+                            tva: widget.invoice.tva,
+                            timbre: 1.0,
+                            montantTtc: widget.invoice.montantHt * (1 + widget.invoice.tva / 100) + 1.0,
+                            dateEmission: DateTime.now(),
+                            dateEcheance: widget.invoice.dateEcheance,
+                            statut: 'Brouillon',
+                            projectId: widget.invoice.projectId,
+                            clientId: widget.invoice.clientId,
+                          );
+                          final res = await FinanceService.createInvoice(newInvoice);
+                          if (res['success'] == true) {
+                            if (mounted) Navigator.pop(context);
+                            widget.onUpdate();
+                          }
+                        },
+                        icon: const Icon(Icons.receipt_long, color: Colors.black),
+                        label: const Text('Generate Invoice from Delivery Note', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ],
                   
                   const SizedBox(height: 32),
                   Row(
@@ -530,7 +584,7 @@ class _InvoiceDetailsSheetState extends State<_InvoiceDetailsSheet> {
               ],
             ),
           ),
-          Text('+ ${payment.montant.toStringAsFixed(2)} €', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
+          Text('+ ${payment.montant.toStringAsFixed(3)} DT', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
         ],
       ),
     );
@@ -549,7 +603,7 @@ class _InvoiceDetailsSheetState extends State<_InvoiceDetailsSheet> {
           children: [
             TextField(
               controller: amountController,
-              decoration: const InputDecoration(labelText: 'Amount', suffixText: '€'),
+              decoration: const InputDecoration(labelText: 'Amount', suffixText: 'DT'),
               keyboardType: TextInputType.number,
             ),
             const SizedBox(height: 12),

@@ -4,6 +4,7 @@ import 'package:fs_hub/core/state/settings_controller.dart';
 import 'package:fs_hub/shared/widgets/luxury/luxury_app_bar.dart';
 import 'package:fs_hub/shared/models/employee_model.dart';
 import 'package:fs_hub/features/employees/services/employee_service.dart';
+import 'package:fs_hub/features/auth/data/services/auth_service.dart';
 import '../widgets/employee_history_bottom_sheet.dart';
 
 class HrAttendanceHistoryPage extends StatefulWidget {
@@ -17,6 +18,8 @@ class _HrAttendanceHistoryPageState extends State<HrAttendanceHistoryPage> {
   List<Employee> _employees = [];
   List<Employee> _filteredEmployees = [];
   bool _isLoading = true;
+  bool _isOwnHistoryMode = false; // true when user can only see their own history
+  String? _currentUserId;
   final TextEditingController _searchCtrl = TextEditingController();
 
   static const _gold = Color(0xFFC9A24D);
@@ -50,17 +53,71 @@ class _HrAttendanceHistoryPageState extends State<HrAttendanceHistoryPage> {
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
-      final emps = await EmployeeService.getAllEmployees();
-      if (mounted) {
-        setState(() {
-          _employees = emps;
-          _filteredEmployees = emps;
-          _isLoading = false;
-        });
+      final canViewAll = await AuthService.hasPermission('view_employees');
+      final user = await AuthService.getCurrentUser();
+      _currentUserId = user?['id']?.toString();
+
+      if (canViewAll) {
+        // Admin/RH: load full employee directory
+        final emps = await EmployeeService.getAllEmployees();
+        if (mounted) {
+          setState(() {
+            _employees = emps;
+            _filteredEmployees = emps;
+            _isOwnHistoryMode = false;
+            _isLoading = false;
+          });
+        }
+      } else {
+        // Regular employee: go straight to their own record
+        if (mounted) {
+          setState(() {
+            _isOwnHistoryMode = true;
+            _isLoading = false;
+          });
+          // Show their own attendance immediately after build
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && _currentUserId != null) {
+              _showOwnHistory();
+            }
+          });
+        }
       }
     } catch (_) {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _showOwnHistory() {
+    if (_currentUserId == null) return;
+    // Create a minimal Employee stub using the session data for display
+    AuthService.getCurrentUser().then((user) {
+      if (user == null || !mounted) return;
+      final stub = Employee(
+        id: _currentUserId!,
+        matricule: 'M-${_currentUserId!.substring(0, 4)}',
+        nom: user['nom']?.toString() ?? '',
+        prenom: user['prenom']?.toString() ?? '',
+        email: user['email']?.toString() ?? '',
+        poste: user['role']?.toString() ?? '',
+        departement: 'N/A',
+        dateEmbauche: DateTime.now(),
+        dateNaissance: DateTime(1990, 1, 1),
+        sexe: 'M',
+        telephone: '0000',
+        adresse: 'N/A',
+        ville: 'N/A',
+        typeContrat: 'N/A',
+        statut: 'Actif',
+        username: user['username']?.toString(),
+      );
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (context) => EmployeeHistoryBottomSheet(employee: stub),
+      );
+    });
   }
 
   void _showEmployeeHistory(Employee employee) {
@@ -78,40 +135,106 @@ class _HrAttendanceHistoryPageState extends State<HrAttendanceHistoryPage> {
     final isFr = context.watch<SettingsController>().languageCode == 'fr';
     final bg = isDark ? const Color(0xFF0F0F0F) : const Color(0xFFF6F6F6);
 
+    if (_isLoading) {
+      return LuxuryScaffold(
+        title: isFr ? 'Historique de Présence' : 'Attendance History',
+        showBackButton: true,
+        body: const Center(child: CircularProgressIndicator(color: _gold)),
+      );
+    }
+
+    // Non-admin mode: show a simple "My Attendance" screen with a button to reopen the sheet
+    if (_isOwnHistoryMode) {
+      return LuxuryScaffold(
+        title: isFr ? 'Mon Historique' : 'My Attendance',
+        showBackButton: true,
+        body: SafeArea(
+          child: Container(
+            color: bg,
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: _gold.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.calendar_month_rounded, color: _gold, size: 56),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    isFr ? 'Mon Calendrier de Présence' : 'My Attendance Calendar',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    isFr ? 'Consultez votre historique de pointage mensuel.' : 'View your monthly check-in history.',
+                    style: const TextStyle(color: Colors.grey, fontSize: 14),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 32),
+                  ElevatedButton.icon(
+                    onPressed: _showOwnHistory,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _gold,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      elevation: 0,
+                    ),
+                    icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                    label: Text(
+                      isFr ? 'Voir mon historique' : 'View my history',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Admin/RH mode: full employee directory
     return LuxuryScaffold(
       title: isFr ? 'Historique de Présence' : 'Attendance History',
       showBackButton: true,
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: _gold))
-          : SafeArea(
-              child: Container(
-                color: bg,
-                child: Column(
-                  children: [
-                    _SearchHeader(
-                      isFr: isFr,
-                      isDark: isDark,
-                      searchCtrl: _searchCtrl,
-                      totalEmployees: _employees.length,
-                    ),
-                    Expanded(
-                      child: _filteredEmployees.isEmpty
-                          ? _emptyState(isFr)
-                          : ListView.builder(
-                              padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
-                              itemCount: _filteredEmployees.length,
-                              itemBuilder: (_, i) => _EmployeeHistoryRow(
-                                employee: _filteredEmployees[i],
-                                isDark: isDark,
-                                isFr: isFr,
-                                onTap: () => _showEmployeeHistory(_filteredEmployees[i]),
-                              ),
-                            ),
-                    ),
-                  ],
-                ),
+      body: SafeArea(
+        child: Container(
+          color: bg,
+          child: Column(
+            children: [
+              _SearchHeader(
+                isFr: isFr,
+                isDark: isDark,
+                searchCtrl: _searchCtrl,
+                totalEmployees: _employees.length,
               ),
-            ),
+              Expanded(
+                child: _filteredEmployees.isEmpty
+                    ? _emptyState(isFr)
+                    : ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
+                        itemCount: _filteredEmployees.length,
+                        itemBuilder: (_, i) => _EmployeeHistoryRow(
+                          employee: _filteredEmployees[i],
+                          isDark: isDark,
+                          isFr: isFr,
+                          onTap: () => _showEmployeeHistory(_filteredEmployees[i]),
+                        ),
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

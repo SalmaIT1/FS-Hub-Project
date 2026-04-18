@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
+import 'package:bcrypt/bcrypt.dart';
+import 'package:uuid/uuid.dart';
 import '../../../../shared/database/connection.dart';
 import '../models/user_model.dart';
 
@@ -266,5 +268,27 @@ class AuthRepository {
       'UPDATE password_resets SET is_used = TRUE WHERE token_hash = :hash',
       {'hash': tokenHash},
     );
+  }
+
+  Future<String> createUser({
+    required String username,
+    required String password,
+    required String role,
+    String? id,
+  }) async {
+    final userId = id ?? const Uuid().v4();
+    final hashedPassword = BCrypt.hashpw(password, BCrypt.gensalt());
+    
+    await _db.execute(
+      '''INSERT INTO users (id, username, password, role) 
+         VALUES (:id, :username, :password, :role)''',
+      {
+        'id': userId,
+        'username': username,
+        'password': hashedPassword,
+        'role': role,
+      },
+    );
+    return userId;
   }
 }

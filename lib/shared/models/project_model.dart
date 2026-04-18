@@ -10,6 +10,9 @@ class Project {
   final DateTime? dateFinPrevue;
   final String priorite;
   final String statut;
+  final String? contractUrl;
+  final String? contractFilename;
+  final String? contractUploadedAt;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -25,9 +28,14 @@ class Project {
     this.dateFinPrevue,
     this.priorite = 'Moyenne',
     this.statut = 'Planifie',
+    this.contractUrl,
+    this.contractFilename,
+    this.contractUploadedAt,
     this.createdAt,
     this.updatedAt,
   });
+
+  bool get hasContract => contractUrl != null && contractUrl!.isNotEmpty;
 
   factory Project.fromJson(Map<String, dynamic> json) {
     return Project(
@@ -42,6 +50,9 @@ class Project {
       dateFinPrevue: json['dateFinPrevue'] != null ? DateTime.tryParse(json['dateFinPrevue'].toString()) : null,
       priorite: json['priorite'] as String? ?? 'Moyenne',
       statut: json['statut'] as String? ?? 'Planifie',
+      contractUrl: json['contractUrl'] as String?,
+      contractFilename: json['contractFilename'] as String?,
+      contractUploadedAt: json['contractUploadedAt'] as String?,
       createdAt: json['createdAt'] != null ? DateTime.tryParse(json['createdAt'].toString()) : null,
       updatedAt: json['updatedAt'] != null ? DateTime.tryParse(json['updatedAt'].toString()) : null,
     );

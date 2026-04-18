@@ -57,15 +57,15 @@ class ChatMessage {
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
     return ChatMessage(
-      id: json['id'] as String,
-      conversationId: json['conversationId'] as String,
-      senderId: json['senderId'] as String,
-      senderName: json['senderName'] as String,
+      id: json['id']?.toString() ?? '',
+      conversationId: json['conversationId']?.toString() ?? '',
+      senderId: json['senderId']?.toString() ?? '',
+      senderName: json['senderName'] as String? ?? 'Unknown',
       senderAvatar: json['senderAvatar'] as String?,
       content: json['content'] as String?,
-      type: json['type'] as String,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      isFromMe: json['isFromMe'] as bool,
+      type: json['type']?.toString() ?? 'text',
+      createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt'] as String) : DateTime.now(),
+      isFromMe: json['isFromMe'] as bool? ?? false,
       replyToId: json['replyToId'] as String?,
       attachments: (json['attachments'] as List<dynamic>?)
           ?.map((e) => ChatAttachment.fromJson(e as Map<String, dynamic>))
@@ -137,13 +137,13 @@ class ChatAttachment {
 
   factory ChatAttachment.fromJson(Map<String, dynamic> json) {
     return ChatAttachment(
-      id: json['id'] as String,
-      filename: json['filename'] as String,
-      originalFilename: json['originalFilename'] as String,
-      mimeType: json['mimeType'] as String,
-      size: json['size'] as int,
-      url: json['url'] as String,
-      displaySize: json['displaySize'] as String,
+      id: json['id']?.toString() ?? '',
+      filename: json['filename'] as String? ?? '',
+      originalFilename: json['originalFilename'] as String? ?? '',
+      mimeType: json['mimeType'] as String? ?? 'application/octet-stream',
+      size: json['size'] as int? ?? 0,
+      url: json['url'] as String? ?? '',
+      displaySize: json['displaySize'] as String? ?? '',
       thumbnailUrl: json['thumbnailUrl'] as String?,
     );
   }
@@ -177,8 +177,8 @@ class VoiceMessage {
 
   factory VoiceMessage.fromJson(Map<String, dynamic> json) {
     return VoiceMessage(
-      fileId: json['fileId'] as String,
-      duration: json['duration'] as String,
+      fileId: json['fileId']?.toString() ?? '',
+      duration: json['duration'] as String? ?? '0:00',
       waveform: (json['waveform'] as List<dynamic>)
           .map((e) => (e as num).toDouble())
           .toList(),

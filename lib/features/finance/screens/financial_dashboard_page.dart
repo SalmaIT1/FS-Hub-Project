@@ -15,7 +15,7 @@ class FinancialDashboardPage extends StatefulWidget {
 class _FinancialDashboardPageState extends State<FinancialDashboardPage> {
   Map<String, dynamic> _summary = {};
   bool _isLoading = true;
-  final currencyFormat = NumberFormat.currency(symbol: '€', decimalDigits: 0);
+  final currencyFormat = NumberFormat.currency(symbol: 'DT', decimalDigits: 3);
 
   static const _gold = Color(0xFFC9A24D);
 
@@ -77,7 +77,11 @@ class _FinancialDashboardPageState extends State<FinancialDashboardPage> {
   Widget _buildMainBalanceCard(bool isDark, bool isFr) {
     final netProfit = double.tryParse(_summary['net_profit']?.toString() ?? '0') ?? 0.0;
     final totalPaid = double.tryParse(_summary['total_paid']?.toString() ?? '0') ?? 0.0;
-    final expenses = double.tryParse(_summary['total_expenses']?.toString() ?? '0') ?? 0.0;
+    final totalExpenses = double.tryParse(_summary['total_expenses']?.toString() ?? '0') ?? 0.0;
+    final companyExpenses = double.tryParse(_summary['company_expenses']?.toString() ?? '0') ?? 0.0;
+    final projectExpenses = double.tryParse(_summary['project_expenses']?.toString() ?? '0') ?? 0.0;
+    final opsExpenses = companyExpenses + projectExpenses;
+    final payroll = double.tryParse(_summary['payroll_expenses']?.toString() ?? '0') ?? 0.0;
 
     return Container(
       width: double.infinity,
@@ -136,7 +140,7 @@ class _FinancialDashboardPageState extends State<FinancialDashboardPage> {
             ),
           ),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
             decoration: BoxDecoration(
               color: _gold.withOpacity(0.04),
               borderRadius: const BorderRadius.vertical(bottom: Radius.circular(28)),
@@ -144,8 +148,10 @@ class _FinancialDashboardPageState extends State<FinancialDashboardPage> {
             child: Row(
               children: [
                 _buildMiniStat(isFr ? 'Collecté' : 'Collected', currencyFormat.format(totalPaid), Colors.green),
-                Container(width: 1, height: 30, color: Colors.grey.withOpacity(0.2)),
-                _buildMiniStat(isFr ? 'Dépenses' : 'Expenses', currencyFormat.format(expenses), Colors.redAccent),
+                _vDivider(),
+                _buildMiniStat(isFr ? 'Dépenses' : 'Expenses', currencyFormat.format(opsExpenses), Colors.redAccent),
+                _vDivider(),
+                _buildMiniStat(isFr ? 'Salaires' : 'Payroll', currencyFormat.format(payroll), Colors.orangeAccent),
               ],
             ),
           ),
@@ -153,6 +159,9 @@ class _FinancialDashboardPageState extends State<FinancialDashboardPage> {
       ),
     );
   }
+
+  Widget _vDivider() => Container(width: 1, height: 30, margin: const EdgeInsets.symmetric(horizontal: 8), color: Colors.grey.withOpacity(0.2));
+
 
   Widget _buildMiniStat(String label, String value, Color color) {
     return Expanded(

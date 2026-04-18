@@ -24,15 +24,15 @@ class RemoteWork {
 
   factory RemoteWork.fromJson(Map<String, dynamic> json) {
     return RemoteWork(
-      id: json['id'],
-      employeeId: json['employee_id'],
+      id: json['id'] != null ? int.tryParse(json['id'].toString()) : null,
+      employeeId: json['employee_id']?.toString() ?? '',
       remoteDate: DateTime.parse(json['remote_date']),
-      type: json['type'],
-      reason: json['reason'],
-      approvedBy: json['approved_by'],
-      status: json['status'],
-      employeeNom: json['nom'],
-      employeePrenom: json['prenom'],
+      type: json['type']?.toString() ?? 'full_day',
+      reason: json['reason']?.toString(),
+      approvedBy: json['approved_by']?.toString(),
+      status: json['status']?.toString() ?? 'pending',
+      employeeNom: json['nom']?.toString(),
+      employeePrenom: json['prenom']?.toString(),
     );
   }
 

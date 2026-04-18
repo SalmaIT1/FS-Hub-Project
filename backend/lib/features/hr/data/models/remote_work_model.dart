@@ -21,7 +21,7 @@ class RemoteWorkModel {
 
   factory RemoteWorkModel.fromMap(Map<String, dynamic> map) {
     return RemoteWorkModel(
-      id: map['id'],
+      id: map['id'] != null ? int.tryParse(map['id'].toString()) : null,
       employeeId: map['employee_id'],
       remoteDate: DateTime.parse(map['remote_date'].toString()),
       type: map['type'] ?? 'full_day',

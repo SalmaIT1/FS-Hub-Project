@@ -5,6 +5,9 @@ import 'package:fs_hub/shared/widgets/luxury/luxury_app_bar.dart';
 import '../../data/services/hr_service.dart';
 import '../../data/models/salary_model.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:fs_hub/features/auth/data/services/auth_service.dart';
+import 'package:fs_hub/core/config/app_config.dart';
 
 class HrSalariesPage extends StatefulWidget {
   const HrSalariesPage({super.key});
@@ -17,6 +20,7 @@ class _HrSalariesPageState extends State<HrSalariesPage> {
   List<Salary> _salaries = [];
   bool _isLoading = true;
   DateTime _selectedDate = DateTime.now();
+  String? _userRole;
 
   static const _gold = Color(0xFFC9A24D);
 
@@ -30,10 +34,11 @@ class _HrSalariesPageState extends State<HrSalariesPage> {
     setState(() => _isLoading = true);
     try {
       final data = await HrService.getSalaries();
-      // Filter for showing currently selected month (best effort in UI)
+      final user = await AuthService.getCurrentUser();
       if (mounted) {
         setState(() {
           _salaries = data;
+          _userRole = user?['role'];
           _isLoading = false;
         });
       }
@@ -81,6 +86,24 @@ class _HrSalariesPageState extends State<HrSalariesPage> {
     }
   }
 
+  Future<void> _updateSalaryStatus(int id, String status) async {
+    final isFr = context.read<SettingsController>().languageCode == 'fr';
+    setState(() => _isLoading = true);
+    final success = await HrService.updateSalaryStatus(id, status);
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(success 
+            ? (isFr ? 'Statut mis à jour !' : 'Status updated!')
+            : (isFr ? 'Échec de la mise à jour.' : 'Update failed.')),
+          backgroundColor: success ? Colors.green : Colors.red,
+        ),
+      );
+      _load();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -104,11 +127,12 @@ class _HrSalariesPageState extends State<HrSalariesPage> {
       title: isFr ? 'Gestion de Paie' : 'Payroll',
       showBackButton: true,
       actions: [
-        IconButton(
-          onPressed: _generatePayroll,
-          icon: const Icon(Icons.auto_fix_high_rounded, color: _gold),
-          tooltip: isFr ? 'Générer' : 'Generate',
-        )
+        if (_userRole == 'Admin' || _userRole == 'RH')
+          IconButton(
+            onPressed: _generatePayroll,
+            icon: const Icon(Icons.auto_fix_high_rounded, color: _gold),
+            tooltip: isFr ? 'Générer' : 'Generate',
+          )
       ],
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: _gold))
@@ -154,7 +178,7 @@ class _HrSalariesPageState extends State<HrSalariesPage> {
                       children: [
                         _StatCard(
                           label: isFr ? 'Masse Nette' : 'Net Mass',
-                          value: '${totalNet.toStringAsFixed(0)} DH',
+                          value: '${totalNet.toStringAsFixed(3)} DT',
                           color: _gold,
                           isDark: isDark,
                         ),
@@ -195,7 +219,13 @@ class _HrSalariesPageState extends State<HrSalariesPage> {
                         : ListView.builder(
                             padding: const EdgeInsets.fromLTRB(20, 10, 20, 40),
                             itemCount: currentSalaries.length,
-                            itemBuilder: (_, i) => _SalaryCard(salary: currentSalaries[i], isDark: isDark, isFr: isFr),
+                            itemBuilder: (_, i) => _SalaryCard(
+                              salary: currentSalaries[i], 
+                              isDark: isDark, 
+                              isFr: isFr,
+                              userRole: _userRole,
+                              onPay: (id) => _updateSalaryStatus(id, 'paid'),
+                            ),
                           ),
                   ),
                 ],
@@ -238,10 +268,12 @@ class _StatCard extends StatelessWidget {
 class _SalaryCard extends StatelessWidget {
   final Salary salary;
   final bool isDark, isFr;
+  final String? userRole;
+  final Function(int) onPay;
 
   static const _gold = Color(0xFFC9A24D);
 
-  const _SalaryCard({required this.salary, required this.isDark, required this.isFr});
+  const _SalaryCard({required this.salary, required this.isDark, required this.isFr, this.userRole, required this.onPay});
 
   Color get _statusColor {
     switch (salary.paymentStatus) {
@@ -254,6 +286,7 @@ class _SalaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final surface = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final isPending = salary.paymentStatus == 'pending';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -282,15 +315,17 @@ class _SalaryCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Employé #${salary.employeeId.substring(0, 8)}...',
+                      salary.employeeName ?? 'Employé Inconnu',
                       style: TextStyle(
                         fontWeight: FontWeight.w800,
                         fontSize: 15,
                         color: isDark ? Colors.white : Colors.black87,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     Text(
-                      'Matricule: ${salary.paymentStatus.toUpperCase()}',
+                      'Statut: ${idFr ? _translateStatus(salary.paymentStatus) : salary.paymentStatus.toUpperCase()}',
                       style: TextStyle(color: _statusColor, fontSize: 11, fontWeight: FontWeight.bold),
                     ),
                   ],
@@ -300,7 +335,7 @@ class _SalaryCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                    Text(
-                    '${(salary.netSalary ?? 0).toStringAsFixed(0)} DH',
+                    '${(salary.netSalary ?? 0).toStringAsFixed(3)} DT',
                     style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: _gold),
                   ),
                   Text(
@@ -320,12 +355,93 @@ class _SalaryCard extends StatelessWidget {
               _DetailItem(label: isFr ? 'Base' : 'Base', value: '${salary.baseSalary.toStringAsFixed(0)}'),
               _DetailItem(label: 'Bonus', value: '+${(salary.bonusAmount ?? 0).toStringAsFixed(0)}', color: Colors.green),
               _DetailItem(label: 'Deduc.', value: '-${(salary.deductions ?? 0).toStringAsFixed(0)}', color: Colors.redAccent),
+              
+               Row(
+                 mainAxisSize: MainAxisSize.min,
+                 children: [
+                   IconButton(
+                     onPressed: () => _showDetailsDialog(context, salary),
+                     icon: const Icon(Icons.info_outline, color: Colors.blueAccent),
+                     tooltip: isFr ? 'Détails de paie' : 'Payroll Details',
+                   ),
+                    if (isPending && (userRole == 'Admin' || userRole == 'RH' || userRole == 'Comptable'))
+                      ElevatedButton(
+                        onPressed: () => onPay(salary.id!),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green.withOpacity(0.1),
+                          foregroundColor: Colors.green,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        child: Text(isFr ? 'PAYER' : 'PAY', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                      ),
+                 ],
+               ),
             ],
           )
         ],
       ),
     );
   }
+
+  String _translateStatus(String s) {
+    if (s == 'paid') return 'PAYÉ';
+    if (s == 'pending') return 'EN ATTENTE';
+    return s.toUpperCase();
+  }
+
+  void _showDetailsDialog(BuildContext context, Salary s) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(isFr ? 'Fiche de Paie : ${s.employeeName}' : 'Payslip : ${s.employeeName}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(isFr ? 'Revenus' : 'Earnings', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
+            Text('• Salaire de base : ${s.baseSalary.toStringAsFixed(3)} DT'),
+            Text('• Bonus & Heures sup. : +${(s.bonusAmount ?? 0).toStringAsFixed(3)} DT'),
+            const SizedBox(height: 10),
+            Text(isFr ? 'Déductions' : 'Deductions', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+            Text('• Total retenues : -${(s.deductions ?? 0).toStringAsFixed(3)} DT'),
+            const SizedBox(height: 5),
+            Text(isFr ? 'Les déductions sont calculées selon :' : 'Deductions are based on:', style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic)),
+            Text('- Absences non justifiées', style: const TextStyle(fontSize: 12)),
+            Text('- Congés sans solde (> 21 jours)', style: const TextStyle(fontSize: 12)),
+            Text('- Retards (pénalité de 5%)', style: const TextStyle(fontSize: 12)),
+            Text('- Cotisation sociale (CNSS 9.18%)', style: const TextStyle(fontSize: 12)),
+            const SizedBox(height: 15),
+            const Divider(),
+            Text('NET À PAYER : ${(s.netSalary ?? 0).toStringAsFixed(3)} DT', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: _gold)),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(isFr ? 'Fermer' : 'Close'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final token = await AuthService.getToken();
+              final baseUrl = AppConfig.apiV1BaseUrl;
+              final Uri url = Uri.parse('$baseUrl/hr/salaries/${s.id}/payslip${token != null ? "?token=$token" : ""}');
+              try {
+                await launchUrl(url); 
+              } catch (_) {}
+            },
+            icon: const Icon(Icons.print),
+            label: Text(isFr ? 'Imprimer PDF' : 'Print PDF'),
+            style: ElevatedButton.styleFrom(backgroundColor: _gold, foregroundColor: Colors.white),
+          )
+        ],
+      ),
+    );
+  }
+
+  bool get idFr => isFr; 
 }
 
 class _DetailItem extends StatelessWidget {

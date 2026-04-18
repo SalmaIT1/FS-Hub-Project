@@ -24,6 +24,8 @@ import 'package:fs_hub_backend/features/finance/presentation/routes/project_expe
 import 'package:fs_hub_backend/features/finance/presentation/routes/company_expenses_routes.dart';
 import 'package:fs_hub_backend/features/auth/presentation/routes/role_permission_routes.dart';
 import 'package:fs_hub_backend/features/hr/presentation/routes/hr_routes.dart';
+import 'package:fs_hub_backend/features/hr/presentation/routes/audit_routes.dart';
+import 'package:fs_hub_backend/features/ai/presentation/routes/ai_routes.dart';
 
 import 'package:fs_hub_backend/features/email/domain/services/email_service.dart';
 import 'package:fs_hub_backend/features/employees/presentation/routes/poste_routes.dart';
@@ -129,6 +131,8 @@ void main(List<String> args) async {
     ..mount('/v1/tasks', secured(TaskRoutes().router))
     ..mount('/v1/clients', requireFinanceAccess(ClientRoutes().router))  // FIX: was secured() — now requires finance access
     ..mount('/v1/hr', secured(HrRoutes().router))
+    ..mount('/v1/ai', secured(AIRoutes().router))
+    ..mount('/v1/audit', adminOnly(AuditRoutes().router))
     ..mount('/v1/email', secured(EmailRoutes().router))
     ..mount('/v1/conversations', secured(ConversationRoutes().router))
     ..mount('/v1/finance', requireFinanceAccess(FinanceRoutes().router))

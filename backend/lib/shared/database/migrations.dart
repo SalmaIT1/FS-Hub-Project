@@ -349,6 +349,12 @@ class Migrations {
       )
     ''');
 
+    await _ensureColumn(conn, dbName, 'clients', 'user_id', 'VARCHAR(50) UNIQUE NULL');
+    await _ensureForeignKey(conn, dbName, 'clients', 'fk_client_user', 'user_id', 'users', 'id', 'ON DELETE SET NULL');
+    await _ensureColumn(conn, dbName, 'clients', 'matricule_fiscale', 'VARCHAR(100) NULL');
+    await _ensureColumn(conn, dbName, 'clients', 'adresse', 'TEXT NULL');
+    await _ensureColumn(conn, dbName, 'clients', 'patente_document', 'TEXT NULL');
+
     // J. Projets
     await _ensureTable(conn, dbName, 'projets', '''
       CREATE TABLE projets (
@@ -363,6 +369,60 @@ class Migrations {
           priorite ENUM('Basse', 'Moyenne', 'Haute', 'Critique') DEFAULT 'Moyenne',
           statut ENUM('A venir', 'En cours', 'Terminé', 'Suspendu') DEFAULT 'A venir',
           FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL
+      )
+    ''');
+
+    // J.1 Devis
+    await _ensureTable(conn, dbName, 'devis', '''
+      CREATE TABLE devis (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          projet_id INT NULL,
+          client_id INT NOT NULL,
+          numero_devis VARCHAR(50) NOT NULL UNIQUE,
+          montant_ht DECIMAL(15, 2) DEFAULT 0.0,
+          tva DECIMAL(5, 2) DEFAULT 0.0,
+          montant_ttc DECIMAL(15, 2) DEFAULT 0.0,
+          date_emission DATE,
+          date_validite DATE,
+          statut ENUM('Brouillon', 'Envoyé', 'Accepté', 'Refusé') DEFAULT 'Brouillon',
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          FOREIGN KEY (projet_id) REFERENCES projets(id) ON DELETE SET NULL,
+          FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+      )
+    ''');
+
+    // J.2 Factures
+    await _ensureTable(conn, dbName, 'factures', '''
+      CREATE TABLE factures (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          projet_id INT NULL,
+          client_id INT NOT NULL,
+          numero_facture VARCHAR(50) NOT NULL UNIQUE,
+          montant_ht DECIMAL(15, 2) DEFAULT 0.0,
+          tva DECIMAL(5, 2) DEFAULT 0.0,
+          montant_ttc DECIMAL(15, 2) DEFAULT 0.0,
+          date_emission DATE,
+          date_echeance DATE,
+          statut ENUM('Brouillon', 'Envoyée', 'Payée', 'En retard', 'Annulée') DEFAULT 'Brouillon',
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          FOREIGN KEY (projet_id) REFERENCES projets(id) ON DELETE SET NULL,
+          FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+      )
+    ''');
+
+    // J.3 Paiements
+    await _ensureTable(conn, dbName, 'paiements', '''
+      CREATE TABLE paiements (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          facture_id INT NOT NULL,
+          montant DECIMAL(15, 2) NOT NULL,
+          mode VARCHAR(50),
+          date_paiement DATE,
+          reference_transaction VARCHAR(255),
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (facture_id) REFERENCES factures(id) ON DELETE CASCADE
       )
     ''');
 

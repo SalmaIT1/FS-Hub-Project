@@ -159,7 +159,7 @@ class _GrantBonusModalState extends State<GrantBonusModal> {
                     Row(
                       children: [
                         Expanded(
-                          child: _input(widget.isFr ? 'Montant (DH)' : 'Amount (DH)', controller: _amountCtrl, icon: Icons.payments_outlined),
+                          child: _input(widget.isFr ? 'Montant (DT)' : 'Amount (DT)', controller: _amountCtrl, icon: Icons.payments_outlined),
                         ),
                         const SizedBox(width: 12),
                         Expanded(

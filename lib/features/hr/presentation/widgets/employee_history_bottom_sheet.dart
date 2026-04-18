@@ -105,12 +105,13 @@ class _EmployeeHistoryBottomSheetState extends State<EmployeeHistoryBottomSheet>
   }
 
   Color _statusColor(String status) {
-    switch (status) {
+    switch (status.toLowerCase().trim()) {
       case 'present': return const Color(0xFF22C55E);
       case 'late':    return const Color(0xFFF59E0B);
       case 'absent':  return const Color(0xFFEF4444);
       case 'remote':  return const Color(0xFF3B82F6);
-      case 'leave':   return const Color(0xFF8B5CF6); // Purple for leave
+      case 'leave':   
+      case 'on_leave': return const Color(0xFF8B5CF6); // Purple for leave
       default:        return Colors.transparent;
     }
   }
@@ -316,7 +317,9 @@ class _EmployeeHistoryBottomSheetState extends State<EmployeeHistoryBottomSheet>
                       '$day',
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
-                        color: status != 'none' ? color : (isDark ? Colors.white70 : Colors.black87),
+                        color: (status != 'none' && color != Colors.transparent) 
+                            ? color 
+                            : (isDark ? Colors.white70 : Colors.black87),
                       ),
                     ),
                   ),

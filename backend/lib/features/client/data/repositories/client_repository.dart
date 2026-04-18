@@ -6,7 +6,7 @@ class ClientRepository {
 
   Future<List<ClientModel>> getAllClients() async {
     final result = await _db.execute('''
-      SELECT id, nom, prenom, raison_sociale, email, telephone, type, score_credit
+      SELECT id, nom, prenom, raison_sociale, email, telephone, type, score_credit, credit, matricule_fiscale, adresse, patente_document
       FROM clients
       ORDER BY id DESC
     ''');
@@ -15,10 +15,21 @@ class ClientRepository {
 
   Future<ClientModel?> getClientById(int id) async {
     final result = await _db.execute('''
-      SELECT id, nom, prenom, raison_sociale, email, telephone, type, score_credit
+      SELECT id, nom, prenom, raison_sociale, email, telephone, type, score_credit, credit, matricule_fiscale, adresse, patente_document
       FROM clients
       WHERE id = :id
     ''', {'id': id});
+
+    if (result.rows.isEmpty) return null;
+    return ClientModel.fromMap(result.rows.first.assoc());
+  }
+
+  Future<ClientModel?> getClientByUserId(String userId) async {
+    final result = await _db.execute('''
+      SELECT id, nom, prenom, raison_sociale, email, telephone, type, score_credit, credit, matricule_fiscale, adresse, patente_document
+      FROM clients
+      WHERE user_id = :uid
+    ''', {'uid': userId});
 
     if (result.rows.isEmpty) return null;
     return ClientModel.fromMap(result.rows.first.assoc());
@@ -29,8 +40,8 @@ class ClientRepository {
     
     final result = await _db.transaction((txn) async {
       await txn.execute('''
-        INSERT INTO clients (nom, prenom, raison_sociale, email, telephone, type, score_credit)
-        VALUES (:nom, :prenom, :raison_sociale, :email, :telephone, :type, 0)
+        INSERT INTO clients (nom, prenom, raison_sociale, email, telephone, type, score_credit, user_id, matricule_fiscale, adresse, patente_document)
+        VALUES (:nom, :prenom, :raison_sociale, :email, :telephone, :type, 0, :user_id, :matricule_fiscale, :adresse, :patente_document)
       ''', {
         'nom': data['nom'],
         'prenom': data['prenom'],
@@ -38,6 +49,10 @@ class ClientRepository {
         'email': data['email'],
         'telephone': data['telephone'],
         'type': clientType,
+        'user_id': data['user_id'],
+        'matricule_fiscale': data['matriculeFiscale'],
+        'adresse': data['adresse'],
+        'patente_document': data['patenteDocument'],
       });
 
       final idRes = await txn.execute('SELECT LAST_INSERT_ID() as id');
@@ -52,7 +67,8 @@ class ClientRepository {
 
     await _db.execute('''
       UPDATE clients 
-      SET nom = :nom, prenom = :prenom, raison_sociale = :raison_sociale, email = :email, telephone = :telephone, type = :type
+      SET nom = :nom, prenom = :prenom, raison_sociale = :raison_sociale, email = :email, telephone = :telephone, type = :type,
+          matricule_fiscale = :matricule_fiscale, adresse = :adresse, patente_document = :patente_document
       WHERE id = :id
     ''', {
       'nom': data['nom'],
@@ -61,6 +77,9 @@ class ClientRepository {
       'email': data['email'],
       'telephone': data['telephone'],
       'type': clientType,
+      'matricule_fiscale': data['matriculeFiscale'],
+      'adresse': data['adresse'],
+      'patente_document': data['patenteDocument'],
       'id': id,
     });
   }
@@ -68,5 +87,13 @@ class ClientRepository {
   Future<bool> deleteClient(int id) async {
     final result = await _db.execute('DELETE FROM clients WHERE id = :id', {'id': id});
     return (result.affectedRows.toInt()) > 0;
+  }
+
+  /// Dedicated method for finance credit deduction — avoids needing all client fields.
+  Future<void> updateClientCredit(int id, double newCredit) async {
+    await _db.execute(
+      'UPDATE clients SET credit = :credit WHERE id = :id',
+      {'credit': newCredit, 'id': id},
+    );
   }
 }

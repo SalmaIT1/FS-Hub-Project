@@ -95,6 +95,12 @@ class EmployeeService {
       'dateEmbauche': data['dateEmbauche'] ?? existing.dateEmbauche,
       'typeContrat': data['typeContrat'] ?? existing.typeContrat,
       'statut': canChangeAdminFields ? (data['statut'] ?? existing.statut) : existing.statut,
+      // Recruitment documents — any caller with permission to edit may update these
+      'cin_document': data['cin_document'],
+      'cv_document': data['cv_document'],
+      'bac_document': data['bac_document'],
+      'degree_document': data['degree_document'],
+      'transcripts_documents': data['transcripts_documents'],
     };
 
     await _repository.updateEmployee(id, updateData);

@@ -12,6 +12,7 @@ import 'package:fs_hub/core/theme/app_theme.dart';
 import 'package:fs_hub/core/utils/url_utils.dart';
 import 'package:fs_hub/shared/widgets/authenticated_image.dart';
 import 'package:fs_hub/shared/widgets/luxury/luxury_status_dialog.dart';
+import 'group_creation_page.dart';
 
 /// Conversation list screen
 /// 
@@ -106,7 +107,9 @@ class _ConversationListPageState extends State<ConversationListPage> with Single
         showBackButton: true,
         onBackPress: () => Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => route.isFirst),
         actions: [
+          // 1. Direct Conversation Button
           IconButton(
+            tooltip: settings.translate('new_direct_chat') ?? 'New Chat',
             icon: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
@@ -114,11 +117,43 @@ class _ConversationListPageState extends State<ConversationListPage> with Single
                 shape: BoxShape.circle,
                 border: Border.all(color: AppTheme.accentGold.withOpacity(0.2)),
               ),
-              child: const Icon(Icons.add_rounded, color: AppTheme.accentGold, size: 20),
+              child: const Icon(Icons.person_add_rounded, color: AppTheme.accentGold, size: 18),
             ),
             onPressed: () => _showNewConversationDialog(context, controller),
           ),
-          const SizedBox(width: 8),
+          
+          // 2. Group Conversation Button
+          IconButton(
+            tooltip: settings.translate('new_group_chat') ?? 'New Group',
+            icon: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppTheme.accentGold.withOpacity(0.1),
+                shape: BoxShape.circle,
+                border: Border.all(color: AppTheme.accentGold.withOpacity(0.2)),
+              ),
+              child: const Icon(Icons.group_add_rounded, color: AppTheme.accentGold, size: 18),
+            ),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => GroupCreationPage(
+                  controller: controller,
+                  onGroupCreated: (conversation) {
+                    Navigator.pushReplacementNamed(
+                      context,
+                      '/chat_thread',
+                      arguments: {
+                        'conversationId': conversation.id,
+                        'conversation': conversation,
+                      },
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
         ],
       ),
       body: Container(
@@ -650,7 +685,7 @@ class _NewConversationDialogState extends State<_NewConversationDialog> {
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: LuxurySearchInline(
                     hintText: settings.translate('search_users'),
-                    onQueryChanged: (val) => setState(() {}),
+                    onQueryChanged: (val) => setState(() => _searchController.text = val),
                   ),
                 ),
                 

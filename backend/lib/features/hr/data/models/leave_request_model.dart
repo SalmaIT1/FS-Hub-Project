@@ -29,12 +29,12 @@ class LeaveRequestModel {
 
   factory LeaveRequestModel.fromMap(Map<String, dynamic> map) {
     return LeaveRequestModel(
-      id: map['id'],
+      id: map['id'] != null ? int.tryParse(map['id'].toString()) : null,
       employeeId: map['employee_id'],
       leaveType: map['leave_type'],
       startDate: DateTime.parse(map['start_date'].toString()),
       endDate: DateTime.parse(map['end_date'].toString()),
-      totalDays: map['total_days'],
+      totalDays: map['total_days'] != null ? int.tryParse(map['total_days'].toString()) : null,
       status: map['status'] ?? 'pending',
       reason: map['reason'],
       approvedBy: map['approved_by'],

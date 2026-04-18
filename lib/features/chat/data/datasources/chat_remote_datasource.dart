@@ -28,7 +28,7 @@ class ChatRemoteDatasource {
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-      final List<dynamic> conversations = data['conversations'] ?? data;
+      final List<dynamic> conversations = data['conversations'] ?? [];
       return conversations.map((c) => ConversationEntity.fromJson(c)).toList();
     }
     throw Exception('Failed to load conversations: ${response.statusCode}');
@@ -54,7 +54,7 @@ class ChatRemoteDatasource {
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-      final List<dynamic> messages = data['messages'] ?? data;
+      final List<dynamic> messages = data['messages'] ?? [];
       return messages.map((m) {
         final msg = Map<String, dynamic>.from(m);
         msg['isFromMe'] = msg['isFromMe'] ?? false;
@@ -153,7 +153,7 @@ class ChatRemoteDatasource {
   Future<List<Map<String, dynamic>>> getAvailableUsers() async {
     final token = await tokenProvider();
     final response = await http.get(
-      Uri.parse('$baseUrl/v1/users'),
+      Uri.parse('$baseUrl/v1/conversations/users/list'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
@@ -162,7 +162,7 @@ class ChatRemoteDatasource {
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-      return List<Map<String, dynamic>>.from(data['users'] ?? data);
+      return List<Map<String, dynamic>>.from(data['data'] ?? []);
     }
     throw Exception('Failed to load users: ${response.statusCode}');
   }

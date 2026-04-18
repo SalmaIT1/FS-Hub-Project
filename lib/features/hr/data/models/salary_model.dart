@@ -1,6 +1,7 @@
 class Salary {
   final int? id;
   final String employeeId;
+  final String? employeeName;
   final double baseSalary;
   final double? bonusAmount;
   final double? deductions;
@@ -12,6 +13,7 @@ class Salary {
   Salary({
     this.id,
     required this.employeeId,
+    this.employeeName,
     required this.baseSalary,
     this.bonusAmount,
     this.deductions,
@@ -23,8 +25,9 @@ class Salary {
 
   factory Salary.fromJson(Map<String, dynamic> json) {
     return Salary(
-      id: json['id'],
-      employeeId: json['employee_id'],
+      id: json['id'] != null ? int.tryParse(json['id'].toString()) : null,
+      employeeId: json['employee_id'].toString(),
+      employeeName: json['employee_name'],
       baseSalary: double.parse(json['base_salary'].toString()),
       bonusAmount: json['bonus_amount'] != null ? double.parse(json['bonus_amount'].toString()) : 0.0,
       deductions: json['deductions'] != null ? double.parse(json['deductions'].toString()) : 0.0,

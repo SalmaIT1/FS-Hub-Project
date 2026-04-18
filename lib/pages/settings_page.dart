@@ -20,7 +20,8 @@ class SettingsPage extends StatelessWidget {
       showBackButton: true,
       onBackPress: () => Navigator.pop(context),
       isPremium: true,
-      body: Container(
+      body: SafeArea(
+        child: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
@@ -31,7 +32,7 @@ class SettingsPage extends StatelessWidget {
           ),
         ),
         child: ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
           children: [
             _buildSectionHeader(
               settings.translate('appearance'),
@@ -184,6 +185,7 @@ class SettingsPage extends StatelessWidget {
             ),
             const SizedBox(height: 160), // Space for bottom nav or just breathing room
           ],
+        ),
         ),
       ),
     );

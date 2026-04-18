@@ -485,6 +485,17 @@ class AuthService {
       return [];
     }
   }
+  static Future<String> registerClientAccount(String email, String phone) async {
+    final randomPassword = _generateRandomPassword(16);
+    // TODO: Send this randomPassword via email to the client using EmailService.
+    print('[SECURITY] Generated random password for new client $email: $randomPassword');
+    
+    return await _repository.createUser(
+      username: email,
+      password: randomPassword,
+      role: 'Client',
+    );
+  }
 }
 
 // ── WS Ticket helper ─────────────────────────────────────────────────────────

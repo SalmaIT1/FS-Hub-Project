@@ -1,7 +1,7 @@
 import '../../data/repositories/client_repository.dart';
 import '../../../../core/services/credit_score_service.dart';
 import '../../../../shared/services/audit_service.dart';
-import '../../../../core/middleware/auth_middleware.dart';
+import '../../../auth/domain/services/auth_service.dart';
 
 class ClientService {
   static final _repository = ClientRepository();
@@ -16,13 +16,25 @@ class ClientService {
     return client?.toJson();
   }
 
+  static Future<Map<String, dynamic>?> getClientByUserId(String userId) async {
+    final client = await _repository.getClientByUserId(userId);
+    return client?.toJson();
+  }
+
   static Future<Map<String, dynamic>> createClient(Map<String, dynamic> data, {String? callerId}) async {
+    // 1. Create User account for the client
+    final userId = await AuthService.registerClientAccount(data['email'], data['telephone']);
+    
+    // 2. Add user_id to data before repository creation
+    data['user_id'] = userId;
+
     final id = await _repository.createClient(data);
     final client = await _repository.getClientById(id);
     if (callerId != null) {
       await AuditService.log(callerId, 'CLIENT_CREATED', {
         'clientId': id,
-        'nom': data['nom'],
+        'nom': data['nom'] ?? data['raisonSociale'],
+        'userId': userId,
       });
     }
     return client?.toJson() ?? {};

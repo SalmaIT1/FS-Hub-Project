@@ -69,9 +69,9 @@ class _ReportsPageState extends State<ReportsPage> {
                 child: ListView(
                   padding: const EdgeInsets.all(24),
                   children: [
-                    _buildReportCard('OVERALL REVENUE', '${_summary?['total_billed'] ?? 0} €', Icons.trending_up, isDark),
+                    _buildReportCard('OVERALL REVENUE', '${_summary?['total_billed'] ?? 0} DT', Icons.trending_up, isDark),
                     const SizedBox(height: 20),
-                    _buildReportCard('TOTAL EXPENSES', '${_summary?['total_expenses'] ?? 0} €', Icons.receipt_long, isDark),
+                    _buildReportCard('TOTAL EXPENSES', '${_summary?['total_expenses'] ?? 0} DT', Icons.receipt_long, isDark),
                     const SizedBox(height: 20),
                     _buildReportCard('PROFIT MARGIN', '${(((_summary?['total_billed'] ?? 0) - (_summary?['total_expenses'] ?? 0)) / ((_summary?['total_billed'] ?? 1) == 0 ? 1 : (_summary?['total_billed'] ?? 1)) * 100).toStringAsFixed(1)} %', Icons.pie_chart, isDark),
                     const SizedBox(height: 20),

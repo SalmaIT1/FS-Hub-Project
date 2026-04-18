@@ -15,6 +15,7 @@ class AppRoutes {
   static const String clientDetail = '/client/detail';
   static const String addClient = '/client/add';
   static const String editClient = '/client/edit';
+  static const String clientPortal = '/client/portal';
   
   // Department routes
   static const String departments = '/departments';
@@ -35,6 +36,9 @@ class AppRoutes {
   static const String hrRemoteWork = '/hr/remote-work';
   static const String hrSalaries = '/hr/salaries';
   static const String hrBonuses = '/hr/bonuses';
+  static const String hrAuditLogs = '/hr/audit-logs';
   static const String hrAttendance = '/hr/attendance';
   static const String hrAttendanceHistory = '/hr/attendance/history';
+  static const String hrRecruitment = '/hr/recruitment';
+  static const String aiDashboard = '/ai';
 }

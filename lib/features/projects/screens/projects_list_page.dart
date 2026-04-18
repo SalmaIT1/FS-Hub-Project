@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'dart:ui';
+import 'dart:typed_data';
+import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:fs_hub/shared/models/project_model.dart';
 import '../../clients/models/client_model.dart';
@@ -204,7 +206,7 @@ class _ProjectsListPageState extends State<ProjectsListPage> with SingleTickerPr
                     _buildInfoItem(Icons.priority_high_rounded, project.priorite),
                     const Spacer(),
                     Text(
-                      NumberFormat.currency(symbol: '€', decimalDigits: 2).format(project.budget),
+                      NumberFormat.currency(symbol: 'DT', decimalDigits: 3).format(project.budget),
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         color: AppTheme.accentGold,
@@ -468,6 +470,12 @@ class _AddEditProjectDialogState extends State<AddEditProjectDialog> {
   DateTime? _dateFin;
   bool _isSaving = false;
 
+  // Contract upload state
+  Uint8List? _contractBytes;
+  String? _contractFilename;
+  bool _isUploadingContract = false;
+  bool _projectHasContract = false;
+
   @override
   void initState() {
     super.initState();
@@ -492,6 +500,7 @@ class _AddEditProjectDialogState extends State<AddEditProjectDialog> {
       _selectedPriorite = widget.project!.priorite;
       _dateDebut = widget.project!.dateDebut;
       _dateFin = widget.project!.dateFinPrevue;
+      _projectHasContract = widget.project!.hasContract;
     }
     _loadClients();
   }
@@ -597,7 +606,7 @@ class _AddEditProjectDialogState extends State<AddEditProjectDialog> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                _buildLabel('ALLOCATION (€)'),
+                                _buildLabel('ALLOCATION (DT)'),
                                 _buildTextField(_budgetController, '0.00', isDark, Icons.account_balance_rounded, null, keyboardType: TextInputType.number),
                               ],
                             ),
@@ -607,7 +616,7 @@ class _AddEditProjectDialogState extends State<AddEditProjectDialog> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                _buildLabel('COÛT PRÉVU (€)'),
+                                _buildLabel('COÛT PRÉVU (DT)'),
                                 _buildTextField(_coutController, '0.00', isDark, Icons.analytics_rounded, null, keyboardType: TextInputType.number),
                               ],
                             ),
@@ -616,6 +625,13 @@ class _AddEditProjectDialogState extends State<AddEditProjectDialog> {
                       ),
 
                       const SizedBox(height: 16),
+
+                      // ── Contract Upload Section ────────────────────────
+                      if (widget.project != null) ...[
+                        _buildLabel('CONTRAT D\'ENGAGEMENT CLIENT'),
+                        _buildContractUploadSection(isDark),
+                        const SizedBox(height: 16),
+                      ],
 
                       Row(
                         children: [
@@ -656,7 +672,9 @@ class _AddEditProjectDialogState extends State<AddEditProjectDialog> {
                                   icon: Icons.flag_rounded,
                                   items: [
                                     {'value': 'Planifie', 'label': 'Planifié'},
-                                    if (widget.project != null) {'value': 'En cours', 'label': 'En cours'},
+                                    // 'En cours' only visible if a contract exists
+                                    if (widget.project != null && (_projectHasContract || _contractBytes != null))
+                                      {'value': 'En cours', 'label': 'En cours ✓'},
                                     {'value': 'Termine', 'label': 'Terminé'},
                                     {'value': 'En retard', 'label': 'En retard'}
                                   ].map<DropdownMenuItem<String>>((s) => DropdownMenuItem<String>(
@@ -896,6 +914,22 @@ class _AddEditProjectDialogState extends State<AddEditProjectDialog> {
     if (!_formKey.currentState!.validate()) return;
     
     setState(() => _isSaving = true);
+
+    // Step 1: Upload new contract file if admin attached one
+    if (widget.project != null && _contractBytes != null && _contractFilename != null) {
+      setState(() => _isUploadingContract = true);
+      final uploadResult = await ProjectService.uploadContract(
+        widget.project!.id!,
+        _contractBytes!,
+        _contractFilename!,
+      );
+      setState(() { _isUploadingContract = false; _projectHasContract = uploadResult['success']; });
+      if (!uploadResult['success'] && mounted) {
+        setState(() => _isSaving = false);
+        LuxuryStatusDialog.show(context, isSuccess: false, title: 'Erreur contrat', message: uploadResult['message']);
+        return;
+      }
+    }
     
     final project = Project(
       id: widget.project?.id,
@@ -926,18 +960,124 @@ class _AddEditProjectDialogState extends State<AddEditProjectDialog> {
         );
       } else {
         setState(() => _isSaving = false);
-        LuxuryStatusDialog.show(
-          context,
-          isSuccess: false,
-          title: 'Planning Fault',
-          message: result['message'] ?? 'Architecture validation failed for the requested project parameters.',
-        );
+        // Specific targeting for contract gate
+        if (result['error'] == 'contract_required') {
+          LuxuryStatusDialog.show(
+            context,
+            isSuccess: false,
+            title: 'Contrat Requis',
+            message: 'Un contrat d\'engagement signé avec le client doit être uploadé avant de démarrer ce projet. Veuillez attacher le document PDF ci-dessus.',
+          );
+        } else {
+          LuxuryStatusDialog.show(
+            context,
+            isSuccess: false,
+            title: 'Planning Fault',
+            message: result['message'] ?? 'Architecture validation failed for the requested project parameters.',
+          );
+        }
       }
     }
   }
-}
 
-// Keep the rest of the file...
+  Widget _buildContractUploadSection(bool isDark) {
+    final hasExistingContract = _projectHasContract;
+    final hasPendingUpload = _contractBytes != null;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: hasExistingContract 
+          ? Colors.green.withOpacity(0.06)
+          : hasPendingUpload
+              ? AppTheme.accentGold.withOpacity(0.08)
+              : (isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.03)),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: hasExistingContract 
+            ? Colors.green.withOpacity(0.3)
+            : hasPendingUpload 
+                ? AppTheme.accentGold.withOpacity(0.5)
+                : (isDark ? Colors.white12 : Colors.black12),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            hasExistingContract 
+              ? Icons.verified_rounded 
+              : hasPendingUpload 
+                  ? Icons.attach_file_rounded 
+                  : Icons.description_outlined,
+            color: hasExistingContract 
+              ? Colors.green 
+              : hasPendingUpload 
+                  ? AppTheme.accentGold 
+                  : Colors.grey,
+            size: 20,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  hasExistingContract 
+                    ? 'Contrat uploadé ✓'
+                    : hasPendingUpload 
+                        ? _contractFilename ?? 'Prêt à uploader'
+                        : 'Aucun contrat attaché',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: hasExistingContract 
+                      ? Colors.green 
+                      : hasPendingUpload 
+                          ? AppTheme.accentGold
+                          : Colors.grey,
+                  ),
+                ),
+                if (!hasExistingContract && !hasPendingUpload)
+                  const Text(
+                    'Requis pour démarrer le projet',
+                    style: TextStyle(fontSize: 10, color: Colors.grey),
+                  ),
+                if (hasPendingUpload && !hasExistingContract)
+                  const Text(
+                    'Sera uploadé à la sauvegarde',
+                    style: TextStyle(fontSize: 10, color: Colors.grey),
+                  ),
+              ],
+            ),
+          ),
+          if (_isUploadingContract)
+            const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.accentGold))
+          else
+            TextButton.icon(
+              onPressed: _pickContractFile,
+              icon: Icon(hasExistingContract ? Icons.refresh_rounded : Icons.upload_file_rounded, size: 16),
+              label: Text(hasExistingContract ? 'Remplacer' : 'Joindre', style: const TextStyle(fontSize: 12)),
+              style: TextButton.styleFrom(foregroundColor: AppTheme.accentGold),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _pickContractFile() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'docx', 'doc'],
+      withData: true,
+    );
+    if (result != null && result.files.single.bytes != null) {
+      setState(() {
+        _contractBytes = result.files.single.bytes!;
+        _contractFilename = result.files.single.name;
+      });
+    }
+  }
+}
 
 
 

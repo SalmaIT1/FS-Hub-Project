@@ -13,6 +13,7 @@ class EmployeeRepository {
       SELECT e.id, e.user_id, e.matricule, e.nom, e.prenom, e.dateNaissance,
              e.sexe, e.photo, e.email, e.telephone, e.adresse, e.ville,
              e.poste, e.departement, e.dateEmbauche, e.typeContrat, e.statut,
+             e.cin_document, e.cv_document, e.bac_document, e.degree_document, e.transcripts_documents,
              e.created_at, e.updated_at,
              u.username, u.role
       FROM employees e
@@ -39,6 +40,11 @@ class EmployeeRepository {
       'dateEmbauche': row.colByName('dateEmbauche'),
       'typeContrat': row.colByName('typeContrat'),
       'statut': row.colByName('statut'),
+      'cin_document': row.colByName('cin_document'),
+      'cv_document': row.colByName('cv_document'),
+      'bac_document': row.colByName('bac_document'),
+      'degree_document': row.colByName('degree_document'),
+      'transcripts_documents': row.colByName('transcripts_documents'),
       'created_at': row.colByName('created_at'),
       'updated_at': row.colByName('updated_at'),
       'username': row.colByName('username'),
@@ -56,6 +62,7 @@ class EmployeeRepository {
       SELECT e.id, e.user_id, e.matricule, e.nom, e.prenom, e.dateNaissance,
              e.sexe, e.photo, e.email, e.telephone, e.adresse, e.ville,
              e.poste, e.departement, e.dateEmbauche, e.typeContrat, e.statut,
+             e.cin_document, e.cv_document, e.bac_document, e.degree_document, e.transcripts_documents,
              e.created_at, e.updated_at,
              u.username, u.role
       FROM employees e
@@ -84,6 +91,11 @@ class EmployeeRepository {
       'dateEmbauche': row.colByName('dateEmbauche'),
       'typeContrat': row.colByName('typeContrat'),
       'statut': row.colByName('statut'),
+      'cin_document': row.colByName('cin_document'),
+      'cv_document': row.colByName('cv_document'),
+      'bac_document': row.colByName('bac_document'),
+      'degree_document': row.colByName('degree_document'),
+      'transcripts_documents': row.colByName('transcripts_documents'),
       'created_at': row.colByName('created_at'),
       'updated_at': row.colByName('updated_at'),
       'username': row.colByName('username'),
@@ -148,11 +160,13 @@ class EmployeeRepository {
         INSERT INTO employees (id, user_id, matricule, nom, prenom, dateNaissance,
                                sexe, photo, email, telephone, adresse, ville,
                                poste, departement, poste_id, departement_id, 
-                               dateEmbauche, typeContrat, statut)
+                               dateEmbauche, typeContrat, statut,
+                               cin_document, cv_document, bac_document, degree_document, transcripts_documents)
         VALUES (:id, :user_id, :matricule, :nom, :prenom, :dateNaissance,
                 :sexe, :photo, :email, :telephone, :adresse, :ville,
                 :poste, :departement, :poste_id, :departement_id,
-                :dateEmbauche, :typeContrat, :statut)
+                :dateEmbauche, :typeContrat, :statut,
+                :cin_document, :cv_document, :bac_document, :degree_document, :transcripts_documents)
       ''', {
         'id': userId,
         'user_id': userId,
@@ -173,6 +187,11 @@ class EmployeeRepository {
         'dateEmbauche': data['dateEmbauche'],
         'typeContrat': data['typeContrat'],
         'statut': data['statut'] ?? 'actif',
+        'cin_document': data['cin_document'],
+        'cv_document': data['cv_document'],
+        'bac_document': data['bac_document'],
+        'degree_document': data['degree_document'],
+        'transcripts_documents': data['transcripts_documents'],
       });
 
       return userId;
@@ -200,7 +219,13 @@ class EmployeeRepository {
             photo = :photo, email = :email, telephone = :telephone,
             adresse = :adresse, ville = :ville, poste = :poste,
             departement = :departement, poste_id = :poste_id, departement_id = :departement_id,
-            dateEmbauche = :dateEmbauche, typeContrat = :typeContrat, statut = :statut, updated_at = NOW()
+            dateEmbauche = :dateEmbauche, typeContrat = :typeContrat, statut = :statut, 
+            cin_document = COALESCE(:cin_document, cin_document),
+            cv_document = COALESCE(:cv_document, cv_document),
+            bac_document = COALESCE(:bac_document, bac_document),
+            degree_document = COALESCE(:degree_document, degree_document),
+            transcripts_documents = COALESCE(:transcripts_documents, transcripts_documents),
+            updated_at = NOW()
         WHERE id = :id
       ''', {
         'matricule': data['matricule'],
@@ -220,6 +245,11 @@ class EmployeeRepository {
         'dateEmbauche': data['dateEmbauche'],
         'typeContrat': data['typeContrat'],
         'statut': data['statut'],
+        'cin_document': data['cin_document'],
+        'cv_document': data['cv_document'],
+        'bac_document': data['bac_document'],
+        'degree_document': data['degree_document'],
+        'transcripts_documents': data['transcripts_documents'],
         'id': id,
       });
     });

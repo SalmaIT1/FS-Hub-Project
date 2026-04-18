@@ -4,6 +4,7 @@ import 'package:fs_hub/shared/widgets/luxury/luxury_status_dialog.dart';
 
 class ProtectedRoute extends StatelessWidget {
   final Widget child;
+  final String? routeName;
   final String requiredPermission;
   final List<String>? requiredPermissions;
   final String? requiredRole;
@@ -13,6 +14,7 @@ class ProtectedRoute extends StatelessWidget {
   const ProtectedRoute({
     super.key,
     required this.child,
+    this.routeName,
     this.requiredPermission = '',
     this.requiredPermissions,
     this.requiredRole,
@@ -29,11 +31,19 @@ class ProtectedRoute extends StatelessWidget {
       return child;
     }
 
-    // Show fallback or access denied message
-    return fallback ?? _buildAccessDeniedWidget(context);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!context.mounted) return;
+      Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+    });
+
+    return fallback ?? const SizedBox.shrink();
   }
 
   bool _checkAccess() {
+    if (routeName != null && routeName!.isNotEmpty) {
+      return PermissionGuard.canAccessRoute(routeName!);
+    }
+
     // Check role-based access
     if (requiredRole != null) {
       return PermissionGuard.hasRole(requiredRole!);

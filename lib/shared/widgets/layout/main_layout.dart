@@ -8,6 +8,8 @@ import '../../../features/employees/screens/my_profile_page.dart';
 import '../../../core/security/permission_guard.dart';
 import '../../../core/security/protected_route.dart';
 import '../../../features/projects/screens/my_tasks_page.dart';
+import '../../../features/ai/presentation/pages/ai_dashboard_page.dart';
+import '../../../../pages/settings_page.dart';
 
 class MainLayout extends StatefulWidget {
   final String? initialRoute;
@@ -26,6 +28,7 @@ class MainLayout extends StatefulWidget {
 class _MainLayoutState extends State<MainLayout> {
   late int _currentIndex;
   List<Map<String, dynamic>> _navigationItems = [];
+  List<Widget> _pages = [];
 
   @override
   void initState() {
@@ -62,35 +65,48 @@ class _MainLayoutState extends State<MainLayout> {
     if (mounted) {
       setState(() {
         _navigationItems = items;
+
+        _pages = _navigationItems.map<Widget>((item) {
+          final route = item['route'] as String?;
+          switch (route) {
+            case '/':
+            case '/home':
+              return const HomePage();
+            case '/my-tasks':
+            case '/tasks':
+              return const MyTasksPage();
+            case '/employees':
+              return const EmployeesListPage();
+            case '/demands':
+              return const DemandsListPage();
+            case '/chat':
+              return const ConversationListPage();
+            case '/profile':
+              return const MyProfilePage();
+            case '/ai':
+              return const AiDashboardPage();
+            case '/settings':
+              return SettingsPage();
+            default:
+              return const HomePage();
+          }
+        }).toList();
         
         // If we have an initialRoute, find its index based on fixed mapping
         if (widget.initialRoute != null) {
-          switch (widget.initialRoute) {
-            case '/':
-            case '/home':
-              _currentIndex = indexHome;
-              break;
-            case '/my-tasks':
-            case '/tasks':
-              _currentIndex = indexTasks;
-              break;
-            case '/employees':
-              _currentIndex = indexEmployees;
-              break;
-            case '/demands':
-              _currentIndex = indexDemands;
-              break;
-            case '/chat':
-              _currentIndex = indexChat;
-              break;
-            case '/profile':
-              _currentIndex = indexProfile;
-              break;
+          final idx = _navigationItems.indexWhere((i) => i['route'] == widget.initialRoute);
+          if (idx >= 0) {
+            _currentIndex = idx;
+          } else {
+            _currentIndex = 0;
           }
         }
         
-        // Ensure index is valid for our 5 pages
-        if (_currentIndex >= _fixedPages.length) {
+        if (_pages.isEmpty) {
+          _pages = [const HomePage()];
+        }
+
+        if (_currentIndex >= _pages.length) {
           _currentIndex = 0;
         }
       });
@@ -110,13 +126,15 @@ class _MainLayoutState extends State<MainLayout> {
       extendBody: true,
       body: IndexedStack(
         index: _currentIndex,
-        children: _fixedPages,
+        children: _pages.isEmpty ? [const HomePage()] : _pages,
       ),
       bottomNavigationBar: _navigationItems.isEmpty 
         ? null 
         : GlassNavigationBar(
             currentIndex: _currentIndex,
-            onTap: _onTabTapped),
+            onTap: _onTabTapped,
+            items: _navigationItems,
+          ),
     );
   }
 
@@ -144,6 +162,8 @@ class _MainLayoutState extends State<MainLayout> {
         return Icons.chat_outlined;
       case 'person':
         return Icons.person_outline;
+      case 'auto_awesome':
+        return Icons.auto_awesome;
       default:
         return Icons.home_outlined;
     }

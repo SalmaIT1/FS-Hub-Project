@@ -146,7 +146,7 @@ class _AddEditDepartmentDialogState extends State<AddEditDepartmentDialog> {
                     
                     const SizedBox(height: 20),
                     
-                    _buildLabel('ANNUAL RESOURCE ALLOCATION (€)'),
+                    _buildLabel('ANNUAL RESOURCE ALLOCATION (DT)'),
                     _buildTextField(_budgetController, '0.00', isDark, Icons.account_balance_wallet_rounded, (val) {
                       if (val == null || val.isEmpty) return 'Budget is required';
                       if (double.tryParse(val) == null) return 'Must be a valid number';

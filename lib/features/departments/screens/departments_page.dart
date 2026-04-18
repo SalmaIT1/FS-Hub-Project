@@ -209,7 +209,7 @@ class _DepartmentsPageState extends State<DepartmentsPage> with SingleTickerProv
                      size: 14, color: AppTheme.accentGold.withOpacity(0.7)),
                 const SizedBox(width: 6),
                 Text(
-                  'Budget: ${dept.budgetAnnuel.toStringAsFixed(2)} €',
+                  'Budget: ${dept.budgetAnnuel.toStringAsFixed(3)} DT',
                   style: TextStyle(
                     color: isDark ? Colors.white60 : Colors.black54,
                     fontSize: 13,

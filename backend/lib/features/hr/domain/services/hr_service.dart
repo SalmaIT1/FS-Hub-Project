@@ -3,6 +3,8 @@ import '../../../notification/domain/services/notification_service.dart';
 import '../../../../shared/services/audit_service.dart';
 import '../../../finance/domain/services/expense_service.dart';
 import '../../../finance/data/models/expense_model.dart';
+import 'dart:io';
+import 'dart:convert';
 
 class HrService {
   static final HrRepository _repository = HrRepository();
@@ -281,7 +283,7 @@ class HrService {
        await NotificationService.createNotification(
          userId: data['employee_id'].toString(),
          title: 'Bonus Granted!',
-         message: "You have been granted a new bonus of $amount DH.",
+         message: "You have been granted a new bonus of $amount DT.",
          type: 'HR_BONUS',
        );
 
@@ -314,7 +316,7 @@ class HrService {
          categorie: 'Salaires et Charges Sociales',
          montant: totalAmount,
          dateDepense: DateTime.now(),
-         description: 'Attribution groupée de primes ($count employés) @ $amountPerEmp DH/pers. Motif: ${data['reason'] ?? 'Sans motif'}',
+         description: 'Attribution groupée de primes ($count employés) @ $amountPerEmp DT/pers. Motif: ${data['reason'] ?? 'Sans motif'}',
          categoryId: 1, 
          createdBy: caller,
          status: 'approved_finance',
@@ -325,7 +327,7 @@ class HrService {
           await NotificationService.createNotification(
             userId: id,
             title: 'Bonus Granted!',
-            message: "You have been granted a new bonus of $amountPerEmp DH.",
+            message: "You have been granted a new bonus of $amountPerEmp DT.",
             type: 'HR_BONUS',
           );
       }
@@ -337,7 +339,7 @@ class HrService {
         'type': data['bonus_type'] ?? 'performance',
       });
 
-      return {'success': true, 'message': 'Successfully granted $count bonuses and recorded $totalAmount DH total expense.'};
+      return {'success': true, 'message': 'Successfully granted $count bonuses and recorded $totalAmount DT total expense.'};
     } catch (e) {
        print('bulkGrantBonuses error: $e');
        return {'success': false, 'message': 'Batch operation failed'};
@@ -396,5 +398,24 @@ class HrService {
       print('bulkCorrectAttendance error: $e');
       return {'success': false, 'message': 'Bulk correction failed'};
     }
+  }
+
+  static Future<String?> generatePayslipHtmlForSalary(int salaryId) async {
+    String? logoBase64;
+    try {
+      // Find logo in assets (relative to backend root: ../assets/images/logo.png)
+      final logoFile = File('../assets/images/logo.png');
+      if (await logoFile.exists()) {
+        final bytes = await logoFile.readAsBytes();
+        logoBase64 = base64Encode(bytes);
+      }
+    } catch (e) {
+      print('Warning: Could not load logo for payslip: $e');
+    }
+    return await _repository.generatePayslipHtmlForSalary(salaryId, logoBase64: logoBase64);
+  }
+
+  static Future<String?> getSalaryEmployeeId(int salaryId) async {
+    return await _repository.getSalaryEmployeeId(salaryId);
   }
 }

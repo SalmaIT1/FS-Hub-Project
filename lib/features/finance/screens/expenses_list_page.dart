@@ -31,15 +31,25 @@ class _ExpensesListPageState extends State<ExpensesListPage> {
       final results = await Future.wait([
         FinancialCalculationService.calculateCompanyFinancialSummary(),
         ExpenseService.getAllProjectExpenses(),
+        ExpenseService.getAllCompanyExpenses(),
       ]);
 
       final companySummaryResult = results[0] as Map<String, dynamic>;
-      final expensesResult = results[1] as List<Map<String, dynamic>>;
+      final projectExpenses = results[1] as List<Map<String, dynamic>>;
+      final companyExpenses = results[2] as List<Map<String, dynamic>>;
+
+      // Merge and sort expenses by date
+      List<Map<String, dynamic>> allExpenses = [...projectExpenses, ...companyExpenses];
+      allExpenses.sort((a, b) {
+        final dateA = DateTime.tryParse(a['date_depense'] ?? '') ?? DateTime.now();
+        final dateB = DateTime.tryParse(b['date_depense'] ?? '') ?? DateTime.now();
+        return dateB.compareTo(dateA); // Newest first
+      });
 
       if (mounted) {
         setState(() {
           _companySummary = companySummaryResult['success'] ? companySummaryResult['data'] : null;
-          _expenses = expensesResult;
+          _expenses = allExpenses;
           _isLoading = false;
         });
       }
@@ -153,7 +163,7 @@ class _ExpensesListPageState extends State<ExpensesListPage> {
               child: _buildSimpleMetricCard(
                 isDark: isDark,
                 title: 'Total Expenses',
-                value: '${totalExpenses.toStringAsFixed(2)} €',
+                value: '${totalExpenses.toStringAsFixed(3)} DT',
                 icon: Icons.receipt_long_rounded,
                 color: AppTheme.accentGold,
               ),
@@ -163,7 +173,7 @@ class _ExpensesListPageState extends State<ExpensesListPage> {
               child: _buildSimpleMetricCard(
                 isDark: isDark,
                 title: 'Monthly Avg',
-                value: '${averageMonthly.toStringAsFixed(2)} €',
+                value: '${averageMonthly.toStringAsFixed(3)} DT',
                 icon: Icons.trending_up_rounded,
                 color: Colors.blue,
               ),
@@ -216,6 +226,7 @@ class _ExpensesListPageState extends State<ExpensesListPage> {
   Widget _buildExpenseCard(Map<String, dynamic> expense, bool isDark) {
     final date = DateTime.tryParse(expense['date_depense'] ?? '') ?? DateTime.now();
     final formattedDate = '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+    final isSalary = expense['categorie'] == 'RH/Salaires';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -236,10 +247,14 @@ class _ExpensesListPageState extends State<ExpensesListPage> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: AppTheme.accentGold.withOpacity(0.1),
+              color: (isSalary ? Colors.blue : AppTheme.accentGold).withOpacity(0.1),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.receipt_rounded, color: AppTheme.accentGold, size: 20),
+            child: Icon(
+              isSalary ? Icons.person_pin_rounded : Icons.receipt_rounded,
+              color: isSalary ? Colors.blue : AppTheme.accentGold,
+              size: 20,
+            ),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -253,7 +268,7 @@ class _ExpensesListPageState extends State<ExpensesListPage> {
                 Text(
                   expense['description'] ?? 'No description',
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
@@ -267,31 +282,32 @@ class _ExpensesListPageState extends State<ExpensesListPage> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                '${(expense['montant'] as num).toDouble().toStringAsFixed(2)} €',
+                '${(expense['montant'] as num).toDouble().toStringAsFixed(3)} DT',
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   color: Colors.redAccent,
                   fontSize: 16,
                 ),
               ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.edit_outlined, size: 16, color: Colors.blueAccent),
-                    onPressed: () => _showAddDialog(expense: expense),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline, size: 16, color: Colors.redAccent),
-                    onPressed: () => _deleteExpense(expense['id']),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                ],
-              ),
+              if (!isSalary)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined, size: 16, color: Colors.blueAccent),
+                      onPressed: () => _showAddDialog(expense: expense),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, size: 16, color: Colors.redAccent),
+                      onPressed: () => _deleteExpense(expense['id']),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                ),
             ],
           ),
         ],
@@ -311,7 +327,7 @@ class _ExpensesListPageState extends State<ExpensesListPage> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: amountController, decoration: const InputDecoration(labelText: 'Amount (€)'), keyboardType: TextInputType.number),
+            TextField(controller: amountController, decoration: const InputDecoration(labelText: 'Amount (DT)'), keyboardType: TextInputType.number),
             TextField(controller: categoryController, decoration: const InputDecoration(labelText: 'Category', hintText: 'e.g. Supplies')),
             TextField(controller: descController, decoration: const InputDecoration(labelText: 'Description')),
           ],

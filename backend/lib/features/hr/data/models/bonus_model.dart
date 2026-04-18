@@ -21,7 +21,7 @@ class BonusModel {
 
   factory BonusModel.fromMap(Map<String, dynamic> map) {
     return BonusModel(
-      id: map['id'],
+      id: map['id'] != null ? int.tryParse(map['id'].toString()) : null,
       employeeId: map['employee_id'],
       amount: double.parse(map['amount'].toString()),
       reason: map['reason'],

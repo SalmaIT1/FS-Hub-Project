@@ -24,6 +24,13 @@ class Employee {
   final bool isOnline;
   final bool? isActive; // Database field for active/inactive status
   final String? password; // Only used for creation/update, not fetched from backend
+  
+  // Recruitment Documents
+  final String? cinDocument;
+  final String? cvDocument;
+  final String? bacDocument;
+  final String? degreeDocument;
+  final String? transcriptsDocuments;
 
   Employee({
     this.id,
@@ -49,6 +56,11 @@ class Employee {
     this.isOnline = false,
     this.isActive,
     this.password,
+    this.cinDocument,
+    this.cvDocument,
+    this.bacDocument,
+    this.degreeDocument,
+    this.transcriptsDocuments,
   });
 
   String get fullName => '$prenom $nom';
@@ -100,6 +112,11 @@ class Employee {
       photo: json['photo'],
       isOnline: json['isOnline'] == 1 || json['isOnline'] == true,
       isActive: json['is_active'] == 1 || json['is_active'] == true,
+      cinDocument: json['cin_document'],
+      cvDocument: json['cv_document'],
+      bacDocument: json['bac_document'],
+      degreeDocument: json['degree_document'],
+      transcriptsDocuments: json['transcripts_documents'],
     );
   }
 
@@ -128,6 +145,11 @@ class Employee {
       'isOnline': isOnline,
       'is_active': isActive,
       'password': password,
+      'cin_document': cinDocument,
+      'cv_document': cvDocument,
+      'bac_document': bacDocument,
+      'degree_document': degreeDocument,
+      'transcripts_documents': transcriptsDocuments,
     };
   }
 
@@ -153,6 +175,11 @@ class Employee {
     String? avatarUrl,
     bool? isOnline,
     bool? isActive,
+    String? cinDocument,
+    String? cvDocument,
+    String? bacDocument,
+    String? degreeDocument,
+    String? transcriptsDocuments,
   }) {
     return Employee(
       id: id ?? this.id,
@@ -176,6 +203,11 @@ class Employee {
       avatarUrl: avatarUrl ?? this.avatarUrl,
       isOnline: isOnline ?? this.isOnline,
       isActive: isActive ?? this.isActive,
+      cinDocument: cinDocument ?? this.cinDocument,
+      cvDocument: cvDocument ?? this.cvDocument,
+      bacDocument: bacDocument ?? this.bacDocument,
+      degreeDocument: degreeDocument ?? this.degreeDocument,
+      transcriptsDocuments: transcriptsDocuments ?? this.transcriptsDocuments,
     );
   }
 }

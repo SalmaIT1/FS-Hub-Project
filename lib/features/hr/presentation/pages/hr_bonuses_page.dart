@@ -176,7 +176,7 @@ class _HrBonusesPageState extends State<HrBonusesPage> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                '${b.amount.toStringAsFixed(0)} DH',
+                '${b.amount.toStringAsFixed(3)} DT',
                 style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: isDark ? Colors.white : Colors.black87),
               ),
               if (b.grantedDate != null)
@@ -209,7 +209,7 @@ class _ManagerStats extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       child: Row(
         children: [
-          _statBox(isFr ? 'Total versé' : 'Total Paid', '${total.toStringAsFixed(0)} DH', isDark),
+          _statBox(isFr ? 'Total versé' : 'Total Paid', '${total.toStringAsFixed(3)} DT', isDark),
           const SizedBox(width: 12),
           _statBox(isFr ? 'Nb Primes' : 'Bonus Count', '$count', isDark),
         ],

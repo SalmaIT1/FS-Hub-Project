@@ -228,7 +228,7 @@ class _CompanyExpensesPageState extends State<CompanyExpensesPage>
           ),
           const SizedBox(height: 8),
           Text(
-            '${_totalExpenses.toStringAsFixed(2)} €',
+            '${_totalExpenses.toStringAsFixed(3)} DT',
             style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
@@ -510,7 +510,7 @@ class _CompanyExpensesPageState extends State<CompanyExpensesPage>
               ),
               const SizedBox(width: 12),
               Text(
-                '${(expense['montant'] as double).toStringAsFixed(2)} €',
+                '${(expense['montant'] as double).toStringAsFixed(3)} DT',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,

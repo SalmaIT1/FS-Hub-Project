@@ -46,6 +46,7 @@ abstract class ChatRepository {
   Future<String?> getCurrentUserId();
   Future<void> markConversationAsRead(String conversationId);
   Future<void> deleteConversation(String conversationId);
+  void sendTypingStatus(String conversationId, bool isTyping);
   void dispose();
 }
 
@@ -161,11 +162,14 @@ class ChatRepositoryImpl implements ChatRepository {
       return msg;
     }
 
-    return rest.sendTextMessage(
+    final message = await rest.sendTextMessage(
       conversationId: conversationId,
       senderId: senderId,
       content: content,
     );
+    
+    if (!_messageController.isClosed) _messageController.add(message);
+    return message;
   }
 
   @override
@@ -184,7 +188,10 @@ class ChatRepositoryImpl implements ChatRepository {
       type: type,
       uploadIds: uploadIds,
       voiceMetadata: voiceMetadata,
-    );
+    ).then((msg) {
+      if (!_messageController.isClosed) _messageController.add(msg);
+      return msg;
+    });
   }
 
   @override
@@ -263,6 +270,11 @@ class ChatRepositoryImpl implements ChatRepository {
   @override
   Future<void> deleteConversation(String conversationId) {
     return rest.deleteConversation(conversationId);
+  }
+
+  @override
+  void sendTypingStatus(String conversationId, bool isTyping) {
+    socket.sendTypingIndicator(conversationId, isTyping);
   }
 
   @override

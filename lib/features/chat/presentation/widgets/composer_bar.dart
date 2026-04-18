@@ -41,6 +41,8 @@ class _ComposerBarState extends State<ComposerBar> {
   bool _showVoiceRecorder = false;
   List<AttachmentEntity> _attachments = [];
   StreamSubscription? _attachmentSubscription;
+  Timer? _typingTimer;
+  bool _isTypingSent = false;
 
   @override
   void initState() {
@@ -60,13 +62,36 @@ class _ComposerBarState extends State<ComposerBar> {
   void dispose() {
     _textController.dispose();
     _attachmentSubscription?.cancel();
+    _typingTimer?.cancel();
     super.dispose();
   }
 
   void _onTextChanged() {
+    final text = _textController.text.trim();
     setState(() {
-      _hasText = _textController.text.trim().isNotEmpty;
+      _hasText = text.isNotEmpty;
     });
+
+    // Handle typing indicator
+    if (text.isNotEmpty) {
+      if (!_isTypingSent) {
+        _isTypingSent = true;
+        context.read<ChatController>().setTypingStatus(true);
+      }
+      
+      // Debounce "stopped typing"
+      _typingTimer?.cancel();
+      _typingTimer = Timer(const Duration(seconds: 2), () {
+        if (mounted && _isTypingSent) {
+          _isTypingSent = false;
+          context.read<ChatController>().setTypingStatus(false);
+        }
+      });
+    } else if (_isTypingSent) {
+      _isTypingSent = false;
+      _typingTimer?.cancel();
+      context.read<ChatController>().setTypingStatus(false);
+    }
   }
 
   bool get _canSend {
@@ -326,6 +351,11 @@ class _ComposerBarState extends State<ComposerBar> {
         
         // Clear UI
         _textController.clear();
+        _typingTimer?.cancel();
+        if (_isTypingSent) {
+          _isTypingSent = false;
+          context.read<ChatController>().setTypingStatus(false);
+        }
         setState(() {
           _hasText = false;
         });

@@ -1,6 +1,7 @@
 class SalaryModel {
   final int? id;
   final String employeeId;
+  final String? employeeName;
   final double baseSalary;
   final double? bonusAmount;
   final double? deductions;
@@ -13,6 +14,7 @@ class SalaryModel {
   SalaryModel({
     this.id,
     required this.employeeId,
+    this.employeeName,
     required this.baseSalary,
     this.bonusAmount,
     this.deductions,
@@ -25,8 +27,9 @@ class SalaryModel {
 
   factory SalaryModel.fromMap(Map<String, dynamic> map) {
     return SalaryModel(
-      id: map['id'],
+      id: map['id'] != null ? int.tryParse(map['id'].toString()) : null,
       employeeId: map['employee_id'],
+      employeeName: map['nom'] != null && map['prenom'] != null ? "${map['prenom']} ${map['nom']}" : map['employee_name'],
       baseSalary: double.parse(map['base_salary'].toString()),
       bonusAmount: map['bonus_amount'] != null ? double.parse(map['bonus_amount'].toString()) : 0.0,
       deductions: map['deductions'] != null ? double.parse(map['deductions'].toString()) : 0.0,
@@ -42,6 +45,7 @@ class SalaryModel {
     return {
       'id': id,
       'employee_id': employeeId,
+      'employee_name': employeeName,
       'base_salary': baseSalary,
       'bonus_amount': bonusAmount,
       'deductions': deductions,

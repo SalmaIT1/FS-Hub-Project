@@ -275,9 +275,9 @@ class _AddCompanyExpensePageState extends State<AddCompanyExpensePage> {
         // Amount Field
         _buildTextField(
           controller: _montantController,
-          label: 'Montant (€)',
+          label: 'Montant (DT)',
           hint: '0.00',
-          icon: Icons.euro_rounded,
+          icon: Icons.payments_rounded,
           keyboardType: TextInputType.number,
           validator: (value) {
             if (value == null || value.isEmpty) {

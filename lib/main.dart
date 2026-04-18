@@ -32,6 +32,9 @@ import 'package:fs_hub/features/hr/presentation/pages/hr_remote_work_page.dart';
 import 'package:fs_hub/features/hr/presentation/pages/hr_salaries_page.dart';
 import 'package:fs_hub/features/hr/presentation/pages/hr_bonuses_page.dart';
 import 'package:fs_hub/features/hr/presentation/pages/hr_attendance_history_page.dart';
+import 'package:fs_hub/features/hr/presentation/pages/hr_audit_logs_page.dart';
+import 'package:fs_hub/features/hr/presentation/pages/hr_recruitment_page.dart';
+import 'package:fs_hub/features/ai/presentation/pages/ai_dashboard_page.dart';
 import 'package:fs_hub/features/auth/data/datasources/auth_remote_datasource.dart';
 import 'package:fs_hub/core/theme/app_theme.dart';
 import 'package:fs_hub/core/routes/app_routes.dart';
@@ -41,6 +44,7 @@ import 'package:fs_hub/core/security/permission_guard.dart';
 import 'package:fs_hub/core/security/protected_route.dart';
 import 'package:fs_hub/shared/models/employee_model.dart';
 import 'package:fs_hub/features/clients/models/client_model.dart';
+import 'package:fs_hub/features/client_portal/presentation/pages/client_portal_page.dart';
 
 import 'package:fs_hub/core/state/settings_controller.dart';
 import 'package:fs_hub/pages/settings_page.dart';
@@ -173,73 +177,104 @@ class MyApp extends StatelessWidget {
               '/login': (context) => const GlassLoginPage(),
               AppRoutes.resetPassword: (context) => const ResetPasswordPage(),
               '/home': (context) => const MainLayout(initialRoute: '/'),
-              '/employees': (context) => const MainLayout(initialRoute: '/employees'),
-              '/demands': (context) => const MainLayout(initialRoute: '/demands'),
-              '/chat': (context) => const MainLayout(initialRoute: '/chat'),
-              '/profile': (context) => const MainLayout(initialRoute: '/profile'),
+              '/employees': (context) => ProtectedRoute(
+                routeName: '/employees',
+                child: const MainLayout(initialRoute: '/employees'),
+              ),
+              '/demands': (context) => ProtectedRoute(
+                routeName: '/demands',
+                child: const MainLayout(initialRoute: '/demands'),
+              ),
+              '/chat': (context) => ProtectedRoute(
+                routeName: '/chat',
+                child: const MainLayout(initialRoute: '/chat'),
+              ),
+              '/profile': (context) => ProtectedRoute(
+                routeName: '/profile',
+                child: const MainLayout(initialRoute: '/profile'),
+              ),
               AppRoutes.hrDashboard: (context) => ProtectedRoute(
-                requiredPermissions: ['view_employees', 'manage_employees', 'manage_salaries', 'manage_leaves', 'manage_attendance', 'manage_remote_work', 'manage_bonuses'],
+                routeName: AppRoutes.hrDashboard,
                 child: const HrDashboardPage(),
               ),
               AppRoutes.hrAttendance: (context) => ProtectedRoute(
-                requiredPermissions: ['view_employees', 'manage_attendance'],
+                routeName: AppRoutes.hrAttendance,
                 child: const HrAttendancePage(),
               ),
               AppRoutes.hrAttendanceHistory: (context) => ProtectedRoute(
-                requiredPermissions: ['view_employees', 'manage_attendance'],
+                routeName: AppRoutes.hrAttendanceHistory,
                 child: const HrAttendanceHistoryPage(),
               ),
               AppRoutes.hrLeaves: (context) => ProtectedRoute(
-                requiredPermissions: ['view_employees', 'manage_leaves'],
+                routeName: AppRoutes.hrLeaves,
                 child: const HrLeavesPage(),
               ),
               AppRoutes.hrRemoteWork: (context) => ProtectedRoute(
-                requiredPermissions: ['view_employees', 'manage_remote_work'],
+                routeName: AppRoutes.hrRemoteWork,
                 child: const HrRemoteWorkPage(),
               ),
               AppRoutes.hrSalaries: (context) => ProtectedRoute(
-                requiredPermissions: ['view_employees', 'manage_salaries'],
+                routeName: AppRoutes.hrSalaries,
                 child: const HrSalariesPage(),
               ),
               AppRoutes.hrBonuses: (context) => ProtectedRoute(
-                requiredPermissions: ['view_employees', 'manage_bonuses'],
+                routeName: AppRoutes.hrBonuses,
                 child: const HrBonusesPage(),
               ),
-              '/clients': (context) => const ClientsListPage(),
+              AppRoutes.hrAuditLogs: (context) => ProtectedRoute(
+                routeName: AppRoutes.hrAuditLogs,
+                child: const HrAuditLogsPage(),
+              ),
+              AppRoutes.hrRecruitment: (context) => ProtectedRoute(
+                routeName: AppRoutes.hrRecruitment,
+                child: const HrRecruitmentPage(),
+              ),
+              '/clients': (context) => ProtectedRoute(
+                routeName: '/clients',
+                child: const ClientsListPage(),
+              ),
               AppRoutes.departments: (context) => ProtectedRoute(
-                requiredPermissions: ['manage_system'],
+                routeName: AppRoutes.departments,
                 child: DepartmentsPage(),
               ),
-              AppRoutes.projects: (context) => const ProjectsListPage(),
+              AppRoutes.projects: (context) => ProtectedRoute(
+                routeName: AppRoutes.projects,
+                child: const ProjectsListPage(),
+              ),
               '/notifications': (context) => const NotificationCenterPage(),
               '/finance': (context) => ProtectedRoute(
-                requiredPermissions: ['view_financial_reports', 'view_revenue'],
+                routeName: '/finance',
                 child: FinancialDashboardPage(),
               ),
               AppRoutes.credits: (context) => ProtectedRoute(
-                requiredPermissions: ['manage_credits', 'view_financial_reports'],
+                routeName: AppRoutes.credits,
                 child: CreditsListPage(),
               ),
               AppRoutes.expenses: (context) => ProtectedRoute(
-                requiredPermissions: ['manage_payments', 'view_financial_reports'],
+                routeName: AppRoutes.expenses,
                 child: ExpensesListPage(),
               ),
               AppRoutes.roles: (context) => ProtectedRoute(
-                requiredPermissions: ['manage_roles', 'manage_permissions'],
+                routeName: AppRoutes.roles,
                 child: RolesPermissionsPage(),
               ),
               AppRoutes.reports: (context) => ProtectedRoute(
-                requiredPermissions: ['view_statistics', 'view_financial_reports'],
+                routeName: AppRoutes.reports,
                 child: ReportsPage(),
               ),
               '/invoices': (context) => ProtectedRoute(
-                requiredPermissions: ['manage_invoices', 'view_financial_reports'],
+                routeName: '/invoices',
                 child: InvoicesListPage(),
               ),
               AppRoutes.settings: (context) => const SettingsPage(),
               AppRoutes.myTasks: (context) => ProtectedRoute(
-                requiredPermissions: ['execute_tasks', 'view_tasks'],
+                routeName: AppRoutes.myTasks,
                 child: const MainLayout(initialRoute: '/my-tasks'),
+              ),
+              AppRoutes.clientPortal: (context) => const ClientPortalPage(),
+              AppRoutes.aiDashboard: (context) => const ProtectedRoute(
+                routeName: AppRoutes.aiDashboard,
+                child: AiDashboardPage(),
               ),
             },
             onGenerateRoute: (settings) {
@@ -250,17 +285,26 @@ class MyApp extends StatelessWidget {
                   final args = settings.arguments as Map<String, dynamic>;
                   if (args['employee'] != null) {
                     return MaterialPageRoute(
-                      builder: (context) => EmployeeDetailPage(employee: args['employee']),
+                      builder: (context) => ProtectedRoute(
+                        routeName: settings.name,
+                        child: EmployeeDetailPage(employee: args['employee']),
+                      ),
                     );
                   }
                 } else if (settings.arguments is Employee) {
                   return MaterialPageRoute(
-                    builder: (context) => EmployeeDetailPage(employee: settings.arguments as Employee),
+                    builder: (context) => ProtectedRoute(
+                      routeName: settings.name,
+                      child: EmployeeDetailPage(employee: settings.arguments as Employee),
+                    ),
                   );
                 }
               } else if (settings.name == AppRoutes.addEmployee) {
                 return MaterialPageRoute(
-                  builder: (context) => const AddEditEmployeePage(),
+                  builder: (context) => ProtectedRoute(
+                    routeName: settings.name,
+                    child: const AddEditEmployeePage(),
+                  ),
                 );
               } else if (settings.name == AppRoutes.editEmployee) {
                 // Support both Map arguments and direct Employee objects
@@ -268,27 +312,42 @@ class MyApp extends StatelessWidget {
                   final args = settings.arguments as Map<String, dynamic>;
                   if (args['employee'] != null) {
                     return MaterialPageRoute(
-                      builder: (context) => AddEditEmployeePage(employee: args['employee']),
+                      builder: (context) => ProtectedRoute(
+                        routeName: settings.name,
+                        child: AddEditEmployeePage(employee: args['employee']),
+                      ),
                     );
                   }
                 } else if (settings.arguments is Employee) {
                   return MaterialPageRoute(
-                    builder: (context) => AddEditEmployeePage(employee: settings.arguments as Employee),
+                    builder: (context) => ProtectedRoute(
+                      routeName: settings.name,
+                      child: AddEditEmployeePage(employee: settings.arguments as Employee),
+                    ),
                   );
                 }
               } else if (settings.name == AppRoutes.myProfile) {
                 return MaterialPageRoute(
-                  builder: (context) => const MyProfilePage(),
+                  builder: (context) => ProtectedRoute(
+                    routeName: settings.name,
+                    child: const MyProfilePage(),
+                  ),
                 );
               } else if (settings.name == AppRoutes.createDemand) {
                 return MaterialPageRoute(
-                  builder: (context) => const MainLayout(initialRoute: '/demands'),
+                  builder: (context) => ProtectedRoute(
+                    routeName: settings.name,
+                    child: const MainLayout(initialRoute: '/demands'),
+                  ),
                 );
               } else if (settings.name == AppRoutes.demandDetail) {
                 final args = settings.arguments as Map<String, dynamic>?;
                 if (args != null && args['demand'] != null) {
                   return MaterialPageRoute(
-                    builder: (context) => DemandDetailPage(demand: args['demand']),
+                    builder: (context) => ProtectedRoute(
+                      routeName: settings.name,
+                      child: DemandDetailPage(demand: args['demand']),
+                    ),
                   );
                 }
               } else if (settings.name == AppRoutes.clientDetail) {
@@ -297,17 +356,26 @@ class MyApp extends StatelessWidget {
                   final args = settings.arguments as Map<String, dynamic>;
                   if (args['client'] != null) {
                     return MaterialPageRoute(
-                      builder: (context) => ClientDetailPage(client: args['client']),
+                      builder: (context) => ProtectedRoute(
+                        routeName: settings.name,
+                        child: ClientDetailPage(client: args['client']),
+                      ),
                     );
                   }
                 } else if (settings.arguments is Client) {
                   return MaterialPageRoute(
-                    builder: (context) => ClientDetailPage(client: settings.arguments as Client),
+                    builder: (context) => ProtectedRoute(
+                      routeName: settings.name,
+                      child: ClientDetailPage(client: settings.arguments as Client),
+                    ),
                   );
                 }
               } else if (settings.name == AppRoutes.addClient) {
                 return MaterialPageRoute(
-                  builder: (context) => const ClientFormPage(),
+                  builder: (context) => ProtectedRoute(
+                    routeName: settings.name,
+                    child: const ClientFormPage(),
+                  ),
                 );
               } else if (settings.name == AppRoutes.editClient) {
                 // Support both Map arguments and direct Client objects
@@ -315,12 +383,18 @@ class MyApp extends StatelessWidget {
                   final args = settings.arguments as Map<String, dynamic>;
                   if (args['client'] != null) {
                     return MaterialPageRoute(
-                      builder: (context) => ClientFormPage(client: args['client']),
+                      builder: (context) => ProtectedRoute(
+                        routeName: settings.name,
+                        child: ClientFormPage(client: args['client']),
+                      ),
                     );
                   }
                 } else if (settings.arguments is Client) {
                   return MaterialPageRoute(
-                    builder: (context) => ClientFormPage(client: settings.arguments as Client),
+                    builder: (context) => ProtectedRoute(
+                      routeName: settings.name,
+                      child: ClientFormPage(client: settings.arguments as Client),
+                    ),
                   );
                 }
               } else if (settings.name == '/chat_thread') {
@@ -339,25 +413,34 @@ class MyApp extends StatelessWidget {
                 }
 
                 return MaterialPageRoute(
-                  builder: (context) => conversationId.isNotEmpty
-                      ? chat_ui.ChatThreadPage(
-                          conversationId: conversationId,
-                          conversation: conversation,
-                        )
-                      : const chat_ui.ConversationListPage(),
+                  builder: (context) => ProtectedRoute(
+                    routeName: settings.name,
+                    child: conversationId.isNotEmpty
+                        ? chat_ui.ChatThreadPage(
+                            conversationId: conversationId,
+                            conversation: conversation,
+                          )
+                        : const chat_ui.ConversationListPage(),
+                  ),
                 );
               } else if (settings.name == AppRoutes.sprints) {
                 final args = settings.arguments as Map<String, dynamic>?;
                 if (args != null && args['project'] != null) {
                   return MaterialPageRoute(
-                    builder: (context) => SprintsListPage(project: args['project']),
+                    builder: (context) => ProtectedRoute(
+                      routeName: settings.name,
+                      child: SprintsListPage(project: args['project']),
+                    ),
                   );
                 }
               } else if (settings.name == AppRoutes.projectDetail) {
                 final args = settings.arguments as Map<String, dynamic>?;
                 if (args != null && args['project'] != null) {
                   return MaterialPageRoute(
-                    builder: (context) => ProjectDetailPage(project: args['project']),
+                    builder: (context) => ProtectedRoute(
+                      routeName: settings.name,
+                      child: ProjectDetailPage(project: args['project']),
+                    ),
                   );
                 }
               }

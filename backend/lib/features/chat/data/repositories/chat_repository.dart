@@ -3,6 +3,7 @@ import '../models/chat_attachment_model.dart';
 import '../models/chat_message_model.dart';
 import '../models/conversation_model.dart';
 import '../models/voice_message_model.dart';
+import 'dart:convert';
 
 class ChatRepository {
   final _db = DBConnection.getConnection();
@@ -565,8 +566,9 @@ class ChatRepository {
   // Helper (Internal)
   Future<Map<String, dynamic>> _buildMessageFromRow(dynamic row, dynamic tx) async {
     final messageId = row.colByName('id')?.toString();
+    
+    // 1. Fetch Attachments
     final attRes = await tx.execute('''SELECT id, filename, original_filename, file_path, file_size, mime_type, thumbnail_path, created_at FROM message_attachments WHERE message_id = :messageId''', {'messageId': messageId});
-
     final attachments = attRes.rows.map((r) {
       return {
         'id': r.colByName('id')?.toString(),
@@ -576,6 +578,33 @@ class ChatRepository {
       };
     }).toList();
 
+    // 2. Fetch Voice Message
+    Map<String, dynamic>? voiceMessage;
+    final vmRes = await tx.execute('''SELECT id, file_path, duration, waveform_data, file_size FROM message_voice_messages WHERE message_id = :messageId''', {'messageId': messageId});
+    if (vmRes.rows.isNotEmpty) {
+      final vm = vmRes.rows.first;
+      
+      // FIXED: Parse waveform_data if it's a string representing JSON
+      dynamic waveform = vm.colByName('waveform_data');
+      if (waveform is String && (waveform.startsWith('[') || waveform.startsWith('{'))) {
+        try {
+          waveform = jsonDecode(waveform);
+        } catch (_) {
+          waveform = [];
+        }
+      } else if (waveform == null) {
+        waveform = [];
+      }
+
+      voiceMessage = {
+        'fileId': vm.colByName('id')?.toString(),
+        'duration': vm.colByName('duration')?.toString(),
+        'url': '/media/${vm.colByName('file_path')?.toString().split('/').last}', // Legacy
+        'mediaUrl': '/media/${vm.colByName('file_path')?.toString().split('/').last}', // Standard
+        'waveform': waveform is List ? waveform : [],
+      };
+    }
+
     return {
       'id': messageId,
       'conversationId': row.colByName('conversation_id')?.toString(),
@@ -583,7 +612,11 @@ class ChatRepository {
       'senderName': row.colByName('sender_name'),
       'senderAvatar': _normalizePhoto(row.colByName('sender_avatar')),
       'content': row.colByName('content'),
+      'type': row.colByName('type'),
       'attachments': attachments,
+      'voiceMessage': voiceMessage,
+      'isEdited': row.colByName('is_edited') == 1,
+      'createdAt': row.colByName('created_at')?.toString().replaceAll(' ', 'T'),
     };
   }
 
@@ -607,4 +640,3 @@ class ChatRepository {
     return '/media/$relativePath';
   }
 }
-

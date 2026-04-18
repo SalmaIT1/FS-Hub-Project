@@ -197,11 +197,13 @@ class ChatSocketDatasource {
     }));
   }
 
-  void sendTypingIndicator(String conversationId) {
+  void sendTypingIndicator(String conversationId, bool isTyping) {
     if (!_isConnected || _channel == null) return;
     _channel!.sink.add(jsonEncode({
       'type': 'typing',
       'conversationId': conversationId,
+      'isTyping': isTyping,
+      'state': isTyping ? 'typing' : 'stopped',
     }));
   }
 

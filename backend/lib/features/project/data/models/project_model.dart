@@ -10,6 +10,9 @@ class ProjectModel {
   final String? dateFinPrevue;
   final String? priorite;
   final String? statut;
+  final String? contractUrl;
+  final String? contractFilename;
+  final String? contractUploadedAt;
   final String? createdAt;
   final String? updatedAt;
 
@@ -25,6 +28,9 @@ class ProjectModel {
     this.dateFinPrevue,
     this.priorite,
     this.statut,
+    this.contractUrl,
+    this.contractFilename,
+    this.contractUploadedAt,
     this.createdAt,
     this.updatedAt,
   });
@@ -42,6 +48,9 @@ class ProjectModel {
       'dateFinPrevue': dateFinPrevue,
       'priorite': priorite,
       'statut': statut,
+      'contractUrl': contractUrl,
+      'contractFilename': contractFilename,
+      'contractUploadedAt': contractUploadedAt,
       'createdAt': createdAt,
       'updatedAt': updatedAt,
     };
@@ -60,6 +69,9 @@ class ProjectModel {
       dateFinPrevue: map['date_fin_prevue']?.toString(),
       priorite: map['priorite']?.toString(),
       statut: map['statut']?.toString(),
+      contractUrl: map['contract_url']?.toString(),
+      contractFilename: map['contract_filename']?.toString(),
+      contractUploadedAt: map['contract_uploaded_at']?.toString(),
       createdAt: map['created_at']?.toString(),
       updatedAt: map['updated_at']?.toString(),
     );

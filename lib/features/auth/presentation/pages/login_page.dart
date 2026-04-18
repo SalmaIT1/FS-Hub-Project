@@ -40,7 +40,17 @@ class _GlassLoginPageState extends State<GlassLoginPage> {
         if (result['success']) {
           await context.read<LocationController>().refreshFromDevice();
           await PermissionGuard.initialize();
-          Navigator.of(context).pushReplacementNamed(AppRoutes.home);
+          
+          final user = await AuthService.getCurrentUser();
+          final role = user?['role']?.toString().toLowerCase();
+          
+          if (mounted) {
+            if (role == 'client') {
+              Navigator.of(context).pushReplacementNamed(AppRoutes.clientPortal);
+            } else {
+              Navigator.of(context).pushReplacementNamed(AppRoutes.home);
+            }
+          }
         } else {
           setState(() => _errorMessage = result['error']);
         }

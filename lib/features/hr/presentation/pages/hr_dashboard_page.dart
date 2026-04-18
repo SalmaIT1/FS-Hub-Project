@@ -105,6 +105,12 @@ class HrDashboardPage extends StatelessWidget {
 
   List<_Module> _modules(bool isFr) => [
         _Module(
+          icon: Icons.person_add_alt_1_rounded,
+          title: isFr ? 'Recrutement' : 'Recruitment',
+          subtitle: isFr ? 'Documents & génération de contrats' : 'Documents & contract generation',
+          route: AppRoutes.hrRecruitment,
+        ),
+        _Module(
           icon: Icons.access_time_filled_rounded,
           title: isFr ? 'Pointage & Présence' : 'Attendance',
           subtitle: isFr ? 'Suivi quotidien de la présence' : 'Daily attendance tracking',
@@ -139,6 +145,12 @@ class HrDashboardPage extends StatelessWidget {
           title: isFr ? 'Bonus & Primes' : 'Bonuses',
           subtitle: isFr ? 'Récompenses et incentives' : 'Rewards and incentives',
           route: AppRoutes.hrBonuses,
+        ),
+        _Module(
+          icon: Icons.fact_check_rounded,
+          title: isFr ? 'Journaux d\'Audit' : 'Audit Logs',
+          subtitle: isFr ? 'Historique des actions système' : 'System activity history',
+          route: AppRoutes.hrAuditLogs,
         ),
       ];
 }

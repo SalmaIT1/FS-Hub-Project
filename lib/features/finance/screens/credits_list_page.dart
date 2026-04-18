@@ -146,7 +146,7 @@ class _CreditsListPageState extends State<CreditsListPage> {
         _buildMetricRow(
           isDark: isDark,
           title: 'Total Credits',
-          value: '${(_creditSummary!['total_credits'] ?? 0).toStringAsFixed(2)} €',
+          value: '${(_creditSummary!['total_credits'] ?? 0).toStringAsFixed(3)} DT',
           icon: Icons.account_balance_wallet_rounded,
           color: Colors.green,
         ),
@@ -157,7 +157,7 @@ class _CreditsListPageState extends State<CreditsListPage> {
               child: _buildMetricRow(
                 isDark: isDark,
                 title: 'Used',
-                value: '${(_creditSummary!['used_credits'] ?? 0).toStringAsFixed(2)} €',
+                value: '${(_creditSummary!['used_credits'] ?? 0).toStringAsFixed(3)} DT',
                 icon: Icons.account_balance_rounded,
                 color: Colors.orange,
               ),
@@ -167,7 +167,7 @@ class _CreditsListPageState extends State<CreditsListPage> {
               child: _buildMetricRow(
                 isDark: isDark,
                 title: 'Available',
-                value: '${(_creditSummary!['available_credits'] ?? 0).toStringAsFixed(2)} €',
+                value: '${(_creditSummary!['available_credits'] ?? 0).toStringAsFixed(3)} DT',
                 icon: Icons.savings_rounded,
                 color: Colors.blue,
               ),
@@ -275,7 +275,7 @@ class _CreditsListPageState extends State<CreditsListPage> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                '${(credit['montant'] as num).toDouble().toStringAsFixed(2)} €',
+                '${(credit['montant'] as num).toDouble().toStringAsFixed(3)} DT',
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   color: AppTheme.accentGold,
@@ -319,7 +319,7 @@ class _CreditsListPageState extends State<CreditsListPage> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: amountController, decoration: const InputDecoration(labelText: 'Amount (€)'), keyboardType: TextInputType.number),
+            TextField(controller: amountController, decoration: const InputDecoration(labelText: 'Amount (DT)'), keyboardType: TextInputType.number),
             TextField(controller: typeController, decoration: const InputDecoration(labelText: 'Type', hintText: 'e.g. Bank Loan')),
             TextField(controller: descController, decoration: const InputDecoration(labelText: 'Description')),
           ],

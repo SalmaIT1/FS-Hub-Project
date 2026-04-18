@@ -8,6 +8,8 @@ import 'package:fs_hub/core/theme/app_theme.dart';
 import 'package:fs_hub/core/state/settings_controller.dart';
 import 'package:fs_hub/shared/widgets/luxury/luxury_status_dialog.dart';
 import 'client_form_page.dart';
+import 'package:fs_hub/features/finance/services/financial_calculation_service.dart';
+import 'package:intl/intl.dart';
 
 class ClientDetailPage extends StatefulWidget {
   final Client client;
@@ -24,7 +26,7 @@ class ClientDetailPage extends StatefulWidget {
 class _ClientDetailPageState extends State<ClientDetailPage> with TickerProviderStateMixin {
   late Client _client;
   bool _isLoading = false;
-  final TextEditingController _scoreController = TextEditingController();
+  Map<String, dynamic>? _financialSummary;
   
   late AnimationController _fadeController;
   late List<Animation<double>> _staggeredAnimations;
@@ -33,7 +35,6 @@ class _ClientDetailPageState extends State<ClientDetailPage> with TickerProvider
   void initState() {
     super.initState();
     _client = widget.client;
-    _scoreController.text = _client.scoreCredit.toString();
     
     _fadeController = AnimationController(
       vsync: this,
@@ -51,12 +52,21 @@ class _ClientDetailPageState extends State<ClientDetailPage> with TickerProvider
     );
 
     _fadeController.forward();
+    _loadFinancialData();
+  }
+
+  Future<void> _loadFinancialData() async {
+    final result = await FinancialCalculationService.calculateClientFinancialSummary(_client.id!);
+    if (result['success'] && mounted) {
+      setState(() {
+        _financialSummary = result['data'];
+      });
+    }
   }
 
   @override
   void dispose() {
     _fadeController.dispose();
-    _scoreController.dispose();
     super.dispose();
   }
 
@@ -71,41 +81,6 @@ class _ClientDetailPageState extends State<ClientDetailPage> with TickerProvider
     if (score >= 60) return 'Good';
     if (score >= 40) return 'Fair';
     return 'Poor';
-  }
-
-  Future<void> _updateScore() async {
-    final newScore = int.tryParse(_scoreController.text);
-    if (newScore == null || newScore < 0 || newScore > 100) return;
-
-    setState(() => _isLoading = true);
-
-    try {
-      final result = await ClientService.updateClientScore(_client.id!, newScore);
-
-      if (result['success'] && mounted) {
-        setState(() {
-          _client = result['data'];
-          _isLoading = false;
-        });
-        
-        LuxuryStatusDialog.show(
-          context,
-          isSuccess: true,
-          title: 'Metrical Adjustment',
-          message: 'Client credit score has been recalculated and synchronized.',
-        );
-      }
-    } catch (e) {
-      if (mounted) setState(() => _isLoading = false);
-      if (mounted) {
-        LuxuryStatusDialog.show(
-          context,
-          isSuccess: false,
-          title: 'Sync Fault',
-          message: 'Failed to update credit metric: $e',
-        );
-      }
-    }
   }
 
   Future<void> _deleteClient() async {
@@ -199,8 +174,8 @@ class _ClientDetailPageState extends State<ClientDetailPage> with TickerProvider
                       
                       const SizedBox(height: 20),
                       
-                      // Credit Score Management
-                      _buildAnimatedSection(2, _buildCreditScoreCard(isDark, settings)),
+                      // Financial Health & Payments
+                      _buildAnimatedSection(2, _buildFinancialHealthCard(isDark, settings)),
                       
                       const SizedBox(height: 20),
                       
@@ -358,138 +333,147 @@ class _ClientDetailPageState extends State<ClientDetailPage> with TickerProvider
     );
   }
 
-  Widget _buildCreditScoreCard(bool isDark, SettingsController settings) {
-    final scoreColor = _getScoreColor(_client.scoreCredit);
+  Widget _buildFinancialHealthCard(bool isDark, SettingsController settings) {
+    if (_financialSummary == null) {
+      return _buildGlassContainer(
+        isDark: isDark,
+        child: const Center(child: CircularProgressIndicator(color: AppTheme.accentGold)),
+      );
+    }
+
+    final double totalPaid = (_financialSummary!['total_paid'] as num).toDouble();
+    final double totalInvoiced = (_financialSummary!['total_invoiced'] as num).toDouble();
+    final double outstanding = (_financialSummary!['outstanding_balance'] as num).toDouble();
+    final double ratio = (_financialSummary!['payment_ratio'] as num).toDouble();
     
+    final Color healthColor = ratio >= 90 ? Colors.green : ratio >= 50 ? Colors.orange : Colors.red;
+    final currencyFormat = NumberFormat.currency(symbol: 'DT', decimalDigits: 3);
+
     return _buildGlassContainer(
       isDark: isDark,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Icon(Icons.score_rounded, color: AppTheme.accentGold, size: 20),
-              const SizedBox(width: 10),
-              Text(
-                settings.translate('credit_score'),
-                style: TextStyle(
-                  color: isDark ? Colors.white : Colors.black,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+              Row(
+                children: [
+                  const Icon(Icons.account_balance_wallet_rounded, color: AppTheme.accentGold, size: 20),
+                  const SizedBox(width: 10),
+                  Text(
+                    'SANTÉ FINANCIÈRE',
+                    style: TextStyle(
+                      color: isDark ? Colors.white : Colors.black,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: healthColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: healthColor.withOpacity(0.3)),
+                ),
+                child: Text(
+                  '${ratio.toStringAsFixed(1)}%',
+                  style: TextStyle(color: healthColor, fontSize: 12, fontWeight: FontWeight.bold),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
           
-          // Current Score Display
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: scoreColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: scoreColor.withOpacity(0.3)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Current Score',
-                      style: TextStyle(
-                        color: isDark ? Colors.white70 : Colors.black87,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _client.scoreCredit.toString(),
-                      style: TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        color: scoreColor,
-                      ),
-                    ),
-                  ],
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      _getScoreDescription(_client.scoreCredit),
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: scoreColor,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Container(
-                      width: 100,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: FractionallySizedBox(
-                        alignment: Alignment.centerLeft,
-                        widthFactor: _client.scoreCredit / 100,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: scoreColor,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          
-          const SizedBox(height: 20),
-          
-          // Update Score Form
           Row(
             children: [
               Expanded(
-                child: TextField(
-                  controller: _scoreController,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: 'New Score (0-100)',
-                    filled: true,
-                    fillColor: isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.03),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide(color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05)),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide(color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05)),
-                    ),
-                    labelStyle: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
-                  ),
+                child: _buildFinancialMetric(
+                  'Encaissé (Crédit)',
+                  currencyFormat.format(totalPaid),
+                  Colors.green,
                 ),
               ),
-              const SizedBox(width: 12),
-              Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  gradient: const LinearGradient(colors: [AppTheme.accentGold, Color(0xFF8B6914)]),
-                ),
-                child: IconButton(
-                  onPressed: _updateScore,
-                  icon: const Icon(Icons.update_rounded, color: Colors.white),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _buildFinancialMetric(
+                  'Total Projets',
+                  currencyFormat.format(totalInvoiced),
+                  isDark ? Colors.white70 : Colors.black87,
                 ),
               ),
             ],
           ),
+          
+          const SizedBox(height: 20),
+          const Divider(height: 1),
+          const SizedBox(height: 20),
+          
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Reste à payer',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    currencyFormat.format(outstanding),
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: outstanding > 0 ? Colors.redAccent : Colors.grey,
+                    ),
+                  ),
+                ],
+              ),
+              Icon(
+                outstanding == 0 ? Icons.check_circle_rounded : Icons.pending_rounded,
+                color: outstanding == 0 ? Colors.green : Colors.orange,
+                size: 28,
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 20),
+          // Progress Bar
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: totalInvoiced > 0 ? (totalPaid / totalInvoiced).clamp(0, 1) : 0,
+              backgroundColor: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05),
+              valueColor: AlwaysStoppedAnimation<Color>(healthColor),
+              minHeight: 8,
+            ),
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildFinancialMetric(String label, String value, Color color) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 6),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            value,
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color),
+          ),
+        ),
+      ],
     );
   }
 

@@ -14,3 +14,19 @@ kernel_blob.bin
 .env
 *.env
 backend/.env
+
+# Binaries & Outputs
+*.exe
+backend/payroll_outputs/
+backend/bin/server.exe
+
+# Python
+__pycache__/
+*.pyc
+ai-service/venv/
+ai-service/.env
+
+# IDEs
+.idea/
+.vscode/
+*.iml
