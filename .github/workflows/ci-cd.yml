@@ -2,11 +2,11 @@ name: FS-Hub CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, master, develop ]
     tags:
       - 'v*'
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main, master, develop ]
 
 jobs:
   # Job de test et sécurité
@@ -111,7 +111,7 @@ jobs:
   deploy:
     needs: build_and_push
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     
     steps:
       - name: Deploy to Production (Render)
