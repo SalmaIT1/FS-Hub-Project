@@ -3,35 +3,39 @@ name: FS-Hub CI/CD Pipeline
 on:
   push:
     branches: [ main, develop ]
+    tags:
+      - 'v*'
   pull_request:
-    branches: [ main ]
+    branches: [ main, develop ]
 
 jobs:
-  # Job de test
-  test:
+  # Job de test et sécurité
+  test_and_lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       
-      # Setup Dart
-      - uses: dart-lang/setup-dart@v1
-        with:
-          sdk: stable
-      
-      # Setup Flutter
+      # Setup Flutter with Caching
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.19.0'
           channel: 'stable'
+          cache: true
       
-      # Installation des dépendances backend
+      # Installation et Cache des dépendances backend
       - name: Install backend dependencies
         working-directory: ./backend
         run: dart pub get
       
-      # Installation des dépendances frontend
+      # Installation et Cache des dépendances frontend
       - name: Install frontend dependencies
         run: flutter pub get
+      
+      # Analyse du code (Linter)
+      - name: Code analysis
+        run: |
+          flutter analyze
+          cd backend && dart analyze
       
       # Tests backend
       - name: Run backend tests
@@ -41,16 +45,12 @@ jobs:
       # Tests frontend
       - name: Run frontend tests
         run: flutter test || echo "No frontend tests found"
-      
-      # Analyse du code
-      - name: Flutter analyze
-        run: flutter analyze
 
-  # Job de build Docker
-  build:
-    needs: test
+  # Job de build et push Docker
+  build_and_push:
+    needs: test_and_lint
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     
     steps:
       - uses: actions/checkout@v4
@@ -61,6 +61,19 @@ jobs:
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
+      
+      # Extract metadata (tags, labels) for Docker
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            salmait1/fs-hub-backend
+            salmait1/fs-hub-frontend
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=sha
       
       # Setup Docker Buildx
       - name: Set up Docker Buildx
@@ -73,8 +86,12 @@ jobs:
           context: ./backend
           file: ./backend/Dockerfile
           push: true
-          tags: salmait1/fs-hub-backend:latest
-          platforms: linux/amd64,linux/arm64
+          tags: |
+            salmait1/fs-hub-backend:latest
+            salmait1/fs-hub-backend:${{ github.sha }}
+          platforms: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
       
       # Build et push frontend
       - name: Build and push frontend
@@ -83,16 +100,24 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: salmait1/fs-hub-frontend:latest
-          platforms: linux/amd64,linux/arm64
+          tags: |
+            salmait1/fs-hub-frontend:latest
+            salmait1/fs-hub-frontend:${{ github.sha }}
+          platforms: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-  # Job de déploiement (exemple avec Render)
+  # Job de déploiement
   deploy:
-    needs: build
+    needs: build_and_push
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     
     steps:
-      - name: Deploy to Render
+      - name: Deploy to Production (Render)
         run: |
           curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK }}
+      
+      - name: Notification Discord/Slack (Optionnel)
+        if: success()
+        run: echo "Deployment successful!"

@@ -25,7 +25,7 @@ class Migrations {
       final usersExist = int.tryParse(tableCheck.rows.first.colByName('cnt').toString()) ?? 0;
       
       if (usersExist == 0) {
-        print('Initial schema not found. Applying lib/database/schema.sql...');
+        print('Initial schema not found. Applying backend/lib/database/schema.sql...');
         final schemaFile = File('lib/database/schema.sql');
         if (await schemaFile.exists()) {
           final schemaSQL = await schemaFile.readAsString();
@@ -61,37 +61,21 @@ class Migrations {
   }
 
   static Future<void> _runIncrementalMigrations(DBProxy conn, String dbName) async {
-    // A. Ensure 'message_idempotency' table exists
-    await _ensureTable(conn, dbName, 'message_idempotency', '''
-      CREATE TABLE message_idempotency (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          client_message_id VARCHAR(255) NOT NULL,
-          conversation_id INT NOT NULL,
-          server_message_id INT NOT NULL,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          UNIQUE KEY unique_client_conv (client_message_id, conversation_id),
-          FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
-          FOREIGN KEY (server_message_id) REFERENCES messages(id) ON DELETE CASCADE,
-          INDEX idx_client_message (client_message_id),
-          INDEX idx_server_message (server_message_id)
-      )
-    ''');
-
     // B. Ensure 'refresh_tokens' table exists
-    await _ensureTable(conn, dbName, 'refresh_tokens', '''
-      CREATE TABLE refresh_tokens (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          user_id VARCHAR(50) NOT NULL,
-          token VARCHAR(1024) NOT NULL,
-          revoked BOOLEAN DEFAULT FALSE,
-          expires_at TIMESTAMP NULL,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-          INDEX idx_user_id (user_id),
-          INDEX idx_token (token(255))
-      )
-    ''');
+      await _ensureTable(conn, dbName, 'refresh_tokens', '''
+        CREATE TABLE refresh_tokens (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id VARCHAR(50) NOT NULL,
+            token VARCHAR(1024) NOT NULL,
+            revoked BOOLEAN DEFAULT FALSE,
+            expires_at TIMESTAMP NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            INDEX idx_user_id (user_id),
+            INDEX idx_token (token(255))
+        )
+      ''');
 
     // C. Ensure 'demands' table exists (used by /v1/demands)
     await _ensureTable(conn, dbName, 'demands', '''

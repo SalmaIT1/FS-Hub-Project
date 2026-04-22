@@ -1,45 +1,45 @@
-# Utiliser l'image officielle Dart comme base
+# Stage 1: Build the Dart backend
 FROM dart:stable AS build
 
-# Définir le répertoire de travail
 WORKDIR /app
 
-# Copier les fichiers de configuration
-COPY pubspec.yaml .
-COPY pubspec.lock .
+# Copy configuration files
+COPY pubspec.yaml pubspec.lock ./
 
-# Télécharger les dépendances
+# Download dependencies
 RUN dart pub get
 
-# Copier le code source
+# Copy the rest of the application code
 COPY . .
 
-# Compiler l'application Dart en mode release
+# Compile the application to a native executable
 RUN dart compile exe bin/server.dart -o bin/server
 
-# Étape de production - image minimale
+# Stage 2: Minimal production image
 FROM alpine:latest
 
-# Installer les dépendances nécessaires
-RUN apk add --no-cache libc6-compat
+# Install necessary runtime dependencies
+RUN apk add --no-cache libc6-compat ca-certificates
 
-# Créer un utilisateur non-root
+# Create a non-root user for security
 RUN adduser -D dartuser
-
-# Définir le répertoire de travail
 WORKDIR /app
 
-# Copier l'exécutable depuis l'étape de build
+# Copy the compiled binary from the build stage
 COPY --from=build /app/bin/server .
 
-# Changer le propriétaire des fichiers
+# Set ownership to the non-root user
 RUN chown -R dartuser:dartuser /app
 
-# Utiliser l'utilisateur non-root
+# Use the non-root user
 USER dartuser
 
-# Exposer le port 8080
+# Expose the API port
 EXPOSE 8080
 
-# Commande pour lancer l'application
+# Add healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+  CMD wget --quiet --tries=1 --spider http://127.0.0.1:8080/healthz || exit 1
+
+# Start the server
 ENTRYPOINT ["./server"]

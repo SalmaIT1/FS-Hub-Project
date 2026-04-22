@@ -5,7 +5,7 @@ README.md
 .dockerignore
 Dockerfile
 docker-compose.yml
-nginx.conf
+# nginx.conf (Retiré de l'ignore pour permettre le COPY dans le Dockerfile)
 
 # Fichiers de build et cache
 build/

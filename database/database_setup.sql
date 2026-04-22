@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS users (
     role ENUM('Admin', 'RH', 'Employé', 'Comptable', 'Manager') DEFAULT 'Employé',
     permissions TEXT,
     is_online BOOLEAN DEFAULT FALSE,
+    is_active BOOLEAN DEFAULT TRUE,
     last_seen DATETIME NULL,
     dernierLogin DATETIME,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
