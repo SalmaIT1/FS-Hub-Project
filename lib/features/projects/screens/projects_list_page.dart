@@ -843,7 +843,7 @@ class _AddEditProjectDialogState extends State<AddEditProjectDialog> {
       child: DropdownButtonHideUnderline(
         child: DropdownButtonFormField<T>(
           isExpanded: true,
-          value: value,
+          initialValue: value,
           dropdownColor: isDark ? const Color(0xFF1A1A1A) : Colors.white,
           decoration: InputDecoration(
             border: InputBorder.none,

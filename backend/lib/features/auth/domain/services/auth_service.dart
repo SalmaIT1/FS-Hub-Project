@@ -10,7 +10,6 @@ import 'dart:math';
 import '../../../email/domain/services/email_service.dart';
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
-import '../../../demand/data/repositories/demand_repository.dart';
 
 class AuthService {
   static final _repository = AuthRepository();
@@ -53,9 +52,14 @@ class AuthService {
 
   static Future<bool> isTokenRevoked(String token) async {
     try {
-       return await _repository.isTokenInBlocklist(token);
+      return await _repository.isTokenInBlocklist(token);
     } catch (e) {
-      return false;
+      // P2-1 SECURITY FIX: Fail-closed posture.
+      // If the DB is unavailable we cannot verify the token blocklist,
+      // so we DENY access rather than allow a potentially revoked session.
+      // The client will receive a 401 and must re-authenticate.
+      print('[AUTH] isTokenRevoked DB error \u2014 failing closed: $e');
+      return true;
     }
   }
 
@@ -100,7 +104,6 @@ class AuthService {
           print('BCrypt check failed: $e');
         }
       } else {
-        print('Warning: Attempted login with legacy password format for user ID: $userId');
         isValid = false;
       }
 
@@ -308,41 +311,43 @@ class AuthService {
 
   /// Self-service forgot password. 
   /// Issuing a token instead of changing password instantly (prevents lockout).
+  /// Self-service forgot password. 
+  /// Issuing a token and sending an email for secure recovery.
   static Future<Map<String, dynamic>> forgotPassword(String email) async {
     const uniformResponse = {
       'success': true, 
-      'message': 'Your request has been sent to our administrator for verification. You will receive an email shortly.'
+      'message': 'If an account exists for this email, you will receive a reset link shortly.'
     };
     try {
       final userRow = await _repository.findUserByUsernameOrEmail(email);
       if (userRow == null) return uniformResponse;
 
       final userId = userRow['id'].toString();
-      final userEmail = userRow['email'] as String?;
-      if (userEmail == null || userEmail.isEmpty) return uniformResponse;
+      final userEmail = userRow['email'] as String? ?? email;
+      final userName = userRow['prenom']?.toString() ?? 'User';
 
-      // Instead of sending reset link, create a Manual Demand ticket for Admin
-      final demandRepo = DemandRepository();
-      
-      // Check if there is already a pending reset demand for this user
-      final existingDemands = await demandRepo.getAllDemands(
-        requesterId: userId,
-        type: 'password_reset',
-        status: 'pending',
-        isAdmin: true
+      // 1. Generate Token
+      final token = const Uuid().v4();
+      final hash = sha256.convert(utf8.encode(token)).toString();
+      final expiresAt = DateTime.now().add(const Duration(hours: 24));
+
+      // 2. Save Token Hash
+      await _repository.savePasswordResetToken(
+        userId: userId, 
+        tokenHash: hash, 
+        expiresAt: expiresAt
       );
 
-      if (existingDemands.isEmpty) {
-        await demandRepo.createDemand({
-          'type': 'password_reset',
-          'description': 'L\'utilisateur a demandé une réinitialisation de son mot de passe via l\'écran de connexion.',
-          'requesterId': userId,
-        });
-      }
+      // 3. Dispatch Email
+      await EmailService.sendPasswordResetEmail(
+        userEmail: userEmail,
+        userName: userName,
+        resetToken: token,
+      );
 
       return uniformResponse;
     } catch (e) {
-      print('[AUTH] Forgot password demand creation error: $e');
+      print('[AUTH] Forgot password error: $e');
       return uniformResponse;
     }
   }
@@ -486,15 +491,24 @@ class AuthService {
     }
   }
   static Future<String> registerClientAccount(String email, String phone) async {
-    final randomPassword = _generateRandomPassword(16);
-    // TODO: Send this randomPassword via email to the client using EmailService.
-    print('[SECURITY] Generated random password for new client $email: $randomPassword');
-    
-    return await _repository.createUser(
+    // Client account setup: Username = Email, Password = Phone Number
+    final userId = await _repository.createUser(
       username: email,
-      password: randomPassword,
+      password: phone,
       role: 'Client',
     );
+
+    try {
+      await EmailService.sendNewPasswordEmail(
+        userEmail: email,
+        userName: 'Client',
+        newPassword: phone,
+      );
+    } catch (e) {
+      print('[AUTH] Warning: Failed to send welcome email to $email: $e');
+    }
+    
+    return userId;
   }
 }
 

@@ -90,8 +90,8 @@ class Employee {
       matricule: json['matricule'] ?? '',
       nom: json['nom'] ?? '',
       prenom: json['prenom'] ?? '',
-      dateNaissance: json['dateNaissance'] != null 
-          ? DateTime.parse(json['dateNaissance'])
+      dateNaissance: json['date_naissance'] != null 
+          ? DateTime.parse(json['date_naissance'])
           : DateTime.now(),
       sexe: json['sexe'] ?? '',
       email: json['email'] ?? '',
@@ -100,17 +100,17 @@ class Employee {
       ville: json['ville'] ?? '',
       poste: json['poste'] ?? '',
       departement: json['departement'] ?? '',
-      dateEmbauche: json['dateEmbauche'] != null
-          ? DateTime.parse(json['dateEmbauche'])
+      dateEmbauche: json['date_embauche'] != null
+          ? DateTime.parse(json['date_embauche'])
           : DateTime.now(),
-      typeContrat: json['typeContrat'] ?? '',
+      typeContrat: json['type_contrat'] ?? '',
       statut: json['statut'] ?? '',
       username: json['username'],
       role: json['role'],
       permissions: permissionsList,
-      avatarUrl: json['avatarUrl'] ?? json['photo'], // Use 'photo' from backend as 'avatarUrl'
+      avatarUrl: json['avatar_url'] ?? json['photo'],
       photo: json['photo'],
-      isOnline: json['isOnline'] == 1 || json['isOnline'] == true,
+      isOnline: json['is_online'] == 1 || json['is_online'] == true,
       isActive: json['is_active'] == 1 || json['is_active'] == true,
       cinDocument: json['cin_document'],
       cvDocument: json['cv_document'],
@@ -126,7 +126,7 @@ class Employee {
       'matricule': matricule,
       'nom': nom,
       'prenom': prenom,
-      'dateNaissance': dateNaissance.toIso8601String(),
+      'date_naissance': dateNaissance.toIso8601String(),
       'sexe': sexe,
       'email': email,
       'telephone': telephone,
@@ -134,15 +134,15 @@ class Employee {
       'ville': ville,
       'poste': poste,
       'departement': departement,
-      'dateEmbauche': dateEmbauche.toIso8601String(),
-      'typeContrat': typeContrat,
+      'date_embauche': dateEmbauche.toIso8601String(),
+      'type_contrat': typeContrat,
       'statut': statut,
       'username': username,
       'role': role,
       'permissions': permissions,
-      'avatarUrl': avatarUrl,
+      'avatar_url': avatarUrl,
       'photo': photo,
-      'isOnline': isOnline,
+      'is_online': isOnline,
       'is_active': isActive,
       'password': password,
       'cin_document': cinDocument,

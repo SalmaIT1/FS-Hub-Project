@@ -8,12 +8,13 @@ class SprintRoutes {
   late final Router router;
 
   SprintRoutes() {
+    final secured = Pipeline().addMiddleware(requireAuth());
     router = Router()
-      ..get('/project/<projectId>', _getSprintsByProject)
-      ..get('/<id>', _getSprintById)
-      ..post('/', _createSprint)
-      ..put('/<id>', _updateSprint)
-      ..delete('/<id>', _deleteSprint);
+      ..get('/project/<projectId>', (Request r, String pid) => secured.addHandler((req) => _getSprintsByProject(req, pid))(r))
+      ..get('/<id>', (Request r, String id) => secured.addHandler((req) => _getSprintById(req, id))(r))
+      ..post('/', secured.addHandler(_createSprint))
+      ..put('/<id>', (Request r, String id) => secured.addHandler((req) => _updateSprint(req, id))(r))
+      ..delete('/<id>', (Request r, String id) => secured.addHandler((req) => _deleteSprint(req, id))(r));
   }
 
   Future<Response> _getSprintsByProject(Request request, String projectId) async {

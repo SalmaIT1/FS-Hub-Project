@@ -9,22 +9,23 @@ class EmployeeRoutes {
   late final Router router;
 
   EmployeeRoutes() {
+    final secured = Pipeline().addMiddleware(requireAuth());
     router = Router()
-      ..get('/', Pipeline().addMiddleware(requirePermission('view_employees')).addHandler(_getAllEmployees))
-      ..get('/<id>', (Request request, String id) {
-        if (id == request.authUserId) {
-          return _getEmployeeById(request, id);
-        }
-        return Pipeline().addMiddleware(requirePermission('view_employees')).addHandler((req) => _getEmployeeById(req, id))(request);
-      })
-      ..post('/', Pipeline().addMiddleware(requirePermission('manage_employees')).addHandler(_createEmployee))
-      ..put('/<id>', (Request request, String id) {
-        if (id == request.authUserId) {
-          return _updateEmployee(request, id);
-        }
-        return Pipeline().addMiddleware(requirePermission('manage_employees')).addHandler((req) => _updateEmployee(req, id))(request);
-      })
-      ..delete('/<id>', (Request request, String id) => Pipeline().addMiddleware(requirePermission('manage_employees')).addHandler((req) => _deleteEmployee(req, id))(request));
+      ..get('/', secured.addMiddleware(requirePermission('view_employees')).addHandler(_getAllEmployees))
+      ..get('/<id>', (Request request, String id) => secured.addHandler((req) {
+          if (id == req.authUserId) {
+            return _getEmployeeById(req, id);
+          }
+          return Pipeline().addMiddleware(requirePermission('view_employees')).addHandler((r) => _getEmployeeById(r, id))(req);
+        })(request))
+      ..post('/', secured.addMiddleware(requirePermission('manage_employees')).addHandler(_createEmployee))
+      ..put('/<id>', (Request request, String id) => secured.addHandler((req) {
+          if (id == req.authUserId) {
+            return _updateEmployee(req, id);
+          }
+          return Pipeline().addMiddleware(requirePermission('manage_employees')).addHandler((r) => _updateEmployee(r, id))(req);
+        })(request))
+      ..delete('/<id>', (Request request, String id) => secured.addMiddleware(requirePermission('manage_employees')).addHandler((req) => _deleteEmployee(req, id))(request));
   }
 
   Future<Response> _getAllEmployees(Request request) async {

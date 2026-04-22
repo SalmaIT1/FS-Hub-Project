@@ -116,16 +116,15 @@ class TaskService {
 
   static Future<Map<String, dynamic>> bulkAssignTasks(List<int> taskIds, String employeeId, {String? callerId}) async {
     try {
-      int count = 0;
-      for (final id in taskIds) {
-        await _repository.updateTask(id, {'employee_id': employeeId});
-        count++;
-      }
+      // P1 FIX: Parallelize DB updates to prevent event-loop congestion
+      final tasks = taskIds.map((id) => _repository.updateTask(id, {'employee_id': employeeId}));
+      await Future.wait(tasks);
 
+      final count = taskIds.length;
       await NotificationService.createNotification(
         userId: employeeId,
         title: 'Bulk Tasks Assigned',
-        message: 'You have been assigned \$count new tasks.',
+        message: 'You have been assigned $count new tasks.',
         type: 'TASK_ASSIGNED',
       );
 
@@ -135,9 +134,9 @@ class TaskService {
         'taskIds': taskIds,
       });
 
-      return {'success': true, 'message': 'Successfully assigned \$count tasks'};
+      return {'success': true, 'message': 'Successfully assigned $count tasks'};
     } catch (e) {
-      return {'success': false, 'message': 'Bulk assignment failed: \$e'};
+      return {'success': false, 'message': 'Bulk assignment failed: $e'};
     }
   }
 

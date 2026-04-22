@@ -142,7 +142,9 @@ class ChatAttachment {
       originalFilename: json['originalFilename'] as String? ?? '',
       mimeType: json['mimeType'] as String? ?? 'application/octet-stream',
       size: json['size'] as int? ?? 0,
-      url: json['url'] as String? ?? '',
+      url: json['url'] as String? ?? 
+           json['mediaUrl'] as String? ?? 
+           json['media_url'] as String? ?? '',
       displaySize: json['displaySize'] as String? ?? '',
       thumbnailUrl: json['thumbnailUrl'] as String?,
     );

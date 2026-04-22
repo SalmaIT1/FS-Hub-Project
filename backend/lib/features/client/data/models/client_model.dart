@@ -7,7 +7,7 @@ class ClientModel {
   final String? telephone;
   final String type; // 'entreprise' or 'particulier'
   final double scoreCredit;
-  final double credit;
+  final double soldeDu;
   final String? matriculeFiscale;
   final String? adresse;
   final String? patenteDocument;
@@ -21,7 +21,7 @@ class ClientModel {
     this.telephone,
     required this.type,
     this.scoreCredit = 0.0,
-    this.credit = 0.0,
+    this.soldeDu = 0.0,
     this.matriculeFiscale,
     this.adresse,
     this.patenteDocument,
@@ -37,7 +37,7 @@ class ClientModel {
       'telephone': telephone,
       'type': type,
       'scoreCredit': scoreCredit,
-      'credit': credit,
+      'solde_du': soldeDu,
       'matriculeFiscale': matriculeFiscale,
       'adresse': adresse,
       'patenteDocument': patenteDocument,
@@ -57,7 +57,7 @@ class ClientModel {
       telephone: map['telephone']?.toString(),
       type: frontendType,
       scoreCredit: map['score_credit'] != null ? double.tryParse(map['score_credit'].toString()) ?? 0.0 : 0.0,
-      credit: map['credit'] != null ? double.tryParse(map['credit'].toString()) ?? 0.0 : 0.0,
+      soldeDu: map['solde_du'] != null ? double.tryParse(map['solde_du'].toString()) ?? 0.0 : 0.0,
       matriculeFiscale: map['matricule_fiscale']?.toString(),
       adresse: map['adresse']?.toString(),
       patenteDocument: map['patente_document']?.toString(),

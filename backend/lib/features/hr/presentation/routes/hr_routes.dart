@@ -4,6 +4,7 @@ import 'package:shelf_router/shelf_router.dart';
 import '../../domain/services/hr_service.dart';
 import '../../../../core/middleware/auth_middleware.dart';
 import '../../../../core/middleware/permission_middleware.dart';
+import '../../../../core/middleware/idempotency_middleware.dart';
 
 class HrRoutes {
   late final Router router;
@@ -21,25 +22,25 @@ class HrRoutes {
       // Leaves
       // FIX: 'submit_leave' is for employees creating their own requests; 'manage_leaves' is for Admin/RH approvals.
       ..get('/leaves', Pipeline().addMiddleware(requireRoleOrPermission([], ['view_employees', 'submit_leave'])).addHandler(_getLeaveRequests))
-      ..post('/leaves', Pipeline().addMiddleware(requirePermission('submit_leave')).addHandler(_submitLeaveRequest))
+      ..post('/leaves', Pipeline().addMiddleware(idempotency()).addMiddleware(requirePermission('submit_leave')).addHandler(_submitLeaveRequest))
       ..put('/leaves/<id>', (Request request, String id) => Pipeline().addMiddleware(requirePermission('manage_leaves')).addHandler((req) => _updateLeaveStatus(req, id))(request))
       
       // Remote Work
       // FIX: Same pattern as leaves — employees submit via 'submit_remote_work'
       ..get('/remote-work', Pipeline().addMiddleware(requireRoleOrPermission([], ['view_employees', 'submit_remote_work'])).addHandler(_getRemoteWorkRequests))
-      ..post('/remote-work', Pipeline().addMiddleware(requirePermission('submit_remote_work')).addHandler(_submitRemoteWorkRequest))
+      ..post('/remote-work', Pipeline().addMiddleware(idempotency()).addMiddleware(requirePermission('submit_remote_work')).addHandler(_submitRemoteWorkRequest))
       ..put('/remote-work/<id>', (Request request, String id) => Pipeline().addMiddleware(requirePermission('manage_remote_work')).addHandler((req) => _updateRemoteWorkStatus(req, id))(request))
       
       // Salaries
       // FIX: Added 'view_own_salary' permission path for employees to see their own salary without having view_employees
-      ..get('/salaries', _getSalaries)  // internal role-scoping in HrService handles what each role can see
+      ..get('/salaries', Pipeline().addMiddleware(requireRoleOrPermission([], ['manage_salaries', 'view_own_salary'])).addHandler(_getSalaries))  // internal role-scoping in HrService handles what each role can see
       ..post('/salaries', Pipeline().addMiddleware(requirePermission('manage_salaries')).addHandler(_createSalary))
       ..post('/salaries/bulk-generate', Pipeline().addMiddleware(requirePermission('manage_salaries')).addHandler(_bulkGenerateSalaries))  // FIX: Missing route added
       ..put('/salaries/<id>', (Request request, String id) => Pipeline().addMiddleware(requirePermission('manage_salaries')).addHandler((req) => _updateSalaryStatus(req, id))(request))
       
       // Bonuses
-      ..get('/bonuses', _getBonuses)
-      ..get('/bonuses/<employeeId>', (Request req, String id) => _getBonuses(req, targetEmployeeId: id))
+      ..get('/bonuses', Pipeline().addMiddleware(requireRoleOrPermission([], ['manage_bonuses', 'view_own_salary'])).addHandler(_getBonuses))
+      ..get('/bonuses/<employeeId>', (Request req, String id) => Pipeline().addMiddleware(requireRoleOrPermission([], ['manage_bonuses', 'view_own_salary'])).addHandler((r) => _getBonuses(r, targetEmployeeId: id))(req))
       ..post('/bonuses', Pipeline().addMiddleware(requirePermission('manage_bonuses')).addHandler(_grantBonus))
       ..post('/bonuses/bulk', Pipeline().addMiddleware(requirePermission('manage_bonuses')).addHandler(_bulkGrantBonuses))
       
@@ -112,7 +113,6 @@ class HrRoutes {
   Future<Response> _getLeaveRequests(Request request) async {
     final role = request.authUserRole;
     final userId = request.authUserId;
-    if (userId == null) return Response.forbidden(jsonEncode({'success': false, 'message': 'Unauthorized'}));
     
     final res = await HrService.getLeaveRequests(role, userId);
     return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json; charset=utf-8'});
@@ -120,7 +120,6 @@ class HrRoutes {
 
   Future<Response> _submitLeaveRequest(Request request) async {
     final userId = request.authUserId;
-    if (userId == null) return Response.forbidden(jsonEncode({'success': false, 'message': 'Unauthorized'}));
     
     final body = await request.readAsString();
     final data = jsonDecode(body) as Map<String, dynamic>;
@@ -131,7 +130,6 @@ class HrRoutes {
 
   Future<Response> _updateLeaveStatus(Request request, String id) async {
     final userId = request.authUserId;
-    if (userId == null) return Response.forbidden(jsonEncode({'success': false, 'message': 'Unauthorized'}));
 
     final body = await request.readAsString();
     final data = jsonDecode(body) as Map<String, dynamic>;
@@ -149,7 +147,6 @@ class HrRoutes {
   Future<Response> _getRemoteWorkRequests(Request request) async {
     final role = request.authUserRole;
     final userId = request.authUserId;
-    if (userId == null) return Response.forbidden(jsonEncode({'success': false, 'message': 'Unauthorized'}));
     
     final res = await HrService.getRemoteWorkRequests(role, userId);
     return Response.ok(jsonEncode(res), headers: {'Content-Type': 'application/json; charset=utf-8'});
@@ -157,7 +154,6 @@ class HrRoutes {
 
   Future<Response> _submitRemoteWorkRequest(Request request) async {
     final userId = request.authUserId;
-    if (userId == null) return Response.forbidden(jsonEncode({'success': false, 'message': 'Unauthorized'}));
     
     final body = await request.readAsString();
     final data = jsonDecode(body) as Map<String, dynamic>;
@@ -168,7 +164,6 @@ class HrRoutes {
 
   Future<Response> _updateRemoteWorkStatus(Request request, String id) async {
     final userId = request.authUserId;
-    if (userId == null) return Response.forbidden(jsonEncode({'success': false, 'message': 'Unauthorized'}));
 
     final body = await request.readAsString();
     final data = jsonDecode(body) as Map<String, dynamic>;
@@ -186,7 +181,6 @@ class HrRoutes {
   Future<Response> _getSalaries(Request request) async {
     final role = request.authUserRole;
     final userId = request.authUserId;
-    if (userId == null) return Response.forbidden(jsonEncode({'success': false, 'message': 'Unauthorized'}));
     
     final params = request.url.queryParameters;
     final targetEmployeeId = params['employeeId'];
@@ -269,7 +263,7 @@ class HrRoutes {
     final body = await request.readAsString();
     final data = jsonDecode(body) as Map<String, dynamic>;
     
-    if (userId != null && data['granted_by'] == null) {
+    if (data['granted_by'] == null) {
         data['granted_by'] = userId;
     }
     
@@ -286,7 +280,7 @@ class HrRoutes {
     final employeeIds = List<String>.from(data['employeeIds'] ?? []);
     final bonusData = Map<String, dynamic>.from(data['bonus'] ?? {});
 
-    if (userId != null && bonusData['granted_by'] == null) {
+    if (bonusData['granted_by'] == null) {
       bonusData['granted_by'] = userId;
     }
 

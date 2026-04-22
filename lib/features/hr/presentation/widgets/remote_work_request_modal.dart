@@ -114,7 +114,7 @@ class _RemoteWorkRequestModalState extends State<RemoteWorkRequestModal> {
     };
 
     return DropdownButtonFormField<String>(
-      value: _type,
+      initialValue: _type,
       dropdownColor: isDark ? const Color(0xFF2A2A2A) : Colors.white,
       decoration: _buildInputDecoration('', isDark),
       items: types.entries.map((e) => DropdownMenuItem(

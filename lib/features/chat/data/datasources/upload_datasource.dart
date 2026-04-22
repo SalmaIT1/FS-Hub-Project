@@ -70,8 +70,10 @@ class UploadDatasource {
     required String contentType,
     void Function(double)? onProgress,
   }) async {
+    final token = await tokenProvider();
     final request = http.Request('PUT', Uri.parse(signedUrl));
     request.headers['Content-Type'] = contentType;
+    request.headers['Authorization'] = 'Bearer $token';
     request.bodyBytes = bytes;
 
     final response = await http.Client().send(request);

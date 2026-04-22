@@ -89,7 +89,7 @@ class ExpenseRoutes {
       return Response.ok(
         jsonEncode({
           'success': true,
-          'data': expense?.toJson() ?? {},
+          'data': expense.toJson() ?? {},
           'message': 'Project expense retrieved successfully',
         }),
         headers: {'content-type': 'application/json; charset=utf-8'},
@@ -247,7 +247,7 @@ class ExpenseRoutes {
       return Response.ok(
         jsonEncode({
           'success': true,
-          'data': expense?.toJson() ?? {},
+          'data': expense.toJson() ?? {},
           'message': 'Company expense retrieved successfully',
         }),
         headers: {'content-type': 'application/json; charset=utf-8'},
@@ -368,7 +368,7 @@ class ExpenseRoutes {
       return Response.ok(
         jsonEncode({
           'success': true,
-          'data': categories.map((c) => c?.toJson() ?? {}).toList(),
+          'data': categories.map((c) => c.toJson() ?? {}).toList(),
           'message': 'Expense categories retrieved successfully',
         }),
         headers: {'content-type': 'application/json; charset=utf-8'},
@@ -400,7 +400,7 @@ class ExpenseRoutes {
         201,
         body: jsonEncode({
           'success': true,
-          'data': category?.toJson() ?? {},
+          'data': category.toJson() ?? {},
           'message': 'Expense category created successfully',
         }),
         headers: {'content-type': 'application/json; charset=utf-8'},
@@ -423,7 +423,7 @@ class ExpenseRoutes {
       return Response.ok(
         jsonEncode({
           'success': true,
-          'data': categories.map((c) => c?.toJson() ?? {}).toList(),
+          'data': categories.map((c) => c.toJson() ?? {}).toList(),
           'message': 'Company expense categories retrieved successfully',
         }),
         headers: {'content-type': 'application/json; charset=utf-8'},
@@ -455,7 +455,7 @@ class ExpenseRoutes {
         201,
         body: jsonEncode({
           'success': true,
-          'data': category?.toJson() ?? {},
+          'data': category.toJson() ?? {},
           'message': 'Company expense category created successfully',
         }),
         headers: {'content-type': 'application/json; charset=utf-8'},

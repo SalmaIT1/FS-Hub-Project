@@ -2,9 +2,7 @@ import 'dart:convert';
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 import '../../domain/services/poste_service.dart';
-import '../../../../core/middleware/auth_middleware.dart';
 import '../../../../core/middleware/permission_middleware.dart';
-import '../../data/models/poste_model.dart';
 
 class PosteRoutes {
   final PosteService _posteService = PosteService();
@@ -77,7 +75,7 @@ class PosteRoutes {
       return Response.ok(
         jsonEncode({
           'success': true,
-          'data': poste!.toJson(),
+          'data': poste.toJson(),
           'message': 'Poste retrieved successfully',
         }),
         headers: {'content-type': 'application/json; charset=utf-8'},

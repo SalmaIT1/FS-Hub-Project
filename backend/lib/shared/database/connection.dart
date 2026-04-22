@@ -13,7 +13,7 @@ extension ResultSetRowExtension on ResultSetRow {
 /// replaced. Callers waiting for a free slot time out after 10 seconds to
 /// prevent infinite event-loop starvation under heavy load.
 
-class _PooledConnection {
+class PooledConnection {
   MySQLConnection? _conn;
   bool _inUse = false;
 
@@ -24,7 +24,7 @@ class _PooledConnection {
   final String dbName;
   final bool secure;
 
-  _PooledConnection(
+  PooledConnection(
       this.host, this.port, this.user, this.password, this.dbName,
       {this.secure = false});
 
@@ -74,13 +74,13 @@ class _PooledConnection {
   void acquire() => _inUse = true;
 }
 
-class _DBProxy {
-  final List<_PooledConnection> _pool;
+class DBProxy {
+  final List<PooledConnection> _pool;
 
-  _DBProxy(this._pool);
+  DBProxy(this._pool);
 
   /// Pool acquire with queue-based waiting and a 10-second timeout.
-  Future<_PooledConnection> _acquire() async {
+  Future<PooledConnection> _acquire() async {
     final deadline = DateTime.now().add(const Duration(seconds: 10));
     while (true) {
       for (final c in _pool) {
@@ -133,7 +133,7 @@ class _DBProxy {
 class Connection {
   static late DotEnv _env;
   static bool _initialized = false;
-  static late _DBProxy _proxy;
+  static late DBProxy _proxy;
 
   static Future<void> initialize() async {
     if (_initialized) return;
@@ -150,18 +150,18 @@ class Connection {
 
     final pool = List.generate(
       poolSize,
-      (_) => _PooledConnection(host, port, user, password, dbName,
+      (_) => PooledConnection(host, port, user, password, dbName,
           secure: secure),
     );
 
-    _proxy = _DBProxy(pool);
+    _proxy = DBProxy(pool);
     _initialized = true;
     print('Database configuration loaded (pool size: $poolSize)');
   }
 
   /// Returns the shared proxy. Existing callers using
   /// `getConnection().execute(...)` continue to work unchanged.
-  static _DBProxy getConnection() {
+  static DBProxy getConnection() {
     if (!_initialized) {
       throw Exception('Database not initialized. Call initialize() first.');
     }
@@ -177,7 +177,7 @@ class Connection {
 class DBConnection {
   static Future<void> initialize() => Connection.initialize();
 
-  static _DBProxy getConnection() => Connection.getConnection();
+  static DBProxy getConnection() => Connection.getConnection();
 
   static Future<void> close() => Connection.close();
 }

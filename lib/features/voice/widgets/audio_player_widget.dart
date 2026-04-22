@@ -307,65 +307,58 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
     }
 
     return Container(
-      padding: const EdgeInsets.all(4),
+      constraints: const BoxConstraints(minHeight: 32),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.grey[300]!),
       ),
-      child: Column(
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Play button + duration
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              GestureDetector(
-                onTap: widget.disabled ? null : _togglePlayPause,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: widget.disabled ? Colors.grey[300] : widget.progressColor,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    _isPlaying ? Icons.pause : Icons.play_arrow,
-                    color: widget.disabled ? Colors.grey[600] : Colors.black87,
-                    size: 14,
-                  ),
-                ),
+          GestureDetector(
+            onTap: widget.disabled ? null : _togglePlayPause,
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: widget.disabled ? Colors.grey[300] : widget.progressColor,
+                shape: BoxShape.circle,
               ),
-              const SizedBox(width: 6),
-              Flexible(
-                child: Column(
+              child: Icon(
+                _isPlaying ? Icons.pause : Icons.play_arrow,
+                color: widget.disabled ? Colors.grey[600] : Colors.black87,
+                size: 16,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (widget.waveformData != null && widget.waveformData!.isNotEmpty)
+                  _buildWaveformBar()
+                else
+                  _buildProgressBar(),
+                const SizedBox(height: 1),
+                Row(
                   mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Waveform or progress bar
-                    if (widget.waveformData != null && widget.waveformData!.isNotEmpty)
-                      _buildWaveformBar()
-                    else
-                      _buildProgressBar(),
-                    const SizedBox(height: 1),
-                    // Time display
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _formatDuration(_currentDuration),
-                          style: const TextStyle(fontSize: 10, color: Colors.grey),
-                        ),
-                        const Text(' / ', style: TextStyle(fontSize: 10, color: Colors.grey)),
-                        Text(
-                          _formatDuration(_totalDuration),
-                          style: const TextStyle(fontSize: 10, color: Colors.grey),
-                        ),
-                      ],
+                    Text(
+                      _formatDuration(_currentDuration),
+                      style: const TextStyle(fontSize: 9, color: Colors.grey),
+                    ),
+                    const Text(' / ', style: TextStyle(fontSize: 9, color: Colors.grey)),
+                    Text(
+                      _formatDuration(_totalDuration),
+                      style: const TextStyle(fontSize: 9, color: Colors.grey),
                     ),
                   ],
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -414,7 +407,7 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
         _seek(fraction);
       },
       child: Container(
-        height: 20,
+        height: 12,
         decoration: BoxDecoration(
           color: Colors.grey[300],
           borderRadius: BorderRadius.circular(2),

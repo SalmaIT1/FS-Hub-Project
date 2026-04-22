@@ -67,37 +67,42 @@ class LocationController extends ChangeNotifier {
 
       // Convert coordinates to readable address
       try {
-        final List<Placemark> placemarks = await placemarkFromCoordinates(
-          pos.latitude,
-          pos.longitude,
-        );
-        
-        if (placemarks.isNotEmpty) {
-          final Placemark place = placemarks[0];
-          String address = '';
+        if (!kIsWeb) {
+          final List<Placemark> placemarks = await placemarkFromCoordinates(
+            pos.latitude,
+            pos.longitude,
+          );
           
-          // Build address from available components
-          if (place.street?.isNotEmpty == true) {
-            address += place.street!;
+          if (placemarks.isNotEmpty) {
+            final Placemark place = placemarks[0];
+            String address = '';
+            
+            // Build address from available components
+            if (place.street?.isNotEmpty == true) {
+              address += place.street!;
+            }
+            if (place.locality?.isNotEmpty == true) {
+              address += address.isNotEmpty ? ', ${place.locality}' : place.locality!;
+            }
+            if (place.administrativeArea?.isNotEmpty == true) {
+              address += address.isNotEmpty ? ', ${place.administrativeArea}' : place.administrativeArea!;
+            }
+            if (place.country?.isNotEmpty == true) {
+              address += address.isNotEmpty ? ', ${place.country}' : place.country!;
+            }
+            
+            _locationLabel = address.isNotEmpty ? address : 'Current location';
+          } else {
+            // Fallback to nominatim if native geocoding is empty
+            _locationLabel = await _getNominatimAddress(pos.latitude, pos.longitude);
           }
-          if (place.locality?.isNotEmpty == true) {
-            address += address.isNotEmpty ? ', ${place.locality}' : place.locality!;
-          }
-          if (place.administrativeArea?.isNotEmpty == true) {
-            address += address.isNotEmpty ? ', ${place.administrativeArea}' : place.administrativeArea!;
-          }
-          if (place.country?.isNotEmpty == true) {
-            address += address.isNotEmpty ? ', ${place.country}' : place.country!;
-          }
-          
-          _locationLabel = address.isNotEmpty ? address : 'Current location';
         } else {
-          // Fallback to nominatim for web or if native geocoding is empty
+          // On web, use Nominatim directly as geocoding plugin doesn't support web
           _locationLabel = await _getNominatimAddress(pos.latitude, pos.longitude);
         }
       } catch (e) {
         print('Native Geocoding error: $e');
-        // Fallback to nominatim for web
+        // Fallback to nominatim
         _locationLabel = await _getNominatimAddress(pos.latitude, pos.longitude);
       }
       await _save();

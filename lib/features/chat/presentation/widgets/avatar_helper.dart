@@ -71,7 +71,7 @@ class AvatarHelper {
       clipBehavior: Clip.antiAlias,
       child: provider is NetworkImage
           ? AuthenticatedImage(
-              url: (provider as NetworkImage).url,
+              url: (provider).url,
               fit: BoxFit.cover,
               errorWidget: _buildPlaceholder(size, isGroup, initials),
             )

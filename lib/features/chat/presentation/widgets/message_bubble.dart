@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fs_hub/features/chat/domain/entities/chat_entities.dart';
-import 'package:fs_hub/shared/models/chat_models.dart';
 import 'media_components.dart';
 import 'package:fs_hub/core/state/settings_controller.dart';
 import 'package:fs_hub/core/utils/url_utils.dart';
-import 'package:fs_hub/shared/widgets/authenticated_image.dart';
 import 'avatar_helper.dart';
 
 /// Message bubble widget
@@ -82,11 +80,11 @@ class MessageBubble extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (!isFromCurrentUser && isGroupChat && message.senderName != null)
+            if (!isFromCurrentUser && isGroupChat)
               Padding(
                 padding: const EdgeInsets.only(bottom: 4),
                 child: Text(
-                  message.senderName!, 
+                  message.senderName, 
                   style: theme.textTheme.labelSmall?.copyWith(
                     color: isDark ? theme.colorScheme.secondary : null,
                   ),
@@ -153,7 +151,7 @@ class MessageBubble extends StatelessWidget {
               ),
             ),
           ),
-        ...message.attachments.map((att) => _buildAttachmentTile(context, att)).toList(),
+        ...message.attachments.map((att) => _buildAttachmentTile(context, att)),
       ],
     );
   }

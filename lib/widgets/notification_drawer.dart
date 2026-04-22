@@ -44,9 +44,11 @@ class _NotificationDrawerState extends State<NotificationDrawer> {
         unreadCount = notifications.where((notification) => !notification.isRead).length;
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error loading notifications: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading notifications: $e')),
+        );
+      }
     } finally {
       setState(() {
         isLoading = false;
@@ -79,9 +81,11 @@ class _NotificationDrawerState extends State<NotificationDrawer> {
         }
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error marking notification as read: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error marking notification as read: $e')),
+        );
+      }
     }
   }
 
@@ -106,9 +110,11 @@ class _NotificationDrawerState extends State<NotificationDrawer> {
         setState(() {});
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error marking all notifications as read: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error marking all notifications as read: $e')),
+        );
+      }
     }
   }
 

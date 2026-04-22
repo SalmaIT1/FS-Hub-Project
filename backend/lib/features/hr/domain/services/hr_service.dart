@@ -1,14 +1,14 @@
 import '../../data/repositories/hr_repository.dart';
 import '../../../notification/domain/services/notification_service.dart';
 import '../../../../shared/services/audit_service.dart';
-import '../../../finance/domain/services/expense_service.dart';
-import '../../../finance/data/models/expense_model.dart';
+import '../../../../shared/database/connection.dart';
 import 'dart:io';
 import 'dart:convert';
+import 'package:path/path.dart' as p;
 
 class HrService {
   static final HrRepository _repository = HrRepository();
-  static final ExpenseService _expenseService = ExpenseService();
+  static final _db = DBConnection.getConnection();
 
   // --- Attendance ---
 
@@ -38,9 +38,9 @@ class HrService {
         return {'success': false, 'message': 'Missing employee_id or attendance_date'};
       }
       
-      // Normalize date to YYYY-MM-DD
-      if (data['attendance_date'].toString().contains('T')) {
-        data['attendance_date'] = data['attendance_date'].toString().split('T')[0];
+      // P0-02 FIX: Prevent Future Attendance Fraud
+      if (!_validateDateNotFuture(data['attendance_date']?.toString())) {
+        return {'success': false, 'message': 'Cannot log attendance for future dates.'};
       }
 
       await _repository.logAttendance(data);
@@ -48,7 +48,7 @@ class HrService {
       await AuditService.log(callerId ?? 'SYSTEM', 'ATTENDANCE_LOGGED', {
         'employee_id': data['employee_id'],
         'date': data['attendance_date'],
-        'status': data['statut'] ?? 'P',
+        'status': data['status'] ?? data['statut'] ?? 'present',
       });
       
       return {'success': true, 'message': 'Attendance logged successfully'};
@@ -80,6 +80,27 @@ class HrService {
         return {'success': false, 'message': 'Missing required fields for leave request'};
       }
       
+      if (data['leave_type'] == 'paid_leave') {
+        final startDate = DateTime.parse(data['start_date'].toString());
+        final usedDays = await _repository.getUsedPaidLeaveDaysInYear(employeeId, startDate.year);
+        
+        int requestingDays = 0;
+        if (data['total_days'] != null) {
+          requestingDays = int.tryParse(data['total_days'].toString()) ?? 0;
+        } else {
+          final endDate = DateTime.parse(data['end_date'].toString());
+          requestingDays = endDate.difference(startDate).inDays + 1;
+        }
+        
+        final remainingBalance = 21 - usedDays;
+        
+        if (remainingBalance <= 0) {
+           return {'success': false, 'message': 'Paid leave quota exceeded. You have 0 days remaining for this year.'};
+        } else if (requestingDays > remainingBalance) {
+           return {'success': false, 'message': 'Paid leave quota exceeded. You only have $remainingBalance day(s) left.'};
+        }
+      }
+
       data['employee_id'] = employeeId;
       data['status'] = 'pending';
       
@@ -109,8 +130,8 @@ class HrService {
       if (targetEmployee != null) {
         await NotificationService.createNotification(
           userId: targetEmployee,
-          title: 'Leave Request \${status.toUpperCase()}',
-          message: 'Your leave request status has been updated to \$status.',
+          title: 'Leave Request ${status.toUpperCase()}',
+          message: 'Your leave request status has been updated to $status.',
           type: 'HR_LEAVE',
         );
       }
@@ -161,7 +182,7 @@ class HrService {
        await _repository.submitRemoteWorkRequest(data);
       return {
         'success': true, 
-        'message': 'Demande de télétravail soumise. (Reste : \${2 - count} jour(s) pour cette semaine)'
+        'message': 'Demande de télétravail soumise. (Reste : ${2 - count} jour(s) pour cette semaine)'
       };
     } catch (e) {
       print('submitRemoteWorkRequest error: $e');
@@ -187,8 +208,8 @@ class HrService {
       if (targetEmployee != null) {
         await NotificationService.createNotification(
           userId: targetEmployee,
-          title: 'Remote Work \${status.toUpperCase()}',
-          message: 'Your remote work request has been updated to \$status.',
+          title: 'Remote Work ${status.toUpperCase()}',
+          message: 'Your remote work request has been updated to $status.',
           type: 'HR_REMOTE',
         );
       }
@@ -265,38 +286,66 @@ class HrService {
        if (data['granted_by'] != null && data['employee_id'].toString() == data['granted_by'].toString()) {
           return {'success': false, 'message': 'You cannot grant a bonus to yourself.'};
        }
-       
-       await _repository.grantBonus(data);
-       
-       // Record as company expense (Charge)
-       final amount = double.tryParse(data['amount'].toString()) ?? 0.0;
-       await _expenseService.createCompanyExpense(ExpenseModel(
-         categorie: 'Salaires et Charges Sociales',
-         montant: amount,
-         dateDepense: DateTime.now(),
-         description: 'Bonus accordé à l\'employé #${data['employee_id']}: ${data['reason'] ?? 'Sans motif'}',
-         categoryId: 1, // Category ID for Salaries & Social Charges
-         createdBy: data['granted_by']?.toString() ?? 'SYSTEM',
-         status: 'approved_finance', // Auto-approved as it's a confirmed HR action
-       ));
 
+       final amount = double.tryParse(data['amount'].toString()) ?? 0.0;
+       if (amount <= 0) {
+         return {'success': false, 'message': 'Bonus amount must be strictly positive.'};
+       }
+
+       final caller = data['granted_by']?.toString() ?? 'SYSTEM';
+       final reason = data['reason']?.toString() ?? 'Sans motif';
+       final employeeId = data['employee_id'].toString();
+
+       // ATOMIC FIX: Both the HR bonus row and the Finance expense row are written
+       // inside the same DB transaction. If either INSERT fails, both are rolled back,
+       // eliminating the ledger desynchronisation / embezzlement risk.
+       await _db.transaction((tx) async {
+         // 1. Insert bonus record
+         await tx.execute(
+           '''INSERT INTO bonuses (employee_id, amount, reason, bonus_type, granted_by, granted_date)
+              VALUES (:employee_id, :amount, :reason, :bonus_type, :granted_by, :granted_date)''',
+           {
+             'employee_id': employeeId,
+             'amount': amount,
+             'reason': reason,
+             'bonus_type': data['bonus_type'] ?? 'performance',
+             'granted_by': caller,
+             'granted_date': data['granted_date'] ?? DateTime.now().toIso8601String().split('T')[0],
+           },
+         );
+
+         // 2. Insert matching Finance expense row (same tx — will roll back if this throws)
+         await tx.execute(
+           '''INSERT INTO depenses_entreprise (montant, date_depense, description, category_id, created_by, status)
+              VALUES (:montant, :date, :description, :category_id, :created_by, 'approved_finance')''',
+           {
+             'montant': amount,
+             'date': DateTime.now().toIso8601String().split('T')[0],
+             'description': 'Bonus accordé à l\'employé #$employeeId: $reason',
+             'category_id': 1,
+             'created_by': caller,
+           },
+         );
+       });
+
+       // Post-commit side-effects (non-critical; failures do not affect data integrity)
        await NotificationService.createNotification(
-         userId: data['employee_id'].toString(),
+         userId: employeeId,
          title: 'Bonus Granted!',
-         message: "You have been granted a new bonus of $amount DT.",
+         message: 'You have been granted a new bonus of $amount DT.',
          type: 'HR_BONUS',
        );
 
-       await AuditService.log(data['granted_by']?.toString() ?? 'SYSTEM', 'BONUS_GRANTED_MANUAL', {
-         'employee_id': data['employee_id'],
+       await AuditService.log(caller, 'BONUS_GRANTED_MANUAL', {
+         'employee_id': employeeId,
          'amount': amount,
-         'reason': data['reason'],
+         'reason': reason,
        });
        
        return {'success': true, 'message': 'Bonus granted successfully and recorded as expense'};
      } catch(e) {
        print('grantBonus error: $e');
-       return {'success': false, 'message': 'Failed to grant bonus'};
+       return {'success': false, 'message': 'Failed to grant bonus: transaction rolled back'};
      }
   }
 
@@ -306,28 +355,62 @@ class HrService {
         return {'success': false, 'message': 'Missing employees or amount'};
       }
 
-      final count = await _repository.bulkGrantBonuses(employeeIds, data);
       final caller = data['granted_by']?.toString() ?? 'SYSTEM';
       final amountPerEmp = double.tryParse(data['amount'].toString()) ?? 0.0;
+
+      if (amountPerEmp <= 0) {
+         return {'success': false, 'message': 'Bonus amount must be strictly positive.'};
+      }
+
+      final reason = data['reason'] ?? 'Sans motif';
+      final bonusType = data['bonus_type'] ?? 'performance';
+      final grantedDate = data['granted_date'] ?? DateTime.now().toIso8601String().split('T')[0];
+
+      // ATOMIC FIX: All bonus rows AND the consolidated Finance expense row are written
+      // inside a single DB transaction. Full rollback if any part fails.
+      int count = 0;
+      await _db.transaction((tx) async {
+        // 1. Bulk-insert individual bonus rows
+        for (final empId in employeeIds) {
+          await tx.execute(
+            '''INSERT INTO bonuses (employee_id, amount, reason, bonus_type, granted_by, granted_date)
+               VALUES (:empId, :amount, :reason, :bonusType, :by, :date)''',
+            {
+              'empId': empId,
+              'amount': amountPerEmp,
+              'reason': reason,
+              'bonusType': bonusType,
+              'by': caller,
+              'date': grantedDate,
+            },
+          );
+          count++;
+        }
+
+        final totalAmount = amountPerEmp * count;
+
+        // 2. Insert consolidated Finance expense row (same tx)
+        await tx.execute(
+          '''INSERT INTO depenses_entreprise (montant, date_depense, description, category_id, created_by, status)
+             VALUES (:montant, :date, :description, :category_id, :created_by, 'approved_finance')''',
+          {
+            'montant': totalAmount,
+            'date': DateTime.now().toIso8601String().split('T')[0],
+            'description': 'Attribution groupée de primes ($count employés) @ $amountPerEmp DT/pers. Motif: $reason',
+            'category_id': 1,
+            'created_by': caller,
+          },
+        );
+      });
+
       final totalAmount = amountPerEmp * count;
 
-      // Record bulk operation as one consolidated company expense
-      await _expenseService.createCompanyExpense(ExpenseModel(
-         categorie: 'Salaires et Charges Sociales',
-         montant: totalAmount,
-         dateDepense: DateTime.now(),
-         description: 'Attribution groupée de primes ($count employés) @ $amountPerEmp DT/pers. Motif: ${data['reason'] ?? 'Sans motif'}',
-         categoryId: 1, 
-         createdBy: caller,
-         status: 'approved_finance',
-      ));
-
-      // Mass notify
+      // Post-commit side-effects
       for (final id in employeeIds) {
           await NotificationService.createNotification(
             userId: id,
             title: 'Bonus Granted!',
-            message: "You have been granted a new bonus of $amountPerEmp DT.",
+            message: 'You have been granted a new bonus of $amountPerEmp DT.',
             type: 'HR_BONUS',
           );
       }
@@ -336,22 +419,23 @@ class HrService {
         'count': count,
         'amount_per_employee': amountPerEmp,
         'total_impact': totalAmount,
-        'type': data['bonus_type'] ?? 'performance',
+        'type': bonusType,
       });
 
       return {'success': true, 'message': 'Successfully granted $count bonuses and recorded $totalAmount DT total expense.'};
     } catch (e) {
        print('bulkGrantBonuses error: $e');
-       return {'success': false, 'message': 'Batch operation failed'};
+       return {'success': false, 'message': 'Batch operation failed: transaction rolled back'};
     }
   }
   
-  static Future<Map<String, dynamic>> bulkGenerateSalaries(String month, {String? callerId}) async {
+  static Future<Map<String, dynamic>> bulkGenerateSalaries(String month, {bool fullResync = false, String? callerId}) async {
     try {
-      final count = await _repository.bulkGenerateSalaries(month);
+      final count = await _repository.bulkGenerateSalaries(month, fullResync: fullResync);
       await AuditService.log(callerId ?? 'SYSTEM', 'BULK_SALARY_GENERATION', {
         'month': month,
         'recordCount': count,
+        'fullResync': fullResync,
       });
       return {'success': true, 'message': 'Successfully generated $count salaries for $month'};
     } catch(e) {
@@ -378,15 +462,26 @@ class HrService {
 
   static Future<Map<String, dynamic>> bulkCorrectAttendance(List<String> employeeIds, String date, String status, {String? callerId}) async {
     try {
-      int count = 0;
-      for (final id in employeeIds) {
-        await _repository.logAttendance({
-          'employee_id': id,
-          'attendance_date': date,
-          'status': status,
-        });
-        count++;
+      if (!_validateDateNotFuture(date)) {
+        return {'success': false, 'message': 'Cannot correct attendance for future dates.'};
       }
+
+      int count = 0;
+      await _db.transaction((tx) async {
+        for (final id in employeeIds) {
+          await tx.execute(
+            '''INSERT INTO attendance (employee_id, attendance_date, status, created_at)
+               VALUES (:id, :date, :status, NOW())
+               ON DUPLICATE KEY UPDATE status = :status, updated_at = NOW()''',
+            {
+              'id': id,
+              'date': date,
+              'status': status,
+            },
+          );
+          count++;
+        }
+      });
       
       await AuditService.log(callerId ?? 'SYSTEM', 'BULK_ATTENDANCE_CORRECTION', {
         'date': date,
@@ -396,15 +491,20 @@ class HrService {
       return {'success': true, 'message': 'Successfully updated $count attendance records'};
     } catch (e) {
       print('bulkCorrectAttendance error: $e');
-      return {'success': false, 'message': 'Bulk correction failed'};
+      return {'success': false, 'message': 'Bulk correction failed: transaction rolled back'};
     }
   }
 
   static Future<String?> generatePayslipHtmlForSalary(int salaryId) async {
     String? logoBase64;
     try {
-      // Find logo in assets (relative to backend root: ../assets/images/logo.png)
-      final logoFile = File('../assets/images/logo.png');
+      // PRO-FIX: Robust logo path resolution using absolute path from project root
+      // Assumes we are running from project root (StudioProjects/fs_hub/backend)
+      final logoPath = Platform.environment['ASSETS_PATH'] != null 
+          ? p.join(Platform.environment['ASSETS_PATH']!, 'images', 'logo.png')
+          : p.join(Directory.current.path, '..', 'assets', 'images', 'logo.png');
+          
+      final logoFile = File(logoPath);
       if (await logoFile.exists()) {
         final bytes = await logoFile.readAsBytes();
         logoBase64 = base64Encode(bytes);
@@ -417,5 +517,19 @@ class HrService {
 
   static Future<String?> getSalaryEmployeeId(int salaryId) async {
     return await _repository.getSalaryEmployeeId(salaryId);
+  }
+
+  // --- Helpers ---
+
+  static bool _validateDateNotFuture(String? dateStr) {
+    if (dateStr == null || dateStr.isEmpty) return false;
+    try {
+      final targetDate = DateTime.parse(dateStr);
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      return !targetDate.isAfter(today);
+    } catch (_) {
+      return false;
+    }
   }
 }

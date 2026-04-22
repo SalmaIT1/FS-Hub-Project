@@ -186,16 +186,23 @@ class ConversationRoutes {
       final data = jsonDecode(body) as Map<String, dynamic>;
 
       final content = data['content']?.toString();
-      if (content == null || content.isEmpty) {
+      final incomingType = data['type']?.toString().toLowerCase() ?? 'text';
+      
+      // Support both camelCase and snake_case for initial check
+      final rawUploads = data['uploadIds'] ?? data['upload_ids'];
+      final bool hasUploads = (rawUploads is List && rawUploads.isNotEmpty);
+
+      if ((content == null || content.isEmpty) && 
+          incomingType != 'voice' && 
+          incomingType != 'audio' && 
+          !hasUploads) {
         return Response(
           400,
           body: jsonEncode(
-              {'success': false, 'message': 'content is required'}),
+              {'success': false, 'message': 'content is required for text messages'}),
           headers: {'Content-Type': 'application/json; charset=utf-8'},
         );
       }
-
-      final incomingType = data['type']?.toString().toLowerCase() ?? 'text';
       String type;
       if (['text', 'file', 'voice', 'system'].contains(incomingType)) {
         type = incomingType;
@@ -204,19 +211,23 @@ class ConversationRoutes {
       } else if (incomingType == 'audio') {
         type = 'voice';
       } else {
-        final maybeUploads = data['upload_ids'] as List?;
-        type = (maybeUploads != null && maybeUploads.isNotEmpty) ? 'file' : 'text';
+        type = hasUploads ? 'file' : 'text';
       }
 
       final replyToId = data['replyToId']?.toString();
       final clientMessageId = data['clientMessageId']?.toString();
-      final List<String>? uploadIds =
-          (data['upload_ids'] as List?)?.map<String>((e) => e.toString()).toList();
+      final excludeConnectionId = data['excludeConnectionId']?.toString();
+      
+      // P2 FIX: Standardize API Contract - support both camelCase and snake_case for uploads
+      final List<String>? uploadIds = (rawUploads as List?)?.map<String>((e) => e.toString()).toList();
 
       Map<String, dynamic>? voiceMetadata;
       if ((type == 'voice' || type == 'file') && uploadIds != null && uploadIds.isNotEmpty) {
-        final durationSeconds = data['duration_seconds'];
-        final waveformData = data['waveform_data'];
+        // P1 FIX: Support both top-level and nested metadata
+        final voiceMeta = data['voiceMetadata'] as Map<String, dynamic>?;
+        final durationSeconds = data['duration_seconds'] ?? data['durationSeconds'] ?? voiceMeta?['duration_seconds'] ?? voiceMeta?['durationSeconds'];
+        final waveformData = data['waveform_data'] ?? data['waveformData'] ?? voiceMeta?['waveform_data'] ?? voiceMeta?['waveformData'];
+        
         if (durationSeconds != null) {
           voiceMetadata = {
             'duration_seconds': durationSeconds is String
@@ -230,10 +241,11 @@ class ConversationRoutes {
       final result = await ChatService.sendMessage(
         conversationId: id,
         senderId: senderId,
-        content: content,
+        content: content ?? '',
         type: type,
         replyToId: replyToId,
         clientMessageId: clientMessageId,
+        excludeConnectionId: excludeConnectionId,
         uploadIds: uploadIds,
         voiceMetadata: voiceMetadata,
       );

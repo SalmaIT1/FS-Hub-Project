@@ -57,28 +57,30 @@ class ProjectRepository {
   }
 
   Future<int> createProject(Map<String, dynamic> data) async {
-    final result = await _db.execute('''
-      INSERT INTO projets (
-        nom, description, client_id, budget, cout_estime, 
-        date_debut, date_fin_prevue, priorite, statut
-      ) VALUES (
-        :nom, :description, :client_id, :budget, :cout_estime, 
-        :date_debut, :date_fin_prevue, :priorite, :statut
-      )
-    ''', {
-      'nom': data['nom'],
-      'description': data['description'],
-      'client_id': data['clientId'],
-      'budget': data['budget'],
-      'cout_estime': data['coutEstime'],
-      'date_debut': data['dateDebut'],
-      'date_fin_prevue': data['dateFinPrevue'],
-      'priorite': data['priorite'],
-      'statut': data['statut'],
-    });
+    return await _db.transaction((ctx) async {
+      await ctx.execute('''
+        INSERT INTO projets (
+          nom, description, client_id, budget, cout_estime, 
+          date_debut, date_fin_prevue, priorite, statut
+        ) VALUES (
+          :nom, :description, :client_id, :budget, :cout_estime, 
+          :date_debut, :date_fin_prevue, :priorite, :statut
+        )
+      ''', {
+        'nom': data['nom'],
+        'description': data['description'],
+        'client_id': data['clientId'],
+        'budget': data['budget'],
+        'cout_estime': data['coutEstime'],
+        'date_debut': data['dateDebut'],
+        'date_fin_prevue': data['dateFinPrevue'],
+        'priorite': data['priorite'],
+        'statut': data['statut'],
+      });
 
-    final idRes = await _db.execute('SELECT LAST_INSERT_ID() as id');
-    return int.tryParse(idRes.rows.first.colByName('id').toString()) ?? 0;
+      final idRes = await ctx.execute('SELECT LAST_INSERT_ID() as id');
+      return int.tryParse(idRes.rows.first.colByName('id').toString()) ?? 0;
+    });
   }
 
   Future<void> updateProject(int id, Map<String, dynamic> data) async {
@@ -125,11 +127,13 @@ class ProjectRepository {
   /// Saves the uploaded contract file to disk and records the path in the DB.
   Future<Map<String, dynamic>> uploadContract(int projectId, List<int> bytes, String filename) async {
     final uploadsDir = Directory('uploads/contracts');
-    if (!uploadsDir.existsSync()) uploadsDir.createSync(recursive: true);
+    if (!await uploadsDir.exists()) await uploadsDir.create(recursive: true);
 
     final safeName = '${DateTime.now().millisecondsSinceEpoch}_${filename.replaceAll(RegExp(r'[^\w.]'), '_')}';
     final filePath = '${uploadsDir.path}/$safeName';
-    File(filePath).writeAsBytesSync(bytes);
+    
+    // P1-FIX: Switch from sync to async I/O to prevent event-loop starvation
+    await File(filePath).writeAsBytes(bytes);
 
     await _db.execute('''
       UPDATE projets SET
@@ -168,9 +172,8 @@ class ProjectRepository {
     final result = await _db.execute('''
       SELECT DISTINCT e.* 
       FROM employees e
-      JOIN user_roles ur ON e.id = ur.user_id
-      JOIN roles r ON ur.role_id = r.id
-      WHERE r.nom IN ('Employé', 'Team Lead', 'Manager')
+      JOIN users u ON e.user_id = u.id
+      WHERE u.role IN ('Employé', 'Team Lead', 'Manager')
       AND e.id NOT IN (
         SELECT pm.employee_id 
         FROM projet_membres pm
@@ -201,7 +204,7 @@ class ProjectRepository {
              e.*, d.nom as dept_name
       FROM projet_membres pm
       JOIN employees e ON pm.employee_id = e.id
-      LEFT JOIN departements d ON e.departement = d.id
+      LEFT JOIN departements d ON e.departement_id = d.id
       WHERE pm.projet_id = :id
     ''', {'id': projectId});
 

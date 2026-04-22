@@ -3,6 +3,7 @@ import 'voice_message_model.dart';
 
 class ChatMessageModel {
   final String id;
+  final String? clientMessageId;
   final String conversationId;
   final String senderId;
   final String? senderName;
@@ -21,6 +22,7 @@ class ChatMessageModel {
 
   ChatMessageModel({
     required this.id,
+    this.clientMessageId,
     required this.conversationId,
     required this.senderId,
     this.senderName,
@@ -41,6 +43,7 @@ class ChatMessageModel {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
+      'clientMessageId': clientMessageId,
       'conversationId': conversationId,
       'senderId': senderId,
       'senderName': senderName ?? 'Unknown',

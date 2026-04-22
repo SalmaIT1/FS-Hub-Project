@@ -14,4 +14,6 @@ class AppConfig {
     final host = apiBaseUrl.replaceFirst(RegExp(r'^https?:\/\/'), '');
     return '$wsScheme$host/ws';
   }
+
+  static const String protocolVersion = '1.1';
 }

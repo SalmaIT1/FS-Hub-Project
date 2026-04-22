@@ -1,9 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:convert' show base64Url, utf8;
 import 'package:http/http.dart' as http;
 import 'package:fs_hub/features/chat/domain/entities/chat_entities.dart';
-import 'package:fs_hub/shared/models/chat_models.dart';
 
 class ChatRemoteDatasource {
   final String baseUrl;
@@ -68,6 +66,8 @@ class ChatRemoteDatasource {
     required String conversationId,
     required String senderId,
     required String content,
+    String? clientMessageId,
+    String? excludeConnectionId,
   }) async {
     final token = await tokenProvider();
     final response = await http.post(
@@ -80,6 +80,8 @@ class ChatRemoteDatasource {
         'content': content,
         'type': 'text',
         'senderId': senderId,
+        'clientMessageId': clientMessageId,
+        'excludeConnectionId': excludeConnectionId,
       }),
     );
 
@@ -97,6 +99,8 @@ class ChatRemoteDatasource {
     String type = 'text',
     required List<String> uploadIds,
     Map<String, dynamic>? voiceMetadata,
+    String? clientMessageId,
+    String? excludeConnectionId,
   }) async {
     final token = await tokenProvider();
     final body = <String, dynamic>{
@@ -104,6 +108,8 @@ class ChatRemoteDatasource {
       'type': type,
       'senderId': senderId,
       'uploadIds': uploadIds,
+      'clientMessageId': clientMessageId,
+      'excludeConnectionId': excludeConnectionId,
     };
     if (voiceMetadata != null) {
       body['voiceMetadata'] = voiceMetadata;
@@ -138,9 +144,9 @@ class ChatRemoteDatasource {
         'Authorization': 'Bearer $token',
       },
       body: jsonEncode({
-        'contentType': contentType,
+        'mime': contentType,
         'filename': filename,
-        'fileSize': fileSize,
+        'size': fileSize,
       }),
     );
 

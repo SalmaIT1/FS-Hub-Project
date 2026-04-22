@@ -19,6 +19,7 @@ backend/.env
 *.exe
 backend/payroll_outputs/
 backend/bin/server.exe
+backend/uploads/
 
 # Python
 __pycache__/

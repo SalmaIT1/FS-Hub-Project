@@ -139,7 +139,7 @@ class _RolesPermissionsPageState extends State<RolesPermissionsPage> with Single
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.lock_person_outlined, size: 80, color: AppTheme.accentGold.withOpacity(0.1)),
+          Icon(Icons.lock_person_outlined, size: 80, color: AppTheme.accentGold.withValues(alpha: 0.1)),
           const SizedBox(height: 16),
           Text(msg, style: TextStyle(color: isDark ? Colors.white54 : Colors.black54)),
         ],
@@ -185,7 +185,7 @@ class _RolesPermissionsPageState extends State<RolesPermissionsPage> with Single
                 ? [const Text('No permissions assigned', style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic))]
                 : permissions.map((p) => Chip(
                     label: Text(p['nom'] ?? '', style: const TextStyle(fontSize: 10)),
-                    backgroundColor: AppTheme.accentGold.withOpacity(0.1),
+                    backgroundColor: AppTheme.accentGold.withValues(alpha: 0.1),
                     deleteIcon: const Icon(Icons.close, size: 12),
                     onDeleted: () => _removePermissionFromRole(role['id'], p['id']),
                   )).toList(),
@@ -234,10 +234,10 @@ class _RolesPermissionsPageState extends State<RolesPermissionsPage> with Single
 
   BoxDecoration _cardDecoration(bool isDark) {
     return BoxDecoration(
-      color: isDark ? Colors.white.withOpacity(0.04) : Colors.white,
+      color: isDark ? Colors.white.withValues(alpha: 0.04) : Colors.white,
       borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: AppTheme.accentGold.withOpacity(0.1)),
-      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+      border: Border.all(color: AppTheme.accentGold.withValues(alpha: 0.1)),
+      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
     );
   }
 
@@ -267,7 +267,7 @@ class _RolesPermissionsPageState extends State<RolesPermissionsPage> with Single
                   ? await RoleService.createRole(data)
                   : await RoleService.updateRole(role['id'], data);
               
-              if (mounted) {
+              if (context.mounted) {
                 Navigator.pop(context);
                 if (result['success']) {
                   _showStatus(result['message']);
@@ -308,7 +308,7 @@ class _RolesPermissionsPageState extends State<RolesPermissionsPage> with Single
                   ? await PermissionService.createPermission(data)
                   : await PermissionService.updatePermission(permission['id'], data);
               
-              if (mounted) {
+              if (context.mounted) {
                 Navigator.pop(context);
                 if (result['success']) {
                   _showStatus(result['message']);
@@ -389,7 +389,7 @@ class _RolesPermissionsPageState extends State<RolesPermissionsPage> with Single
             ElevatedButton(
               onPressed: () async {
                 final result = await RoleService.assignPermissionsToRole(role['id'], selectedIds);
-                if (mounted) {
+                if (context.mounted) {
                   Navigator.pop(context);
                   if (result['success']) {
                     _showStatus('Permissions updated');

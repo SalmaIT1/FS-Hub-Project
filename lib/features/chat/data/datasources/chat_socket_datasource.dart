@@ -28,6 +28,8 @@ class ChatSocketDatasource {
   bool get isConnected => _isConnected;
   Timer? _heartbeatTimer;
   Timer? _reconnectTimer;
+  String? _connectionId;
+  String? get connectionId => _connectionId;
   int _reconnectAttempts = 0;
 
   ChatSocketDatasource({
@@ -101,10 +103,16 @@ class ChatSocketDatasource {
     _onlineController.add(false);
     _heartbeatTimer?.cancel();
     _channel = null;
-    
-    // Auto-reconnect
+
+    // P1-1 FIX: Exponential backoff with ±20% random jitter.
+    // Prevents thundering herd when many clients reconnect simultaneously after
+    // a server restart. Caps at 64 seconds to bound worst-case retry latency.
     _reconnectTimer?.cancel();
-    _reconnectTimer = Timer(Duration(seconds: _reconnectAttempts < 5 ? 2 : 10), () {
+    final backoffMs = (1000 * (1 << _reconnectAttempts.clamp(0, 6))).clamp(1000, 64000);
+    final jitterMs = (backoffMs * 0.2 * (DateTime.now().millisecondsSinceEpoch % 1000) / 1000).toInt();
+    final delayMs = backoffMs + jitterMs;
+    print('[WS] Reconnecting in ${delayMs}ms (attempt #${_reconnectAttempts + 1}, backoff=${backoffMs}ms, jitter=${jitterMs}ms)');
+    _reconnectTimer = Timer(Duration(milliseconds: delayMs), () {
       _reconnectAttempts++;
       connect();
     });
@@ -123,12 +131,41 @@ class ChatSocketDatasource {
     final type = json['type'] as String?;
     
     switch (type) {
+      case 'connection_ack':
+        _connectionId = json['connectionId']?.toString();
+        print('[WS] Received connection_ack. ID: $_connectionId');
+        _onlineController.add(true);
+        break;
       case 'connected':
         _onlineController.add(true);
         break;
+      case 'error':
+        // Map WS error to UI, primarily for optimistic message failure
+        final clientMsgId = json['clientMessageId'] as String?;
+        if (clientMsgId != null) {
+          _messageController.add(ChatMessage(
+             id: clientMsgId,
+             clientMessageId: clientMsgId,
+             conversationId: '',
+             senderId: '',
+             senderName: '',
+             type: 'text',
+             createdAt: DateTime.now(),
+             isFromMe: true,
+             state: MessageState.failed,
+             content: json['message'] as String? ?? 'Message failed to send'
+          ));
+        } else {
+           print('[WS] Error from server: ${json['message']}');
+        }
+        break;
       case 'message':
       case 'new_message':
-        final msgData = json['message'] ?? json['data'];
+      case 'message:created':
+        dynamic msgData = json['message'] ?? json['data'];
+        if (msgData == null && json['payload'] != null) {
+          msgData = json['payload']['message'] ?? json['payload'];
+        }
         if (msgData != null) {
           final msg = Map<String, dynamic>.from(msgData as Map);
           msg['isFromMe'] = msg['isFromMe'] ?? false;
@@ -151,6 +188,24 @@ class ChatSocketDatasource {
         final payload = json['payload'] ?? json['data'];
         if (payload != null) {
           _typingController.add(Map<String, dynamic>.from(payload as Map));
+        }
+        break;
+      case 'message:ack':
+        final clientMsgId = json['clientMessageId'] as String?;
+        if (clientMsgId != null) {
+          _messageController.add(ChatMessage(
+            id: clientMsgId,
+            clientMessageId: clientMsgId,
+            conversationId: '',
+            senderId: '',
+            senderName: '',
+            type: 'text',
+            createdAt: DateTime.now(),
+            isFromMe: true,
+            state: MessageState.sent,
+            content: '', // Content is already present in UI state
+          ));
+          print('[WS] Message ACK received: $clientMsgId');
         }
         break;
       case 'conversation:deleted':
@@ -187,7 +242,23 @@ class ChatSocketDatasource {
     required String senderId,
     String? clientMessageId,
   }) {
-    if (!_isConnected || _channel == null) return;
+    if (!_isConnected || _channel == null) {
+      if (clientMessageId != null) {
+        _messageController.add(ChatMessage(
+          id: clientMessageId,
+          clientMessageId: clientMessageId,
+          conversationId: conversationId,
+          senderId: senderId,
+          senderName: '',
+          type: 'text',
+          createdAt: DateTime.now(),
+          isFromMe: true,
+          state: MessageState.failed,
+          content: content,
+        ));
+      }
+      return;
+    }
     _channel!.sink.add(jsonEncode({
       'type': 'message',
       'conversationId': conversationId,
@@ -216,8 +287,15 @@ class ChatSocketDatasource {
 
   void dispose() {
     disconnect();
+    _reconnectTimer?.cancel();
+    _heartbeatTimer?.cancel();
+    // P2 FIX: Close all stream controllers to prevent memory leaks
+    // on logout/re-login flows. Previously only 3 of 6 were closed.
     _messageController.close();
     _connectionController.close();
     _onlineController.close();
+    _presenceController.close();
+    _typingController.close();
+    _conversationEventController.close();
   }
 }

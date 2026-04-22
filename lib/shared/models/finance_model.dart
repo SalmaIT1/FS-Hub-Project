@@ -137,17 +137,17 @@ class Quote {
   factory Quote.fromJson(Map<String, dynamic> json) {
     return Quote(
       id: json['id'] is int ? json['id'] : int.tryParse(json['id']?.toString() ?? ''),
-      projectId: json['projectId'] is int ? json['projectId'] : int.tryParse(json['projectId']?.toString() ?? ''),
-      clientId: json['clientId'] is int ? json['clientId'] : int.tryParse(json['clientId']?.toString() ?? '0') ?? 0,
-      numeroDevis: json['numeroDevis'] ?? '',
-      montantHt: double.tryParse(json['montantHt']?.toString() ?? '0') ?? 0.0,
+      projectId: json['projet_id'] is int ? json['projet_id'] : int.tryParse(json['projet_id']?.toString() ?? ''),
+      clientId: json['client_id'] is int ? json['client_id'] : int.tryParse(json['client_id']?.toString() ?? '0') ?? 0,
+      numeroDevis: json['numero_devis'] ?? '',
+      montantHt: double.tryParse(json['montant_ht']?.toString() ?? '0') ?? 0.0,
       tva: double.tryParse(json['tva']?.toString() ?? '0') ?? 0.0,
-      montantTtc: double.tryParse(json['montantTtc']?.toString() ?? '0') ?? 0.0,
-      dateEmission: DateTime.tryParse(json['dateEmission']?.toString() ?? '') ?? DateTime.now(),
-      dateValidite: DateTime.tryParse(json['dateValidite']?.toString() ?? '') ?? DateTime.now().add(const Duration(days: 30)),
+      montantTtc: double.tryParse(json['montant_ttc']?.toString() ?? '0') ?? 0.0,
+      dateEmission: DateTime.tryParse(json['date_emission']?.toString() ?? '') ?? DateTime.now(),
+      dateValidite: DateTime.tryParse(json['date_validite']?.toString() ?? '') ?? DateTime.now().add(const Duration(days: 30)),
       statut: json['statut'] ?? 'Brouillon',
-      projectNom: json['projectNom'],
-      clientNom: json['clientNom'],
+      projectNom: json['project_nom'],
+      clientNom: json['client_nom'],
     );
   }
 

@@ -1,21 +1,24 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:path/path.dart' as p;
 import '../../shared/database/connection.dart';
 import '../../features/notification/domain/services/notification_service.dart';
 
 class DataIntegrityService {
   static final _db = DBConnection.getConnection();
+  static bool _isCheckingDeadlines = false;
+  static bool _isCleaningUploads = false;
 
   /// Starts periodic background workers for the backend
   static void startPeriodicCleanup() {
     // 1. Cleanup expired uploads every hour
     Timer.periodic(const Duration(hours: 1), (timer) {
-      _cleanupExpiredUploads();
+      if (!_isCleaningUploads) _cleanupExpiredUploads();
     });
 
     // 2. Check for overdue tasks and project status every hour
     Timer.periodic(const Duration(hours: 1), (timer) {
-      checkDeadlines();
+      if (!_isCheckingDeadlines) checkDeadlines();
     });
 
     // 3. L-5 FIX: Prune stale rows from security tables every 6 hours.
@@ -28,25 +31,30 @@ class DataIntegrityService {
 
   /// Deletes upload records and files that were never completed
   static Future<void> _cleanupExpiredUploads() async {
+    _isCleaningUploads = true;
     try {
+      // 1. Database-driven cleanup (Uncompleted/Expired)
       final expired = await _db.execute(
         "SELECT id, file_path FROM file_uploads WHERE is_completed = FALSE AND expires_at < NOW()"
       );
 
-      final uploadRoot = Directory('uploads').absolute.path;
+      // Canonical sandbox root — resolves symlinks and collapses '..' segments.
+      final uploadRootDir = Directory('uploads');
+      final uploadRootCanonical = p.canonicalize(uploadRootDir.absolute.path);
 
       for (final row in expired.rows) {
         final path = row.colByName('file_path')?.toString();
         if (path != null) {
           final file = File(path);
-          // HARSH FIX: Ensure we only delete files inside the uploads directory sandbox.
-          if (file.absolute.path.startsWith(uploadRoot)) {
+          // HARSH FIX: Canonicalize before comparing to prevent '..' traversal bypass.
+          final canonicalPath = p.canonicalize(file.absolute.path);
+          if (canonicalPath.startsWith(uploadRootCanonical)) {
             if (await file.exists()) {
               await file.delete();
               print('[DataIntegrityService] Deleted physical file: $path');
             }
           } else {
-             print('[DataIntegrityService] WARNING: Blocked attempt to delete file outside sandbox: $path');
+             print('[DataIntegrityService] WARNING: Blocked attempt to delete file outside sandbox: $path (canonical: $canonicalPath)');
           }
         }
       }
@@ -54,8 +62,44 @@ class DataIntegrityService {
       await _db.execute(
         "DELETE FROM file_uploads WHERE is_completed = FALSE AND expires_at < NOW()"
       );
+
+      // 3. P2-1 FIX: Prune unreferenced uploads (orphans) older than 24 hours
+      // These are files that might have been marked as completed but never successfully
+      // attached to a message (e.g., if the message creation request failed).
+      await _db.execute('''
+        DELETE FROM file_uploads 
+        WHERE created_at < DATE_SUB(NOW(), INTERVAL 1 DAY)
+        AND file_path NOT IN (SELECT file_path FROM message_attachments)
+        AND file_path NOT IN (SELECT file_path FROM message_voice_messages)
+      ''');
+
+      // 2. Physical audit (Deep cleanup of untracked files in 'uploads/' sandbox)
+      // This handles cases where database records were deleted without cleaning disk.
+      if (await uploadRootDir.exists()) {
+        final trackedFiles = await _db.execute("SELECT file_path FROM file_uploads");
+        final trackedPaths = trackedFiles.rows
+            .map((r) => p.canonicalize(File(r.colAt(0).toString()).absolute.path))
+            .toSet();
+
+        await for (final entity in uploadRootDir.list(recursive: true)) {
+          if (entity is File) {
+            final absCanonicalPath = p.canonicalize(entity.absolute.path);
+            // Never delete .gitkeep or system files
+            if (entity.path.endsWith('.gitkeep')) continue;
+            // Safety: only delete files that are inside the sandbox
+            if (!absCanonicalPath.startsWith(uploadRootCanonical)) continue;
+            
+            if (!trackedPaths.contains(absCanonicalPath)) {
+              print('[DataIntegrityService] Pruning untracked physical orphan: ${entity.path}');
+              await entity.delete();
+            }
+          }
+        }
+      }
     } catch (e) {
       print('Cleanup error: $e');
+    } finally {
+      _isCleaningUploads = false;
     }
   }
 
@@ -93,6 +137,7 @@ class DataIntegrityService {
 
   /// Checks for overdue tasks and sends notifications to owners
   static Future<void> checkDeadlines() async {
+    _isCheckingDeadlines = true;
     try {
       // 1. Check Tasks
       final tasks = await _db.execute('''
@@ -120,7 +165,7 @@ class DataIntegrityService {
       final lateProjects = await _db.execute('''
         SELECT p.id, p.nom, (SELECT count(*) FROM projet_membres pm WHERE pm.projet_id = p.id) as member_count
         FROM projets p
-        WHERE p.statut = 'Planifie' AND p.date_debut <= NOW() AND p.is_deleted = FALSE
+        WHERE p.statut = 'A venir' AND p.date_debut <= NOW() AND p.is_deleted = FALSE
       ''');
 
       for (final row in lateProjects.rows) {
@@ -146,6 +191,8 @@ class DataIntegrityService {
       ''');
     } catch (e) {
       print('Deadline check error: $e');
+    } finally {
+      _isCheckingDeadlines = false;
     }
   }
 
@@ -175,11 +222,27 @@ class DataIntegrityService {
       }
       
       final result = await _db.execute(
-        "SELECT COUNT(*) as cnt FROM file_uploads WHERE id IN (${placeholders.join(',')}) AND expires_at >= NOW()",
+        "SELECT file_path, file_size FROM file_uploads WHERE id IN (${placeholders.join(',')}) AND expires_at >= NOW()",
         params
       );
-      final count = int.tryParse(result.rows.first.colByName('cnt')?.toString() ?? '0') ?? 0;
-      return count == uploadIds.length;
+      
+      if (result.rows.length != uploadIds.length) return false;
+
+      // Ensure physical files exist and sizes match (to prevent sending while upload stream is pending)
+      for (final row in result.rows) {
+        final path = row.colByName('file_path')?.toString();
+        final expectedSize = int.tryParse(row.colByName('file_size')?.toString() ?? '0') ?? 0;
+        
+        if (path == null || path == 'pending') return false;
+        
+        final file = File(path);
+        if (!await file.exists()) return false;
+        
+        final actualSize = await file.length();
+        // Allow a small tolerance for file size due to metadata, or exact match
+        if (expectedSize > 0 && actualSize != expectedSize && actualSize == 0) return false;
+      }
+      return true;
     } catch (e) {
       print('Upload validation error: $e');
       return false;

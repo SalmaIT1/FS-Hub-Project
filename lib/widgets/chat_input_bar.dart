@@ -6,7 +6,7 @@ import 'package:fs_hub/features/chat/presentation/providers/chat_provider.dart';
 import 'package:fs_hub/features/voice/services/real_audio_recorder.dart';
 import 'package:fs_hub/features/voice/services/waveform_generator.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:fs_hub/shared/models/message_model.dart';
+
 import 'package:fs_hub/core/localization/translations.dart';
 import 'package:fs_hub/core/state/settings_controller.dart';
 import 'media_picker_sheet.dart';

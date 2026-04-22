@@ -56,11 +56,11 @@ class _HrRemoteWorkPageState extends State<HrRemoteWorkPage> {
       showBackButton: true,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: _gold))
-          : SafeArea(
-              child: Container(
+          : Container(
               color: bg,
               child: Column(
                 children: [
+                   const SizedBox(height: 100),
                    // Premium Stats Bar
                   _StatsBar(
                     isDark: isDark,
@@ -119,7 +119,6 @@ class _HrRemoteWorkPageState extends State<HrRemoteWorkPage> {
                 ],
               ),
             ),
-          ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
           final res = await showModalBottomSheet(

@@ -306,7 +306,7 @@ packages:
     source: hosted
     version: "2.2.0"
   path:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: path
       sha256: "75cca69d1490965be98c73ceaea117e8a04dd21217b37b292c9ddbec0d955bc5"
@@ -337,6 +337,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.2.0"
+  redis:
+    dependency: "direct main"
+    description:
+      name: redis
+      sha256: d7c7f18a374936baa786baf5f0e747aa5510bb289aad44b30ec41e3b703233b4
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.1.0"
   shelf:
     dependency: "direct main"
     description:

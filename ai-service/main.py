@@ -1,9 +1,28 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Security
+from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 from services.prediction_service import PredictionService
 import uvicorn
+import os
 
 app = FastAPI(title="FS-Hub AI Service")
+
+API_KEY_NAME = "X-API-Key"
+# P0-3 FIX: Removed insecure hardcoded fallback default.
+# Service will refuse to start if AI_API_KEY is not explicitly provided.
+API_KEY = os.getenv("AI_API_KEY")
+if not API_KEY:
+    raise RuntimeError(
+        "[SECURITY] AI_API_KEY environment variable is required but not set. "
+        "Set it in your .env file or container environment before starting the service."
+    )
+
+api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=True)
+
+async def get_api_key(api_header: str = Security(api_key_header)):
+    if api_header != API_KEY:
+        raise HTTPException(status_code=403, detail="Could not validate AI credentials")
+    return api_header
 
 # Request Models
 class ProjectDelayRequest(BaseModel):
@@ -31,7 +50,7 @@ class HRAnalysisRequest(BaseModel):
     completed_tasks: int
     assigned_tasks: int
 
-@app.post("/ai/predict-delay")
+@app.post("/ai/predict-delay", dependencies=[Security(get_api_key)])
 async def predict_delay(req: ProjectDelayRequest):
     try:
         score = PredictionService.predict_project_delay(
@@ -42,7 +61,7 @@ async def predict_delay(req: ProjectDelayRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/ai/estimate-duration")
+@app.post("/ai/estimate-duration", dependencies=[Security(get_api_key)])
 async def estimate_duration(req: DurationRequest):
     try:
         days = PredictionService.estimate_duration(
@@ -52,7 +71,7 @@ async def estimate_duration(req: DurationRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/ai/client-risk")
+@app.post("/ai/client-risk", dependencies=[Security(get_api_key)])
 async def client_risk(req: ClientRiskRequest):
     try:
         level = PredictionService.analyze_client_risk(
@@ -62,7 +81,7 @@ async def client_risk(req: ClientRiskRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/ai/employee-performance")
+@app.post("/ai/employee-performance", dependencies=[Security(get_api_key)])
 async def employee_performance(req: HRAnalysisRequest):
     try:
         metrics = PredictionService.analyze_hr_performance(
@@ -72,6 +91,11 @@ async def employee_performance(req: HRAnalysisRequest):
         return {"status": "success", "data": metrics}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# P3-6 FIX: Health check for Docker liveness/readiness probes.
+@app.get("/health")
+async def health_check():
+    return {"status": "ok", "service": "FS-Hub AI Service"}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8001)

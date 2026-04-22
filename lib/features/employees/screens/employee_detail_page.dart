@@ -1,6 +1,5 @@
 import 'dart:ui';
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:fs_hub/shared/models/employee_model.dart';
 import 'package:fs_hub/core/routes/app_routes.dart';

@@ -18,85 +18,84 @@ class HrDashboardPage extends StatelessWidget {
     return LuxuryScaffold(
       title: isFr ? 'Espace RH' : 'HR Portal',
       isPremium: true,
-      body: SafeArea(
-        child: Container(
-          color: bg,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Hero banner
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(28),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF1A1A1A) : Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: isDark ? Colors.white10 : Colors.black.withOpacity(0.06),
+      body: Container(
+        color: bg,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 100), // Added to clear the app bar
+              // Hero banner
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(28),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1A1A1A) : Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isDark ? Colors.white10 : Colors.black.withOpacity(0.06),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            isFr ? 'Ressources Humaines' : 'Human Resources',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: isDark ? Colors.white : Colors.black87,
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            isFr
+                                ? 'Présence, congés, paie et gestion du personnel.'
+                                : 'Attendance, leave, payroll and workforce management.',
+                            style: const TextStyle(color: Colors.grey, fontSize: 13),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              isFr ? 'Ressources Humaines' : 'Human Resources',
-                              style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w800,
-                                color: isDark ? Colors.white : Colors.black87,
-                                letterSpacing: -0.5,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              isFr
-                                  ? 'Présence, congés, paie et gestion du personnel.'
-                                  : 'Attendance, leave, payroll and workforce management.',
-                              style: const TextStyle(color: Colors.grey, fontSize: 13),
-                            ),
-                          ],
-                        ),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: _gold.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(14),
                       ),
-                      Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: _gold.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: const Icon(Icons.people_alt_rounded, color: _gold, size: 30),
-                      ),
-                    ],
-                  ),
+                      child: const Icon(Icons.people_alt_rounded, color: _gold, size: 30),
+                    ),
+                  ],
                 ),
+              ),
 
-                const SizedBox(height: 28),
+              const SizedBox(height: 28),
 
-                Text(
-                  isFr ? 'Modules' : 'Modules',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.grey.shade500,
-                    letterSpacing: 1.2,
-                  ),
+              Text(
+                isFr ? 'Modules' : 'Modules',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.grey.shade500,
+                  letterSpacing: 1.2,
                 ),
+              ),
 
-                const SizedBox(height: 14),
+              const SizedBox(height: 14),
 
-                ..._modules(isFr).map((m) => _ModuleTile(
-                      icon: m.icon,
-                      title: m.title,
-                      subtitle: m.subtitle,
-                      route: m.route,
-                      isDark: isDark,
-                    )),
-              ],
-            ),
+              ..._modules(isFr).map((m) => _ModuleTile(
+                    icon: m.icon,
+                    title: m.title,
+                    subtitle: m.subtitle,
+                    route: m.route,
+                    isDark: isDark,
+                  )),
+            ],
           ),
         ),
       ),

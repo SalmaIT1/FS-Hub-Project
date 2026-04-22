@@ -60,7 +60,7 @@ class Migrations {
     }
   }
 
-  static Future<void> _runIncrementalMigrations(_DBProxy conn, String dbName) async {
+  static Future<void> _runIncrementalMigrations(DBProxy conn, String dbName) async {
     // A. Ensure 'message_idempotency' table exists
     await _ensureTable(conn, dbName, 'message_idempotency', '''
       CREATE TABLE message_idempotency (
@@ -345,7 +345,8 @@ class Migrations {
           email VARCHAR(150),
           telephone VARCHAR(20),
           type ENUM('Entreprise','Particulier'),
-          score_credit INT DEFAULT 0
+          score_credit INT DEFAULT 0,
+          solde_du DECIMAL(15,2) DEFAULT 0.00
       )
     ''');
 
@@ -354,6 +355,11 @@ class Migrations {
     await _ensureColumn(conn, dbName, 'clients', 'matricule_fiscale', 'VARCHAR(100) NULL');
     await _ensureColumn(conn, dbName, 'clients', 'adresse', 'TEXT NULL');
     await _ensureColumn(conn, dbName, 'clients', 'patente_document', 'TEXT NULL');
+    await _ensureColumn(conn, dbName, 'clients', 'solde_du', 'DECIMAL(15,2) DEFAULT 0.00');
+    // P2 FIX: Data migration from legacy 'credit' column if it exists and has content
+    try {
+      await conn.execute("UPDATE clients SET solde_du = credit WHERE credit > 0 AND solde_du = 0");
+    } catch (_) {}
 
     // J. Projets
     await _ensureTable(conn, dbName, 'projets', '''
@@ -371,6 +377,10 @@ class Migrations {
           FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL
       )
     ''');
+
+    await _ensureColumn(conn, dbName, 'projets', 'contract_url', "VARCHAR(500) NULL COMMENT 'Relative path to the uploaded contract file'");
+    await _ensureColumn(conn, dbName, 'projets', 'contract_filename', "VARCHAR(255) NULL COMMENT 'Original filename of the uploaded contract'");
+    await _ensureColumn(conn, dbName, 'projets', 'contract_uploaded_at', "DATETIME NULL COMMENT 'Timestamp when the contract was uploaded'");
 
     // J.1 Devis
     await _ensureTable(conn, dbName, 'devis', '''
@@ -404,13 +414,40 @@ class Migrations {
           montant_ttc DECIMAL(15, 2) DEFAULT 0.0,
           date_emission DATE,
           date_echeance DATE,
-          statut ENUM('Brouillon', 'Envoyée', 'Payée', 'En retard', 'Annulée') DEFAULT 'Brouillon',
+          statut ENUM('Brouillon', 'Envoyée', 'Payée', 'Partiellement payée', 'En retard', 'Annulée') DEFAULT 'Brouillon',
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
           FOREIGN KEY (projet_id) REFERENCES projets(id) ON DELETE SET NULL,
           FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
       )
     ''');
+
+    // FIX: Ensure 'Partiellement payée' is present in the ENUM even for existing databases
+    try {
+      await conn.execute("ALTER TABLE factures MODIFY statut ENUM('Brouillon', 'Envoyée', 'Payée', 'Partiellement payée', 'En retard', 'Annulée') DEFAULT 'Brouillon'");
+    } catch (_) {}
+
+    await _ensureColumn(conn, dbName, 'factures', 'devis_id', 'INT NULL');
+    await _ensureForeignKey(conn, dbName, 'factures', 'fk_facture_devis', 'devis_id', 'devis', 'id', 'ON DELETE SET NULL');
+
+    // Quote Approval Trigger
+    try {
+      await conn.execute('DROP TRIGGER IF EXISTS trg_check_quote_approved');
+      await conn.execute('''
+        CREATE TRIGGER trg_check_quote_approved
+        BEFORE INSERT ON factures
+        FOR EACH ROW
+        BEGIN
+            DECLARE q_status VARCHAR(50);
+            IF NEW.devis_id IS NOT NULL THEN
+                SELECT statut INTO q_status FROM devis WHERE id = NEW.devis_id;
+                IF q_status != 'Approuve' AND q_status != 'Accepté' THEN
+                    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Cannot create invoice: associated quote is not approved';
+                END IF;
+            END IF;
+        END
+      ''');
+    } catch(e) {}
 
     // J.3 Paiements
     await _ensureTable(conn, dbName, 'paiements', '''
@@ -425,6 +462,13 @@ class Migrations {
           FOREIGN KEY (facture_id) REFERENCES factures(id) ON DELETE CASCADE
       )
     ''');
+
+    await _ensureColumn(conn, dbName, 'paiements', 'client_request_id', 'VARCHAR(100) NULL');
+    await _ensureColumn(conn, dbName, 'paiements', 'client_id', 'INT NULL');
+    await _ensureForeignKey(conn, dbName, 'paiements', 'fk_paiement_client', 'client_id', 'clients', 'id', 'ON DELETE SET NULL');
+    try {
+      await conn.execute('ALTER TABLE paiements ADD UNIQUE INDEX idx_unique_payment_request (client_request_id)');
+    } catch (_) {}
 
     // K. Sprints
     await _ensureTable(conn, dbName, 'sprints', '''
@@ -570,6 +614,35 @@ class Migrations {
       )
     ''');
 
+    // P0-02 FIX: Unread Badge Synchronisation Trigger
+    // Automatically updates conversation_members.last_read_at when an individual 
+    // message is marked as read via the ACK protocol, ensuring the conversation 
+    // unread count (calculated using last_read_at) stays accurate.
+    try {
+      await conn.execute('DROP TRIGGER IF EXISTS trg_message_reads_sync_conv');
+      await conn.execute('''
+        CREATE TRIGGER trg_message_reads_sync_conv
+        AFTER INSERT ON message_reads
+        FOR EACH ROW
+        BEGIN
+            DECLARE msg_created_at TIMESTAMP;
+            DECLARE msg_conv_id INT;
+            
+            -- Get the creation date and conversation ID of the read message
+            SELECT created_at, conversation_id INTO msg_created_at, msg_conv_id 
+            FROM messages WHERE id = NEW.message_id;
+            
+            -- Update conversation_members.last_read_at only if the read message 
+            -- is newer than the current last_read_at value.
+            UPDATE conversation_members 
+            SET last_read_at = msg_created_at 
+            WHERE conversation_id = msg_conv_id 
+            AND user_id = NEW.user_id
+            AND (last_read_at IS NULL OR last_read_at < msg_created_at);
+        END
+      ''');
+    } catch(e) {}
+
     // T. Typing Events
     await _ensureTable(conn, dbName, 'typing_events', '''
       CREATE TABLE typing_events (
@@ -599,17 +672,36 @@ class Migrations {
     await _ensureColumn(conn, dbName, 'conversation_members', 'history_cleared_at', 'TIMESTAMP NULL');
 
     // U. Convert ID columns to VARCHAR(50) for UUID support (idempotent ALTER)
-    final tablesToFix = ['users', 'conversations', 'conversation_members', 'messages', 'message_reads'];
-    for (final table in tablesToFix) {
-      final col = (table == 'users') ? 'id' : (table == 'conversations' ? 'created_by' : (table == 'messages' ? 'sender_id' : 'user_id'));
-      await _fixIdColumnType(conn, dbName, table, col);
+    final tablesToFix = {
+      'users': 'id',
+      'conversations': 'created_by',
+      'conversation_members': 'user_id',
+      'messages': 'sender_id',
+      'message_reads': 'user_id',
+      'file_uploads': 'uploaded_by',
+      'notifications': 'user_id',
+      'audit_log': 'user_id',
+      'demands': 'requester_id',
+      'employees': 'user_id',
+      'depenses_projets': 'created_by',
+      'depenses_entreprise': 'created_by',
+    };
+
+    for (final entry in tablesToFix.entries) {
+      await _fixIdColumnType(conn, dbName, entry.key, entry.value);
     }
     
     // V. Apply Audit Fixes
     await _applyAuditFixes(conn, dbName);
+
+    // W. Ensure reserved SYSTEM user exists for system chat messages
+    print('Ensuring SYSTEM user exists...');
+    await conn.execute(
+      "INSERT INTO users (id, username, password, role, is_active) VALUES ('00000000-0000-0000-0000-000000000000', 'SYSTEM', 'SYSTEM_LOCKED', 'Admin', 1) ON DUPLICATE KEY UPDATE username = 'SYSTEM', is_active = 1",
+    );
   }
 
-  static Future<void> _applyAuditFixes(_DBProxy conn, String dbName) async {
+  static Future<void> _applyAuditFixes(DBProxy conn, String dbName) async {
     print('Checking and applying Architectural Audit Fixes...');
     
     // 1. Soft Delete Flags
@@ -690,6 +782,147 @@ class Migrations {
         END
       ''');
     } catch(e) {}
+    
+    // 8. Financial Integrity: solde_du (debt) and Payment Sync
+    // Trigger on factures to increase client debt
+    try {
+      await conn.execute('DROP TRIGGER IF EXISTS trg_facture_ins_balance');
+      await conn.execute('''
+        CREATE TRIGGER trg_facture_ins_balance
+        AFTER INSERT ON factures
+        FOR EACH ROW
+        BEGIN
+            -- Only increase balance if invoice is NOT a draft or cancelled
+            IF NEW.statut NOT IN ('Brouillon', 'Annulée') THEN
+                UPDATE clients SET solde_du = solde_du + NEW.montant_ttc WHERE id = NEW.client_id;
+            END IF;
+        END
+      ''');
+    } catch(e) {}
+
+    // Trigger on factures to handle status/amount updates (P0 Fix)
+    try {
+      await conn.execute('DROP TRIGGER IF EXISTS trg_facture_upd_balance');
+      await conn.execute('''
+        CREATE TRIGGER trg_facture_upd_balance
+        AFTER UPDATE ON factures
+        FOR EACH ROW
+        BEGIN
+            DECLARE old_active BOOLEAN;
+            DECLARE new_active BOOLEAN;
+            
+            SET old_active = OLD.statut NOT IN ('Brouillon', 'Annulée');
+            SET new_active = NEW.statut NOT IN ('Brouillon', 'Annulée');
+            
+            IF old_active AND new_active THEN
+                -- Amount changed while active: update difference
+                UPDATE clients SET solde_du = solde_du + (NEW.montant_ttc - OLD.montant_ttc) WHERE id = NEW.client_id;
+            ELSEIF NOT old_active AND new_active THEN
+                -- Became active (e.g. Draft -> Sent): add full amount
+                UPDATE clients SET solde_du = solde_du + NEW.montant_ttc WHERE id = NEW.client_id;
+            ELSEIF old_active AND NOT new_active THEN
+                -- Became inactive (e.g. Sent -> Cancelled): subtract full amount
+                UPDATE clients SET solde_du = solde_du - OLD.montant_ttc WHERE id = NEW.client_id;
+            END IF;
+            
+            -- If client_id changed (rare but possible), this trigger would need more logic. 
+            -- Assuming client_id is immutable for this audit scope.
+        END
+      ''');
+    } catch(e) {}
+
+    // Trigger on factures to decrease client debt on deletion
+    try {
+      await conn.execute('DROP TRIGGER IF EXISTS trg_facture_del_balance');
+      await conn.execute('''
+        CREATE TRIGGER trg_facture_del_balance
+        AFTER DELETE ON factures
+        FOR EACH ROW
+        BEGIN
+            -- Only decrease balance if invoice was active
+            IF OLD.statut NOT IN ('Brouillon', 'Annulée') THEN
+                UPDATE clients SET solde_du = solde_du - OLD.montant_ttc WHERE id = OLD.client_id;
+            END IF;
+        END
+      ''');
+    } catch(e) {}
+
+    // Trigger on paiements to decrease client debt and sync invoice status
+    try {
+      await conn.execute('DROP TRIGGER IF EXISTS trg_paiement_ins_sync');
+      await conn.execute('''
+        CREATE TRIGGER trg_paiement_ins_sync
+        AFTER INSERT ON paiements
+        FOR EACH ROW
+        BEGIN
+            DECLARE total_paid DECIMAL(15, 2);
+            DECLARE total_ttc DECIMAL(15, 2);
+            DECLARE c_id INT;
+            
+            SET c_id = NEW.client_id;
+            SELECT montant_ttc INTO total_ttc FROM factures WHERE id = NEW.facture_id;
+            
+            IF c_id IS NULL THEN
+                SELECT client_id INTO c_id FROM factures WHERE id = NEW.facture_id;
+            END IF;
+            
+            -- Update client balance (decrease debt)
+            IF c_id IS NOT NULL THEN
+                UPDATE clients SET solde_du = solde_du - NEW.montant WHERE id = c_id;
+            END IF;
+            
+            -- Check if invoice is now fully paid
+            SELECT SUM(montant) INTO total_paid FROM paiements WHERE facture_id = NEW.facture_id;
+            IF total_paid >= total_ttc THEN
+                UPDATE factures SET statut = 'Payée' WHERE id = NEW.facture_id;
+            ELSEIF total_paid > 0 THEN
+                UPDATE factures SET statut = 'Partiellement payée' WHERE id = NEW.facture_id;
+            END IF;
+        END
+      ''');
+    } catch(e) {}
+
+    // Trigger on paiements to increase client debt on payment deletion and revert invoice status
+    try {
+      await conn.execute('DROP TRIGGER IF EXISTS trg_paiement_del_sync');
+      await conn.execute('''
+        CREATE TRIGGER trg_paiement_del_sync
+        AFTER DELETE ON paiements
+        FOR EACH ROW
+        BEGIN
+            DECLARE total_paid DECIMAL(15, 2);
+            DECLARE total_ttc DECIMAL(15, 2);
+            DECLARE c_id INT;
+            
+            SET c_id = OLD.client_id;
+            SELECT montant_ttc INTO total_ttc FROM factures WHERE id = OLD.facture_id;
+            
+            IF total_ttc IS NULL THEN
+                -- Factures was deleted (cascade delete case). Update client explicitly.
+                IF c_id IS NOT NULL THEN
+                    UPDATE clients SET solde_du = solde_du + OLD.montant WHERE id = c_id;
+                END IF;
+            ELSE
+                -- Normal deletion
+                IF c_id IS NULL THEN
+                    SELECT client_id INTO c_id FROM factures WHERE id = OLD.facture_id;
+                END IF;
+                
+                IF c_id IS NOT NULL THEN
+                    UPDATE clients SET solde_du = solde_du + OLD.montant WHERE id = c_id;
+                END IF;
+                
+                -- Revert invoice status if no longer fully paid
+                SELECT COALESCE(SUM(montant), 0) INTO total_paid FROM paiements WHERE facture_id = OLD.facture_id;
+                IF total_paid <= 0 THEN
+                    UPDATE factures SET statut = 'Envoyée' WHERE id = OLD.facture_id;
+                ELSEIF total_paid < total_ttc THEN
+                    UPDATE factures SET statut = 'Partiellement payée' WHERE id = OLD.facture_id;
+                END IF;
+            END IF;
+        END
+      ''');
+    } catch(e) {}
 
     // ── FIX DOUBLONS ET UNICITÉ (FORCE MODE) ──────────────────────────────
     print('[DB-FIX] Starting emergency cleanup of duplicate roles/permissions...');
@@ -759,7 +992,7 @@ class Migrations {
     }
   }
 
-  static Future<void> _replaceCascadeWithRestrict(_DBProxy conn, String dbName, String tableName) async {
+  static Future<void> _replaceCascadeWithRestrict(DBProxy conn, String dbName, String tableName) async {
     final constraintsReq = await conn.execute(
       '''
       SELECT CONSTRAINT_NAME, REFERENCED_TABLE_NAME 
@@ -795,7 +1028,7 @@ class Migrations {
     }
   }
 
-  static Future<void> _ensureForeignKey(_DBProxy conn, String dbName, String tableName, String constraintName, String column, String refTable, String refColumn, String rule) async {
+  static Future<void> _ensureForeignKey(DBProxy conn, String dbName, String tableName, String constraintName, String column, String refTable, String refColumn, String rule) async {
     final check = await conn.execute(
       "SELECT COUNT(*) as cnt FROM information_schema.table_constraints WHERE table_schema = :db AND table_name = :table AND constraint_name = :cname",
       {'db': dbName, 'table': tableName, 'cname': constraintName},
@@ -810,7 +1043,7 @@ class Migrations {
     }
   }
 
-  static Future<void> _ensureTable(_DBProxy conn, String dbName, String tableName, String createSql) async {
+  static Future<void> _ensureTable(DBProxy conn, String dbName, String tableName, String createSql) async {
     final check = await conn.execute(
       "SELECT COUNT(*) as cnt FROM information_schema.tables WHERE table_schema = :db AND table_name = :table",
       {'db': dbName, 'table': tableName},
@@ -821,7 +1054,7 @@ class Migrations {
     }
   }
 
-  static Future<void> _ensureColumn(_DBProxy conn, String dbName, String tableName, String columnName, String definition) async {
+  static Future<void> _ensureColumn(DBProxy conn, String dbName, String tableName, String columnName, String definition) async {
     final check = await conn.execute(
       "SELECT COUNT(*) as cnt FROM information_schema.columns WHERE table_schema = :db AND table_name = :table AND column_name = :col",
       {'db': dbName, 'table': tableName, 'col': columnName},
@@ -832,7 +1065,7 @@ class Migrations {
     }
   }
 
-  static Future<void> _fixIdColumnType(_DBProxy conn, String dbName, String tableName, String columnName) async {
+  static Future<void> _fixIdColumnType(DBProxy conn, String dbName, String tableName, String columnName) async {
     final check = await conn.execute(
       "SELECT DATA_TYPE FROM information_schema.columns WHERE table_schema = :db AND table_name = :table AND column_name = :col",
       {'db': dbName, 'table': tableName, 'col': columnName},
@@ -850,7 +1083,7 @@ class Migrations {
 
   /// Seeds new granular permissions that older databases may be missing.
   /// Safe to run multiple times — uses INSERT IGNORE.
-  static Future<void> _seedMissingPermissions(_DBProxy conn) async {
+  static Future<void> _seedMissingPermissions(DBProxy conn) async {
     print('Seeding missing permissions into database...');
     final newPermissions = [
       // Employees self-service HR permissions
@@ -912,9 +1145,4 @@ class Migrations {
     print('Permission seeding complete.');
   }
 }
-
-// Helper typedef as _DBProxy is private to connection.dart but often needed for type safety in Migrations
-// Actually in connection.dart _DBProxy is private. We should probably make it public or just use dynamic.
-// I'll use dynamic in parameters for simplicity or rename it in connection.dart.
-// Let's use dynamic for now.
-typedef _DBProxy = dynamic;
+

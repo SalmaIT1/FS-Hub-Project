@@ -12,6 +12,10 @@ import '../../features/auth/domain/services/auth_service.dart';
 ///   final securedRouter = Pipeline()
 ///       .addMiddleware(requireAuth())
 ///       .addHandler(SomeRoutes().router);
+/// Global cache for user permissions to prevent redundant DB hits.
+final Map<String, _PermissionCacheEntry> _permissionCache = {};
+const int _maxCacheSize = 1000;
+
 Middleware requireAuth() {
   return (innerHandler) {
     return (Request request) async {
@@ -24,12 +28,13 @@ Middleware requireAuth() {
       String? token;
       if (authHeader != null && authHeader.startsWith('Bearer ')) {
         token = authHeader.split(' ').last;
-      } else if (request.url.queryParameters.containsKey('token')) {
-        token = request.url.queryParameters['token'];
+      } else {
+        // P3 FIX: Support 'token' query parameter for browser-level access (media/downloads)
+        token = request.requestedUri.queryParameters['token'];
       }
 
       if (token == null) {
-        print('[AUTH] 401 missing/invalid Authorization header or token param for ${request.method} ${request.requestedUri.path}');
+        print('[AUTH] 401 missing/invalid Authorization header for ${request.method} ${request.requestedUri.path}');
         return Response(
           401,
           body: jsonEncode(
@@ -40,7 +45,6 @@ Middleware requireAuth() {
 
       // Check if token has been invalidated (logged out).
       if (await AuthService.isTokenRevoked(token)) {
-        print('[AUTH] 401 revoked token for ${request.method} ${request.requestedUri.path}');
         return Response(
           401,
           body: jsonEncode({'success': false, 'message': 'Token revoked'}),
@@ -50,7 +54,6 @@ Middleware requireAuth() {
 
       final payload = AuthService.verifyToken(token);
       if (payload == null) {
-        print('[AUTH] 401 invalid/expired token for ${request.method} ${request.requestedUri.path}');
         return Response(
           401,
           body: jsonEncode(
@@ -70,8 +73,29 @@ Middleware requireAuth() {
         );
       }
 
-      // Attach identity to context for downstream handlers.
-      final permissions = await AuthService.getUserPermissions(userId);
+      // P2 FIX: Cache lookup
+      List<String> permissions;
+      final cached = _permissionCache[userId];
+      if (cached != null && !cached.isExpired) {
+        permissions = cached.permissions;
+      } else {
+        permissions = await AuthService.getUserPermissions(userId);
+        
+        // P0 FIX: Prevent map from growing unbounded.
+        if (_permissionCache.length >= _maxCacheSize) {
+          // Prune expired entries
+          _permissionCache.removeWhere((key, value) => value.isExpired);
+          // If still too large, clear all to reset
+          if (_permissionCache.length >= _maxCacheSize) {
+            _permissionCache.clear();
+          }
+        }
+        
+        _permissionCache[userId] = _PermissionCacheEntry(
+          permissions: permissions,
+          expiresAt: DateTime.now().add(const Duration(minutes: 5)),
+        );
+      }
 
       final updatedRequest = request.change(context: {
         ...request.context,
@@ -83,6 +107,13 @@ Middleware requireAuth() {
       return innerHandler(updatedRequest);
     };
   };
+}
+
+class _PermissionCacheEntry {
+  final List<String> permissions;
+  final DateTime expiresAt;
+  _PermissionCacheEntry({required this.permissions, required this.expiresAt});
+  bool get isExpired => DateTime.now().isAfter(expiresAt);
 }
 
 

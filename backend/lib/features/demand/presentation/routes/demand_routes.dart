@@ -8,13 +8,14 @@ class DemandRoutes {
   late final Router router;
 
   DemandRoutes() {
+    final secured = Pipeline().addMiddleware(requireAuth());
     router = Router()
-      ..get('/', _getAllDemands)
-      ..get('/<id>', _getDemandById)
-      ..post('/', _createDemand)
-      ..put('/<id>', _updateDemand)
-      ..put('/<id>/status', _updateDemandStatus)
-      ..delete('/<id>', _deleteDemand);
+      ..get('/', secured.addHandler(_getAllDemands))
+      ..get('/<id>', (Request r, String id) => secured.addHandler((req) => _getDemandById(req, id))(r))
+      ..post('/', secured.addHandler(_createDemand))
+      ..put('/<id>', (Request r, String id) => secured.addHandler((req) => _updateDemand(req, id))(r))
+      ..put('/<id>/status', (Request r, String id) => secured.addHandler((req) => _updateDemandStatus(req, id))(r))
+      ..delete('/<id>', (Request r, String id) => secured.addHandler((req) => _deleteDemand(req, id))(r));
   }
 
   Future<Response> _getAllDemands(Request request) async {

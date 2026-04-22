@@ -74,7 +74,8 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
 
   Future<void> _initializeAudioPlayer() async {
     try {
-      print('[AudioPlayerWidget] _initializeAudioPlayer starting for source: ${widget.source}');
+      final absoluteSource = UrlUtils.ensureAbsoluteUrl(widget.source);
+      print('[AudioPlayerWidget] _initializeAudioPlayer starting for source: $absoluteSource');
       if (mounted) {
         setState(() {
           _initialized = false;
@@ -83,9 +84,9 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
         });
       }
 
-      // Special handling for Windows: If it's a local file, wait a bit for any file locks 
+      // Special handling for native: If it's a local file, wait a bit for any file locks 
       // (e.g. from the recorder) to be released.
-      if (!kIsWeb && !widget.source.startsWith('http') && !widget.source.startsWith('blob:')) {
+      if (!kIsWeb && !absoluteSource.startsWith('http') && !absoluteSource.startsWith('blob:') && !absoluteSource.startsWith('data:')) {
         await Future.delayed(const Duration(milliseconds: 500));
       }
 
@@ -93,7 +94,7 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
       _audioPlayer = AudioPlayer();
       
       // We wrap the setup in a longer timeout for Windows engine startup
-      await _setupAudioPlayer().timeout(
+      await _setupAudioPlayer(absoluteSource).timeout(
         const Duration(seconds: 15),
         onTimeout: () => throw TimeoutException('Primary player setup timed out'),
       );
@@ -111,7 +112,8 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
       try {
         if (!mounted) return;
         _fallbackPlayer = ap.AudioPlayer();
-        await _setupFallbackPlayer().timeout(
+        final absoluteSource = UrlUtils.ensureAbsoluteUrl(widget.source);
+        await _setupFallbackPlayer(absoluteSource).timeout(
           const Duration(seconds: 15),
           onTimeout: () => throw TimeoutException('Fallback player setup timed out'),
         );
@@ -139,16 +141,16 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
     }
   }
 
-  Future<void> _setupFallbackPlayer() async {
+  Future<void> _setupFallbackPlayer(String source) async {
     if (_fallbackPlayer == null) return;
-
+ 
     // Set up source for audioplayers with Android-specific handling
     try {
-      if (widget.source.startsWith('http') || widget.source.startsWith('blob:') || widget.source.startsWith('data:')) {
+      if (source.startsWith('http') || source.startsWith('blob:') || source.startsWith('data:')) {
         final token = await AuthRemoteDatasource.getAccessToken();
         
-        print('[AudioPlayerWidget] Fallback - Retrieved token: ${token != null ? "Token exists (${token.length} chars)" : "Token is null"}');
-        print('[AudioPlayerWidget] Fallback - Source URL: ${widget.source}');
+        print('[AudioPlayerWidget] Fallback - Retrieved token: ${token != null ? "Token exists" : "Token is null"}');
+        print('[AudioPlayerWidget] Fallback - Source URL: $source');
         
         // Try multiple authentication methods in order of preference
         bool loadedSuccessfully = false;
@@ -156,7 +158,7 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
         // Method 1: Try with token as query parameter (most compatible)
         if (!loadedSuccessfully && token != null && token.isNotEmpty) {
           try {
-            final authenticatedUrl = UrlUtils.appendToken(widget.source, token);
+            final authenticatedUrl = UrlUtils.appendToken(source, token);
             print('[AudioPlayerWidget] Fallback - Trying token as query parameter');
             await _fallbackPlayer!.setSource(ap.UrlSource(authenticatedUrl));
             loadedSuccessfully = true;
@@ -170,7 +172,7 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
         if (!loadedSuccessfully) {
           try {
             print('[AudioPlayerWidget] Fallback - Trying without token (public URL)');
-            await _fallbackPlayer!.setSource(ap.UrlSource(widget.source));
+            await _fallbackPlayer!.setSource(ap.UrlSource(source));
             loadedSuccessfully = true;
             print('[AudioPlayerWidget] Fallback - Success without token');
           } catch (e) {
@@ -183,23 +185,23 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
           throw Exception('All authentication methods failed for audio URL');
         }
       } else {
-        final file = io.File(widget.source);
+        final file = io.File(source);
         if (!kIsWeb && !await file.exists()) {
-          throw Exception('Audio file does not exist: ${widget.source}');
+          throw Exception('Audio file does not exist: $source');
         }
         
         // Android-specific: Check file and handle device file access
         if (!kIsWeb && io.Platform.isAndroid) {
           final fileSize = await file.length();
           if (fileSize == 0) {
-            throw Exception('Audio file is empty (0 bytes): ${widget.source}');
+            throw Exception('Audio file is empty: $source');
           }
           
           // Wait for file system operations on Android
           await Future.delayed(const Duration(milliseconds: 200));
         }
         
-        await _fallbackPlayer!.setSourceDeviceFile(widget.source);
+        await _fallbackPlayer!.setSourceDeviceFile(source);
       }
 
       // Mark as initialized IMMEDIATELY once source is set
@@ -265,21 +267,21 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
     }
   }
 
-  Future<void> _setupAudioPlayer() async {
+  Future<void> _setupAudioPlayer(String source) async {
     if (_audioPlayer == null) return;
     
     // Clean up previous subscriptions if re-initializing
     await _positionSubscription?.cancel();
     await _stateSubscription?.cancel();
     await _durationSubscription?.cancel();
-
+ 
     // Listen to position changes
     _positionSubscription = _audioPlayer!.positionStream.listen((position) {
       if (mounted) {
         setState(() => _currentDuration = position);
       }
     });
-
+ 
     // Listen to player state changes
     _stateSubscription = _audioPlayer!.playerStateStream.listen((state) {
       if (mounted) {
@@ -289,31 +291,28 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
         }
       }
     });
-
+ 
     // Listen to duration changes
     _durationSubscription = _audioPlayer!.durationStream.listen((duration) {
       if (duration != null && mounted) {
         setState(() => _totalDuration = duration);
       }
     });
-
+ 
     // Set audio source with Android-specific handling
     try {
-      if (widget.source.startsWith('blob:')) {
-        await _audioPlayer!.setUrl(widget.source);
-      } else if (widget.source.startsWith('http')) {
+      if (source.startsWith('blob:')) {
+        await _audioPlayer!.setUrl(source);
+      } else if (source.startsWith('http')) {
         final token = await AuthRemoteDatasource.getAccessToken();
         
-        print('[AudioPlayerWidget] Retrieved token: ${token != null ? "Token exists (${token.length} chars)" : "Token is null"}');
-        if (token != null) {
-          print('[AudioPlayerWidget] Token preview: "${token.substring(0, min(20, token.length))}..."');
-        }
-        print('[AudioPlayerWidget] Source URL: ${widget.source}');
+        print('[AudioPlayerWidget] Primary - Retrieved token: ${token != null ? "Token exists" : "Token is null"}');
+        print('[AudioPlayerWidget] Primary - Source URL: $source');
         
         if (kIsWeb) {
           // On web, use token as query parameter
-          final authenticatedUrl = UrlUtils.appendToken(widget.source, token);
-          print('[AudioPlayerWidget] Web loading with token URL: ${authenticatedUrl.length > 100 ? authenticatedUrl.substring(0, 100) + "..." : authenticatedUrl}');
+          final authenticatedUrl = UrlUtils.appendToken(source, token);
+          print('[AudioPlayerWidget] Web loading with token URL');
           await _audioPlayer!.setUrl(authenticatedUrl);
         } else {
           // On mobile platforms, try multiple authentication methods
@@ -324,12 +323,11 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
             try {
               final headers = <String, String>{
                 'Authorization': 'Bearer $token',
-                'User-Agent': 'FS-Hub-Android/1.0',
+                'User-Agent': 'FS-Hub-Client/1.0',
                 'Accept': 'audio/*, */*;q=0.1',
               };
               print('[AudioPlayerWidget] Mobile loading with Bearer token');
-              print('[AudioPlayerWidget] Authorization header: "Bearer ${token.substring(0, min(20, token.length))}..."');
-              await _audioPlayer!.setUrl(widget.source, headers: headers);
+              await _audioPlayer!.setUrl(source, headers: headers);
               loadedSuccessfully = true;
               print('[AudioPlayerWidget] Success with Bearer token');
             } catch (e) {
@@ -340,9 +338,8 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
           // Method 2: Try with token as query parameter (fallback)
           if (!loadedSuccessfully) {
             try {
-              final authenticatedUrl = UrlUtils.appendToken(widget.source, token);
+              final authenticatedUrl = UrlUtils.appendToken(source, token);
               print('[AudioPlayerWidget] Mobile loading with token as query parameter');
-              print('[AudioPlayerWidget] Query URL: ${authenticatedUrl.length > 100 ? authenticatedUrl.substring(0, 100) + "..." : authenticatedUrl}');
               await _audioPlayer!.setUrl(authenticatedUrl);
               loadedSuccessfully = true;
               print('[AudioPlayerWidget] Success with query parameter');
@@ -355,7 +352,7 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
           if (!loadedSuccessfully) {
             try {
               print('[AudioPlayerWidget] Mobile loading without token (public URL)');
-              await _audioPlayer!.setUrl(widget.source);
+              await _audioPlayer!.setUrl(source);
               loadedSuccessfully = true;
               print('[AudioPlayerWidget] Success without token');
             } catch (e) {
@@ -369,16 +366,16 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
           }
         }
       } else {
-        final file = io.File(widget.source);
+        final file = io.File(source);
         if (!kIsWeb && !await file.exists()) {
-          throw Exception('Audio file does not exist: ${widget.source}');
+          throw Exception('Audio file does not exist: $source');
         }
         
         // Android-specific: Check file size and wait for file locks
         if (!kIsWeb) {
           final fileSize = await file.length();
           if (fileSize == 0) {
-            throw Exception('Audio file is empty (0 bytes): ${widget.source}');
+            throw Exception('Audio file is empty: $source');
           }
           
           // Wait a bit longer on Android for file system operations
@@ -387,7 +384,7 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
           }
         }
         
-        await _audioPlayer!.setFilePath(widget.source);
+        await _audioPlayer!.setFilePath(source);
       }
 
       if (mounted) {

@@ -58,6 +58,22 @@ class AuthService {
     return prefs.getString('access_token');
   }
 
+  static Future<Map<String, dynamic>?> getProfile() async {
+    try {
+      final response = await authenticatedRequest('/auth/profile', 'GET');
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body);
+        if (body['success'] == true) {
+          return body['data'];
+        }
+      }
+      return null;
+    } catch (e) {
+      print('Error in getProfile: $e');
+      return null;
+    }
+  }
+
   static Future<Map<String, dynamic>?> getCurrentUser() async {
     final prefs = await SharedPreferences.getInstance();
     final userData = prefs.getString('user_data');
@@ -98,6 +114,12 @@ class AuthService {
     await prefs.remove('access_token');
     await prefs.remove('refresh_token');
     await prefs.remove('user_data');
+  }
+
+  static Future<void> clearAllCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+    print('[AUTH] Persistent cache cleared due to protocol version change.');
   }
 
   static Future<String> getGreetingName() async {

@@ -148,54 +148,53 @@ class _HrAttendanceHistoryPageState extends State<HrAttendanceHistoryPage> {
       return LuxuryScaffold(
         title: isFr ? 'Mon Historique' : 'My Attendance',
         showBackButton: true,
-        body: SafeArea(
-          child: Container(
-            color: bg,
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: _gold.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.calendar_month_rounded, color: _gold, size: 56),
+        body: Container(
+          color: bg,
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const SizedBox(height: 100),
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: _gold.withOpacity(0.1),
+                    shape: BoxShape.circle,
                   ),
-                  const SizedBox(height: 24),
-                  Text(
-                    isFr ? 'Mon Calendrier de Présence' : 'My Attendance Calendar',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      color: isDark ? Colors.white : Colors.black87,
-                    ),
+                  child: const Icon(Icons.calendar_month_rounded, color: _gold, size: 56),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  isFr ? 'Mon Calendrier de Présence' : 'My Attendance Calendar',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: isDark ? Colors.white : Colors.black87,
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    isFr ? 'Consultez votre historique de pointage mensuel.' : 'View your monthly check-in history.',
-                    style: const TextStyle(color: Colors.grey, fontSize: 14),
-                    textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  isFr ? 'Consultez votre historique de pointage mensuel.' : 'View your monthly check-in history.',
+                  style: const TextStyle(color: Colors.grey, fontSize: 14),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 32),
+                ElevatedButton.icon(
+                  onPressed: _showOwnHistory,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _gold,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    elevation: 0,
                   ),
-                  const SizedBox(height: 32),
-                  ElevatedButton.icon(
-                    onPressed: _showOwnHistory,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _gold,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      elevation: 0,
-                    ),
-                    icon: const Icon(Icons.open_in_new_rounded, size: 18),
-                    label: Text(
-                      isFr ? 'Voir mon historique' : 'View my history',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                    ),
+                  icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                  label: Text(
+                    isFr ? 'Voir mon historique' : 'View my history',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
@@ -206,33 +205,32 @@ class _HrAttendanceHistoryPageState extends State<HrAttendanceHistoryPage> {
     return LuxuryScaffold(
       title: isFr ? 'Historique de Présence' : 'Attendance History',
       showBackButton: true,
-      body: SafeArea(
-        child: Container(
-          color: bg,
-          child: Column(
-            children: [
-              _SearchHeader(
-                isFr: isFr,
-                isDark: isDark,
-                searchCtrl: _searchCtrl,
-                totalEmployees: _employees.length,
-              ),
-              Expanded(
-                child: _filteredEmployees.isEmpty
-                    ? _emptyState(isFr)
-                    : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
-                        itemCount: _filteredEmployees.length,
-                        itemBuilder: (_, i) => _EmployeeHistoryRow(
-                          employee: _filteredEmployees[i],
-                          isDark: isDark,
-                          isFr: isFr,
-                          onTap: () => _showEmployeeHistory(_filteredEmployees[i]),
-                        ),
+      body: Container(
+        color: bg,
+        child: Column(
+          children: [
+            const SizedBox(height: 100),
+            _SearchHeader(
+              isFr: isFr,
+              isDark: isDark,
+              searchCtrl: _searchCtrl,
+              totalEmployees: _employees.length,
+            ),
+            Expanded(
+              child: _filteredEmployees.isEmpty
+                  ? _emptyState(isFr)
+                  : ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
+                      itemCount: _filteredEmployees.length,
+                      itemBuilder: (_, i) => _EmployeeHistoryRow(
+                        employee: _filteredEmployees[i],
+                        isDark: isDark,
+                        isFr: isFr,
+                        onTap: () => _showEmployeeHistory(_filteredEmployees[i]),
                       ),
-              ),
-            ],
-          ),
+                    ),
+            ),
+          ],
         ),
       ),
     );

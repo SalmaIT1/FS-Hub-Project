@@ -4,7 +4,6 @@ import 'package:shelf_router/shelf_router.dart';
 import '../../domain/services/role_permission_service.dart';
 import '../../../../core/middleware/auth_middleware.dart';
 import '../../../../core/middleware/permission_middleware.dart';
-import '../../data/models/role_permission_model.dart';
 
 class RolePermissionRoutes {
   final RoleService _roleService = RoleService();
@@ -79,14 +78,14 @@ class RolePermissionRoutes {
         );
       }
 
-      final permissions = await _permissionService.getPermissionsByRole(roleId!);
+      final permissions = await _permissionService.getPermissionsByRole(roleId);
       
       return Response.ok(
         jsonEncode({
           'success': true,
           'data': {
             ...role.toJson(),
-            'permissions': permissions.map((p) => p?.toJson() ?? {}).toList(),
+            'permissions': permissions.map((p) => p.toJson() ?? {}).toList(),
           },
           'message': 'Role retrieved successfully',
         }),
@@ -179,7 +178,7 @@ class RolePermissionRoutes {
       return Response.ok(
         jsonEncode({
           'success': true,
-          'data': permissions.map((p) => p?.toJson() ?? {}).toList(),
+          'data': permissions.map((p) => p.toJson() ?? {}).toList(),
           'message': 'Role permissions retrieved successfully',
         }),
         headers: {'content-type': 'application/json; charset=utf-8'},
@@ -238,7 +237,7 @@ class RolePermissionRoutes {
       return Response.ok(
         jsonEncode({
           'success': true,
-          'data': permissions.map((p) => p?.toJson() ?? {}).toList(),
+          'data': permissions.map((p) => p.toJson() ?? {}).toList(),
           'message': 'Permissions retrieved successfully',
         }),
         headers: {'content-type': 'application/json; charset=utf-8'},
@@ -297,7 +296,7 @@ class RolePermissionRoutes {
       return Response.ok(
         jsonEncode({
           'success': true,
-          'data': permission?.toJson() ?? {},
+          'data': permission.toJson() ?? {},
           'message': 'Permission retrieved successfully',
         }),
         headers: {'content-type': 'application/json; charset=utf-8'},
@@ -388,7 +387,7 @@ class RolePermissionRoutes {
       return Response.ok(
         jsonEncode({
           'success': true,
-          'data': permissions.map((p) => p?.toJson() ?? {}).toList(),
+          'data': permissions.map((p) => p.toJson() ?? {}).toList(),
           'message': 'Permissions for module retrieved successfully',
         }),
         headers: {'content-type': 'application/json; charset=utf-8'},

@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:shelf/shelf.dart';
-import '../../features/auth/domain/services/auth_service.dart';
 import 'auth_middleware.dart';
 
 /// Middleware to enforce specific permissions for routes.

@@ -13,7 +13,7 @@ Future<void> main() async {
     
     final sqlContent = await file.readAsString();
     print('SQL content loaded. Please run this SQL manually in your MySQL client:');
-    print('\n' + '='*50);
+    print('\n${'='*50}');
     print(sqlContent);
     print('='*50);
     print('\nOr use MySQL command line:');

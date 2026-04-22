@@ -10,6 +10,16 @@ class UrlUtils {
       return url;
     }
     
+    // Check for local filesystem paths (Windows C:\ or Unix /Users/...)
+    // On web, paths don't start with / unless they are relative to root.
+    // On native, they might.
+    final bool isWindowsPath = url.contains(':\\');
+    final bool isLocalUnixPath = url.startsWith('/') && !url.startsWith('/v1/') && !url.startsWith('/media/') && !url.startsWith('/auth/');
+    
+    if (isWindowsPath || isLocalUnixPath) {
+      return url;
+    }
+    
     // Normalize path - avoid double slashes
     final baseUrl = ApiService.baseUrl.endsWith('/') 
         ? ApiService.baseUrl.substring(0, ApiService.baseUrl.length - 1) 

@@ -29,6 +29,8 @@ class ProjectService {
     }
   }
 
+  static Future<List<Project>> getMyProjects() => getAllProjects();
+
   static Future<Project?> getProjectById(int id) async {
     try {
       final response = await AuthService.authenticatedRequest(

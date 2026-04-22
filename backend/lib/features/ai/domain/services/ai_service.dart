@@ -1,12 +1,14 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import '../../data/repositories/ai_repository.dart';
 
 class AIService {
   static final AIRepository _repository = AIRepository();
   
-  // Internal AI Microservice URL
-  static const String _aiBaseUrl = 'http://localhost:8001';
+  // Internal AI Microservice config (moved to .env or defaulted)
+  static String get _aiBaseUrl => Platform.environment['AI_SERVICE_URL'] ?? 'http://localhost:8001';
+  static String get _aiApiKey => Platform.environment['AI_API_KEY'] ?? '';
 
   /// Predicts project delays using the Python ML service.
   static Future<Map<String, dynamic>> analyzeProjectRisks() async {
@@ -16,11 +18,15 @@ class AIService {
 
       final List<Map<String, dynamic>> predictions = [];
 
-      for (var p in projects) {
+      // P1 FIX: Parallelize microservice calls to prevent sequential blocking/timeouts
+      final tasks = projects.map((p) async {
         try {
           final response = await http.post(
             Uri.parse('$_aiBaseUrl/ai/predict-delay'),
-            headers: {'Content-Type': 'application/json'},
+            headers: {
+              'Content-Type': 'application/json',
+              'X-API-Key': _aiApiKey
+            },
             body: jsonEncode({
               'total_tasks': int.tryParse(p['total_tasks'].toString()) ?? 0,
               'completed_tasks': int.tryParse(p['completed_tasks'].toString()) ?? 0,
@@ -32,13 +38,17 @@ class AIService {
 
           if (response.statusCode == 200) {
             final body = jsonDecode(response.body);
-            predictions.add({
+            return {
               'project_name': p['nom'],
               'delay_probability': body['data']['risk_score'],
-            });
+            };
           }
         } catch (_) {}
-      }
+        return null;
+      });
+
+      final results = await Future.wait(tasks);
+      predictions.addAll(results.whereType<Map<String, dynamic>>());
 
       return {
         'success': true,
@@ -61,12 +71,14 @@ class AIService {
 
       final List<Map<String, dynamic>> clientScores = [];
 
-      // Group by client and send to AI
-      for (var h in history) {
+      final scoreTasks = history.map((h) async {
         try {
           final response = await http.post(
             Uri.parse('$_aiBaseUrl/ai/client-risk'),
-            headers: {'Content-Type': 'application/json'},
+            headers: {
+              'Content-Type': 'application/json',
+              'X-API-Key': _aiApiKey
+            },
             body: jsonEncode({
               'total_amount': double.tryParse(h['montant_ttc'].toString()) ?? 0.0,
               'paid_amount': double.tryParse(h['total_paid']?.toString() ?? '0.0') ?? 0.0,
@@ -77,15 +89,19 @@ class AIService {
 
           if (response.statusCode == 200) {
             final body = jsonDecode(response.body);
-            clientScores.add({
+            return {
               'client_name': h['raison_sociale'] ?? h['nom'],
               'reliability_score': body['data']['risk_level'] == 'LOW' ? 'A' : (body['data']['risk_level'] == 'MEDIUM' ? 'B' : 'D'),
               'avg_delay_days': 5,
               'behavior_type': body['data']['risk_level'] == 'HIGH' ? 'Risqué' : 'Stable'
-            });
+            };
           }
         } catch (_) {}
-      }
+        return null;
+      });
+
+      final results = await Future.wait(scoreTasks);
+      clientScores.addAll(results.whereType<Map<String, dynamic>>());
 
       return {
         'success': true,

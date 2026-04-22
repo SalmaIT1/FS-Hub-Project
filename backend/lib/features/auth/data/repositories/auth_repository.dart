@@ -100,7 +100,7 @@ class AuthRepository {
 
       final row = rows.rows.first;
       return {
-        'revoked': row.colByName('revoked') == 1 || row.colByName('revoked') == true,
+        'revoked': row.colByName('revoked') == '1' || row.colByName('revoked') == 'true',
         'updated_at': row.colByName('updated_at')?.toString(),
       };
     });
@@ -109,9 +109,16 @@ class AuthRepository {
   Future<UserModel?> getProfile(String userId) async {
     final result = await _db.execute(
       '''SELECT u.id, u.username, u.role, u.permissions, u.dernierLogin,
-                e.matricule, e.nom, e.prenom, e.email, e.poste, e.departement
+                IFNULL(e.matricule, CAST(c.id AS CHAR)) as matricule, 
+                IFNULL(e.nom, c.nom) as nom, 
+                IFNULL(e.prenom, c.prenom) as prenom, 
+                IFNULL(e.email, c.email) as email,
+                e.poste, e.departement,
+                c.raison_sociale, c.telephone as client_phone, c.adresse as client_adresse,
+                c.matricule_fiscale, c.type, c.score_credit
          FROM users u 
          LEFT JOIN employees e ON u.id = e.user_id 
+         LEFT JOIN clients c ON u.id = c.user_id
          WHERE u.id = :userId''',
       {'userId': userId},
     );
@@ -133,6 +140,12 @@ class AuthRepository {
       'email': row.colByName('email'),
       'poste': row.colByName('poste'),
       'departement': row.colByName('departement'),
+      'raison_sociale': row.colByName('raison_sociale'),
+      'client_phone': row.colByName('client_phone'),
+      'client_adresse': row.colByName('client_adresse'),
+      'matricule_fiscale': row.colByName('matricule_fiscale'),
+      'type': row.colByName('type'),
+      'score_credit': row.colByName('score_credit'),
     });
   }
 
@@ -169,9 +182,9 @@ class AuthRepository {
     if (result.rows.isEmpty) return null;
     final row = result.rows.first;
     return {
-      'profile_visible': row.colByName('profile_visible') == 1 || row.colByName('profile_visible') == true,
-      'show_online_status': row.colByName('show_online_status') == 1 || row.colByName('show_online_status') == true,
-      'analytics_enabled': row.colByName('analytics_enabled') == 1 || row.colByName('analytics_enabled') == true,
+      'profile_visible': row.colByName('profile_visible') == '1' || row.colByName('profile_visible') == 'true',
+      'show_online_status': row.colByName('show_online_status') == '1' || row.colByName('show_online_status') == 'true',
+      'analytics_enabled': row.colByName('analytics_enabled') == '1' || row.colByName('analytics_enabled') == 'true',
     };
   }
 
@@ -193,41 +206,37 @@ class AuthRepository {
 
   Future<List<String>> getUserPermissions(String userId) async {
     try {
-      // 1. Get primary role from users table
-      final userRoleRes = await _db.execute(
-        'SELECT role, permissions FROM users WHERE id = :userId',
-        {'userId': userId},
-      );
-      
-      if (userRoleRes.rows.isEmpty) return [];
-      
-      final row = userRoleRes.rows.first;
-      final roleName = row.colByName('role')?.toString();
-      final directPermissions = row.colByName('permissions')?.toString();
-      
-      List<String> permissions = [];
-      
-      // 2. Load permissions from role system (via roles table)
-      if (roleName != null) {
-        final rolePermsResult = await _db.execute('''
-          SELECT DISTINCT p.nom 
-          FROM permissions p
-          JOIN role_permissions rp ON p.id = rp.permission_id
-          JOIN roles r ON rp.role_id = r.id
-          WHERE LOWER(r.nom) = LOWER(:roleName)
-        ''', {'roleName': roleName});
+      // 1. Fetch all permissions associated with the user's role and direct permissions
+      // We join roles and permissions to get the full list in one pass where possible.
+      final result = await _db.execute('''
+        SELECT DISTINCT p.nom 
+        FROM permissions p
+        JOIN role_permissions rp ON p.id = rp.permission_id
+        JOIN roles r ON rp.role_id = r.id
+        JOIN users u ON LOWER(r.nom) = LOWER(u.role)
+        WHERE u.id = :userId
         
-        permissions.addAll(rolePermsResult.rows.map((r) => r.colAt(0).toString()));
-      }
+        UNION
+        
+        -- Direct permissions from string field (legacy support)
+        SELECT TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(u.permissions, ',', n.n), ',', -1)) as nom
+        FROM users u
+        CROSS JOIN (
+          SELECT a.N + b.N * 10 + 1 n
+          FROM (SELECT 0 AS N UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) a
+          CROSS JOIN (SELECT 0 AS N UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) b
+        ) n
+        WHERE u.id = :userId
+        AND n.n <= 1 + (LENGTH(u.permissions) - LENGTH(REPLACE(u.permissions, ',', '')))
+        AND u.permissions IS NOT NULL AND u.permissions != ''
+      ''', {'userId': userId});
       
-      // 3. Add direct permissions if any
-      if (directPermissions != null && directPermissions.isNotEmpty) {
-        permissions.addAll(directPermissions.split(',').map((p) => p.trim()));
-      }
-      
-      return permissions.toSet().toList(); // Unique permissions
+      return result.rows
+          .map((r) => r.colAt(0).toString())
+          .where((p) => p.isNotEmpty)
+          .toList();
     } catch (e) {
-      print('Database error in getUserPermissions: $e');
+      print('[AuthRepo] Critical permission load failure for $userId: $e');
       return [];
     }
   }
@@ -258,7 +267,7 @@ class AuthRepository {
     final row = res.rows.first;
     return {
       'user_id': row.colByName('user_id'),
-      'is_used': row.colByName('is_used') == 1 || row.colByName('is_used') == true,
+      'is_used': row.colByName('is_used') == '1' || row.colByName('is_used') == 'true',
       'expires_at': row.colByName('expires_at')?.toString(),
     };
   }

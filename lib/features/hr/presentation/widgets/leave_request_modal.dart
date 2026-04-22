@@ -116,7 +116,7 @@ class _LeaveRequestModalState extends State<LeaveRequestModal> {
     };
 
     return DropdownButtonFormField<String>(
-      value: _leaveType,
+      initialValue: _leaveType,
       dropdownColor: isDark ? const Color(0xFF2A2A2A) : Colors.white,
       decoration: _buildInputDecoration('', isDark),
       items: types.entries.map((e) => DropdownMenuItem(

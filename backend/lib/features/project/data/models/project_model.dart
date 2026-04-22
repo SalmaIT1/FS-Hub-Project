@@ -40,19 +40,19 @@ class ProjectModel {
       'id': id,
       'nom': nom,
       'description': description,
-      'clientId': clientId,
-      'clientName': clientName,
+      'client_id': clientId,
+      'client_name': clientName,
       'budget': budget,
-      'coutEstime': coutEstime,
-      'dateDebut': dateDebut,
-      'dateFinPrevue': dateFinPrevue,
+      'cout_estime': coutEstime,
+      'date_debut': dateDebut,
+      'date_fin_prevue': dateFinPrevue,
       'priorite': priorite,
       'statut': statut,
-      'contractUrl': contractUrl,
-      'contractFilename': contractFilename,
-      'contractUploadedAt': contractUploadedAt,
-      'createdAt': createdAt,
-      'updatedAt': updatedAt,
+      'contract_url': contractUrl,
+      'contract_filename': contractFilename,
+      'contract_uploaded_at': contractUploadedAt,
+      'created_at': createdAt,
+      'updated_at': updatedAt,
     };
   }
 
@@ -67,8 +67,8 @@ class ProjectModel {
       coutEstime: map['cout_estime'] != null ? double.tryParse(map['cout_estime'].toString()) ?? 0.0 : 0.0,
       dateDebut: map['date_debut']?.toString(),
       dateFinPrevue: map['date_fin_prevue']?.toString(),
-      priorite: map['priorite']?.toString(),
-      statut: map['statut']?.toString(),
+      priorite: _normalizeString(map['priorite']),
+      statut: _normalizeString(map['statut']),
       contractUrl: map['contract_url']?.toString(),
       contractFilename: map['contract_filename']?.toString(),
       contractUploadedAt: map['contract_uploaded_at']?.toString(),
@@ -83,6 +83,20 @@ class ProjectModel {
     final nom = data['client_nom']?.toString() ?? '';
     final prenom = data['client_prenom']?.toString() ?? '';
     return '$nom $prenom'.trim();
+  }
+
+  static String? _normalizeString(dynamic value) {
+    if (value == null) return null;
+    var s = value.toString();
+    // Normalize accents for consistency with frontend enums/logic
+    s = s.replaceAll('é', 'e')
+         .replaceAll('è', 'e')
+         .replaceAll('à', 'a')
+         .replaceAll('ç', 'c')
+         .replaceAll('î', 'i')
+         .replaceAll('ô', 'o')
+         .replaceAll('û', 'u');
+    return s;
   }
 }
 
@@ -116,7 +130,7 @@ class ProjectMemberModel {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'employeeId': employeeId,
+      'employee_id': employeeId,
       'nom': nom,
       'prenom': prenom,
       'matricule': matricule,
@@ -125,7 +139,7 @@ class ProjectMemberModel {
       'email': email,
       'departement': departement,
       'photo': photo,
-      'joinedAt': joinedAt,
+      'joined_at': joinedAt,
     };
   }
 

@@ -1,7 +1,6 @@
 import 'dart:ui';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
 import 'package:fs_hub/shared/widgets/authenticated_image.dart';
 

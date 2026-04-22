@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
 import 'dart:typed_data';
-import 'package:fs_hub/shared/models/chat_models.dart';
 import 'package:fs_hub/features/chat/domain/entities/chat_entities.dart';
 import '../providers/chat_provider.dart';
 import 'voice_recorder.dart';
@@ -43,6 +42,7 @@ class _ComposerBarState extends State<ComposerBar> {
   StreamSubscription? _attachmentSubscription;
   Timer? _typingTimer;
   bool _isTypingSent = false;
+  Map<String, dynamic>? _lastVoiceMetadata;
 
   @override
   void initState() {
@@ -135,14 +135,21 @@ class _ComposerBarState extends State<ComposerBar> {
                 
                 widget.attachmentManager.addVoiceRecording(
                   AttachmentEntity(
-                    id: DateTime.now().millisecondsSinceEpoch.toString(),
+                    id: 'voice_${DateTime.now().millisecondsSinceEpoch}',
                     uploadUrl: audioPath,
                     fileName: 'voice_${DateTime.now().millisecondsSinceEpoch}.aac',
                     fileSize: convertedBytes?.length ?? 0,
                     mimeType: 'audio/aac',
                     state: AttachmentState.ready,
+                    bytes: convertedBytes,
                   ),
                 );
+                
+                // Store voice metadata for the upcoming send
+                _lastVoiceMetadata = {
+                  'duration_seconds': durationSeconds,
+                  'waveform_data': waveformData,
+                };
                 setState(() {
                   _showVoiceRecorder = false;
                 });
@@ -160,7 +167,7 @@ class _ComposerBarState extends State<ComposerBar> {
               border: Border(
                 bottom: BorderSide(
                   color: Theme.of(context).brightness == Brightness.dark
-                      ? Colors.white.withOpacity(0.1)
+                      ? Colors.white.withValues(alpha: 0.1)
                       : Colors.grey[300]!,
                 ),
               ),
@@ -180,15 +187,20 @@ class _ComposerBarState extends State<ComposerBar> {
                         height: 60,
                         decoration: BoxDecoration(
                           color: Theme.of(context).brightness == Brightness.dark
-                              ? Colors.white.withOpacity(0.05)
+                              ? Colors.white.withValues(alpha: 0.05)
                               : Colors.grey[200],
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: attachment.isImage && attachment.uploadUrl.isNotEmpty
-                            ? AuthenticatedImage(
-                                url: UrlUtils.ensureAbsoluteUrl(attachment.uploadUrl),
-                                fit: BoxFit.cover,
-                              )
+                        child: attachment.isImage
+                            ? (attachment.bytes != null
+                                ? Image.memory(
+                                    attachment.bytes!,
+                                    fit: BoxFit.cover,
+                                  )
+                                : AuthenticatedImage(
+                                    url: UrlUtils.ensureAbsoluteUrl(attachment.uploadUrl),
+                                    fit: BoxFit.cover,
+                                  ))
                             : Center(
                                 child: Icon(
                                   attachment.isVideo ? Icons.videocam : Icons.attachment,
@@ -235,7 +247,7 @@ class _ComposerBarState extends State<ComposerBar> {
             border: Border(
               top: BorderSide(
                 color: Theme.of(context).brightness == Brightness.dark
-                    ? Colors.white.withOpacity(0.1)
+                    ? Colors.white.withValues(alpha: 0.1)
                     : Colors.grey[300]!,
               ),
             ),
@@ -253,7 +265,7 @@ class _ComposerBarState extends State<ComposerBar> {
                 child: Container(
                   decoration: BoxDecoration(
                     color: Theme.of(context).brightness == Brightness.dark
-                        ? Colors.white.withOpacity(0.05)
+                        ? Colors.white.withValues(alpha: 0.05)
                         : Colors.grey[100],
                     borderRadius: BorderRadius.circular(24),
                   ),
@@ -343,28 +355,34 @@ class _ComposerBarState extends State<ComposerBar> {
     try {
       final uploadResult = await widget.attachmentManager.uploadAllAttachments();
       final uploadIds = uploadResult['uploadIds'] as List<String>;
-      final voiceMetadata = uploadResult['voiceMetadata'] as Map<String, dynamic>?;
+      final voiceMetadata = uploadResult['voiceMetadata'] as Map<String, dynamic>? ?? _lastVoiceMetadata;
       
       // Check if there's content to send (text or uploaded attachments)
       if (text.isNotEmpty || uploadIds.isNotEmpty) {
+        final type = _attachments.any((a) => a.isAudio) ? 'voice' : (uploadIds.isNotEmpty ? 'file' : 'text');
         widget.onSendMessage(text, uploadIds, voiceMetadata: voiceMetadata);
+        
+        // Reset voice metadata
+        _lastVoiceMetadata = null;
         
         // Clear UI
         _textController.clear();
         _typingTimer?.cancel();
-        if (_isTypingSent) {
+        if (_isTypingSent && mounted) {
           _isTypingSent = false;
           context.read<ChatController>().setTypingStatus(false);
         }
-        setState(() {
-          _hasText = false;
-        });
+        if (mounted) {
+          setState(() {
+            _hasText = false;
+          });
+        }
         
         // Clear attachments after successful send
         await widget.attachmentManager.clearAllAttachments();
       } else {
         // Show error if nothing to send (attachments may have all failed)
-        if (_attachments.isNotEmpty) {
+        if (_attachments.isNotEmpty && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(settings.translate('upload_failed')),
@@ -375,12 +393,14 @@ class _ComposerBarState extends State<ComposerBar> {
       }
     } catch (e) {
       print('Error sending message: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: $e'),
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
     }
   }
 }

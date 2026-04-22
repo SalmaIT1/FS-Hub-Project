@@ -105,11 +105,11 @@ class _HrAttendancePageState extends State<HrAttendancePage> {
       showBackButton: true,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: _gold))
-          : SafeArea(
-              child: Container(
+          : Container(
               color: bg,
               child: Column(
                 children: [
+                  const SizedBox(height: 100),
                   _Header(
                     isFr: isFr,
                     isDark: isDark,
@@ -155,7 +155,6 @@ class _HrAttendancePageState extends State<HrAttendancePage> {
                 ],
               ),
             ),
-          ),
     );
   }
 

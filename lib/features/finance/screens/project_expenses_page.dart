@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:fs_hub/features/finance/services/expense_service.dart';
 import 'package:fs_hub/core/theme/app_theme.dart';
 import 'package:fs_hub/core/state/settings_controller.dart';
-import 'package:fs_hub/core/security/permission_guard.dart';
 import 'package:fs_hub/core/security/protected_route.dart';
 import 'package:fs_hub/shared/widgets/luxury/luxury_app_bar.dart';
 import 'package:fs_hub/shared/widgets/luxury/luxury_status_dialog.dart';
@@ -135,7 +134,6 @@ class _ProjectExpensesPageState extends State<ProjectExpensesPage>
         extendBodyBehindAppBar: true,
         appBar: LuxuryAppBar(
           title: settings.translate('project_expenses'),
-          backgroundColor: isDark ? const Color(0xFF0A0A0A) : const Color(0xFFF5F5F5),
         ),
         body: _buildBody(settings),
         floatingActionButton: context.hasPermission('manage_project_expenses')
@@ -348,7 +346,7 @@ class _ProjectExpensesPageState extends State<ProjectExpensesPage>
                 ),
               ),
             );
-          }).toList(),
+          }),
         ],
         onChanged: (value) {
           setState(() => _selectedCategory = value);

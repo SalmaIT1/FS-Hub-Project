@@ -3,6 +3,7 @@ import '../models/chat_attachment_model.dart';
 import '../models/chat_message_model.dart';
 import '../models/conversation_model.dart';
 import '../models/voice_message_model.dart';
+import '../../presentation/websocket/websocket_server.dart';
 import 'dart:convert';
 
 class ChatRepository {
@@ -13,6 +14,7 @@ class ChatRepository {
     String? before,
     int limit = 50,
   }) async {
+    limit = limit > 200 ? 200 : limit;
     String query = '''
       SELECT DISTINCT c.id, c.name, c.type, c.created_at, c.updated_at,
              c.last_message_at, c.avatar_url,
@@ -55,9 +57,72 @@ class ChatRepository {
     query += ' LIMIT $limit';
 
     final res = await _db.execute(query, params);
-    final conversations = <ConversationModel>[];
+    if (res.rows.isEmpty) return [];
 
-    for (final r in res.rows) {
+    // ── P2 N+1 FIX ──────────────────────────────────────────────────────────
+    // Previously: 3 DB queries per conversation row (N×3 total).
+    // Now: 2 additional bulk IN-clause queries for the entire result set → O(3) total.
+
+    final convRows = res.rows.toList();
+    final allConvIds = convRows
+        .map((r) => r.colByName('id')?.toString() ?? '')
+        .where((id) => id.isNotEmpty)
+        .toList();
+
+    // Build parameterized IN clause for all conversation IDs.
+    final idParams = <String, dynamic>{'myUserId': userId};
+    final idPlaceholders = <String>[];
+    for (int i = 0; i < allConvIds.length; i++) {
+      idParams['cid$i'] = allConvIds[i];
+      idPlaceholders.add(':cid$i');
+    }
+    final inClause = idPlaceholders.join(',');
+
+    // BATCH QUERY 1: Fetch the "other member" info for all direct conversations.
+    final otherMembersRes = await _db.execute('''
+      SELECT cm.conversation_id, cm.user_id, u.is_online,
+             e.prenom, e.nom, e.photo
+      FROM conversation_members cm
+      JOIN users u ON cm.user_id = u.id
+      LEFT JOIN employees e ON u.id = e.user_id
+      WHERE cm.conversation_id IN ($inClause)
+        AND cm.user_id != :myUserId
+        AND cm.left_at IS NULL
+    ''', idParams);
+
+    final otherMembersMap = <String, Map<String, dynamic>>{};
+    for (final r in otherMembersRes.rows) {
+      final convId = r.colByName('conversation_id')?.toString() ?? '';
+      // Keep only the first other member per conversation (direct chats have exactly 2 members).
+      if (!otherMembersMap.containsKey(convId)) {
+        otherMembersMap[convId] = {
+          'user_id': r.colByName('user_id')?.toString(),
+          'is_online': r.colByName('is_online'),
+          'prenom': r.colByName('prenom')?.toString().trim() ?? '',
+          'nom': r.colByName('nom')?.toString().trim() ?? '',
+          'photo': r.colByName('photo')?.toString().trim() ?? '',
+        };
+      }
+    }
+
+    // BATCH QUERY 2: Fetch all participant IDs for presence matching on the frontend.
+    final participantsRes = await _db.execute('''
+      SELECT conversation_id, user_id
+      FROM conversation_members
+      WHERE conversation_id IN ($inClause)
+        AND left_at IS NULL
+    ''', idParams);
+
+    final participantsMap = <String, List<String>>{};
+    for (final r in participantsRes.rows) {
+      final convId = r.colByName('conversation_id')?.toString() ?? '';
+      participantsMap.putIfAbsent(convId, () => []).add(
+          r.colByName('user_id')?.toString() ?? '');
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
+    final conversations = <ConversationModel>[];
+    for (final r in convRows) {
       final convType = r.colByName('type') ?? 'group';
       final convId = r.colByName('id')?.toString() ?? '';
 
@@ -67,42 +132,22 @@ class ChatRepository {
       bool isOnline = false;
 
       if (convType == 'direct') {
-        final memberRes = await _db.execute(
-            'SELECT cm.user_id, u.is_online FROM conversation_members cm JOIN users u ON cm.user_id = u.id WHERE cm.conversation_id = :conversationId AND cm.user_id != :userId AND cm.left_at IS NULL LIMIT 1',
-            {'conversationId': convId, 'userId': userId});
+        final other = otherMembersMap[convId];
+        if (other != null) {
+          receiverId = other['user_id']?.toString();
+          final onlineVal = other['is_online']?.toString();
+          isOnline = onlineVal == '1' || onlineVal == 'true';
 
-        if (memberRes.rows.isNotEmpty) {
-          final otherUserId = memberRes.rows.first.colByName('user_id')?.toString();
-          if (otherUserId != null) {
-            receiverId = otherUserId;
-            final isOtherOnlineValue = memberRes.rows.first.colByName('is_online');
-            isOnline = isOtherOnlineValue == 1 || isOtherOnlineValue == true || isOtherOnlineValue == '1';
-
-            final empRes = await _db.execute(
-                'SELECT prenom, nom, photo FROM employees WHERE user_id = :userId LIMIT 1',
-                {'userId': otherUserId});
-
-            if (empRes.rows.isNotEmpty) {
-              final empRow = empRes.rows.first;
-              final prenom = empRow.colByName('prenom')?.toString().trim() ?? '';
-              final nom = empRow.colByName('nom')?.toString().trim() ?? '';
-              final photo = empRow.colByName('photo')?.toString().trim() ?? '';
-
-              final fullName = [prenom, nom].where((s) => s.isNotEmpty).join(' ').trim();
-              if (fullName.isNotEmpty) displayName = fullName;
-
-              displayAvatarUrl = _normalizePhoto(photo);
-            }
-          }
+          final prenom = other['prenom']?.toString() ?? '';
+          final nom = other['nom']?.toString() ?? '';
+          final photo = other['photo']?.toString() ?? '';
+          final fullName = [prenom, nom].where((s) => s.isNotEmpty).join(' ').trim();
+          if (fullName.isNotEmpty) displayName = fullName;
+          displayAvatarUrl = _normalizePhoto(photo);
         }
       }
 
-      // Fetch participant IDs for presence matching on frontend
-      final participantsRes = await _db.execute(
-        'SELECT user_id FROM conversation_members WHERE conversation_id = :conversationId AND left_at IS NULL',
-        {'conversationId': convId}
-      );
-      final List<String> participantIds = participantsRes.rows.map<String>((r) => r.colByName('user_id')?.toString() ?? '').toList();
+      final participantIds = participantsMap[convId] ?? [];
 
       conversations.add(ConversationModel(
         id: convId,
@@ -130,15 +175,18 @@ class ChatRepository {
     String? before,
     int limit = 50,
   }) async {
+    limit = limit > 200 ? 200 : limit;
     String query = '''
       SELECT m.id, m.conversation_id, m.sender_id, m.content, m.type,
              m.reply_to_id, m.is_edited, m.edited_at, m.created_at, m.updated_at,
+             mi.client_message_id,
              COALESCE(CONCAT(e.prenom, ' ', e.nom), u.username) as sender_name,
              COALESCE(e.photo, u.avatar_url) as sender_avatar
       FROM messages m
       JOIN users u ON m.sender_id = u.id
       LEFT JOIN employees e ON u.id = e.user_id
       JOIN conversation_members cm ON m.conversation_id = cm.conversation_id
+      LEFT JOIN message_idempotency mi ON m.id = mi.server_message_id
       WHERE m.conversation_id = :conversationId
       AND cm.user_id = :userId
       AND m.is_deleted = FALSE
@@ -216,6 +264,7 @@ class ChatRepository {
       final id = row.colByName('id')?.toString() ?? '';
       return ChatMessageModel(
         id: id,
+        clientMessageId: row.colByName('client_message_id')?.toString(),
         conversationId: row.colByName('conversation_id')?.toString() ?? '',
         senderId: row.colByName('sender_id')?.toString() ?? '',
         senderName: row.colByName('sender_name'),
@@ -223,7 +272,7 @@ class ChatRepository {
         content: row.colByName('content') ?? '',
         type: row.colByName('type') ?? 'text',
         replyToId: row.colByName('reply_to_id')?.toString(),
-        isEdited: row.colByName('is_edited') == 1,
+        isEdited: row.colByName('is_edited') == '1',
         editedAt: row.colByName('edited_at')?.toString(),
         createdAt: row.colByName('created_at')?.toString(),
         updatedAt: row.colByName('updated_at')?.toString(),
@@ -256,7 +305,7 @@ class ChatRepository {
 
         // idempotency
         final existing = await tx.execute('''
-          SELECT server_message_id FROM message_idempotency WHERE client_message_id = :clientMessageId AND conversation_id = :conversationId FOR UPDATE
+          SELECT server_message_id FROM message_idempotency WHERE client_message_id = :clientMessageId AND conversation_id = :conversationId
         ''', {'clientMessageId': clientMessageId, 'conversationId': conversationId});
         if (existing.rows.isNotEmpty) {
           final serverMessageId = existing.rows.first.colByName('server_message_id');
@@ -275,11 +324,29 @@ class ChatRepository {
         final insert = await tx.execute('''
           INSERT INTO messages (conversation_id, sender_id, content, type, reply_to_id, created_at, updated_at)
           VALUES (:conversationId, :senderId, :content, :type, :replyToId, NOW(), NOW())
-        ''', {'conversationId': conversationId, 'senderId': senderId, 'content': content, 'type': type, 'replyToId': replyToId});
+        ''', {
+          'conversationId': conversationId, 
+          'senderId': senderId, 
+          'content': content, 
+          'type': type, 
+          'replyToId': replyToId
+        });
         final messageId = insert.lastInsertID.toInt();
 
         // bind attachments
         if (uploadIds != null && uploadIds.isNotEmpty) {
+          final params = <String, dynamic>{};
+          final placeholders = [];
+          for (int i = 0; i < uploadIds.length; i++) {
+            final key = 'id$i';
+            placeholders.add(':$key');
+            params[key] = uploadIds[i];
+          }
+          await tx.execute(
+            "UPDATE file_uploads SET is_completed = TRUE, expires_at = DATE_ADD(NOW(), INTERVAL 1 YEAR) WHERE id IN (${placeholders.join(',')})",
+            params
+          );
+
           for (final uploadId in uploadIds) {
             final up = await tx.execute('''
               SELECT id, original_filename, stored_filename, file_path, file_size, mime_type FROM file_uploads WHERE id = :uploadId
@@ -350,13 +417,18 @@ class ChatRepository {
 
         // return built message
         final msgRes = await tx.execute('''
-          SELECT m.id, m.conversation_id, m.sender_id, m.content, m.type, m.reply_to_id, m.is_edited, m.edited_at, m.created_at, m.updated_at, u.username as sender_name, u.avatar_url as sender_avatar
-          FROM messages m JOIN users u ON m.sender_id = u.id WHERE m.id = :messageId
+          SELECT m.id, m.conversation_id, m.sender_id, m.content, m.type, m.reply_to_id, 
+                 m.is_edited, m.edited_at, m.created_at, m.updated_at, 
+                 u.username as sender_name, u.avatar_url as sender_avatar,
+                 mi.client_message_id
+          FROM messages m 
+          JOIN users u ON m.sender_id = u.id 
+          LEFT JOIN message_idempotency mi ON m.id = mi.server_message_id
+          WHERE m.id = :messageId
         ''', {'messageId': messageId});
         if (msgRes.rows.isNotEmpty) {
           final builtRow = msgRes.rows.first;
           final built = await _buildMessageFromRow(builtRow, tx);
-          built['clientMessageId'] = clientMessageId;
           return {'success': true, 'message': built};
         }
         return {'success': false, 'message': 'Failed to persist message'};
@@ -371,10 +443,28 @@ class ChatRepository {
       final insert = await _db.execute('''
         INSERT INTO messages (conversation_id, sender_id, content, type, reply_to_id, created_at, updated_at)
         VALUES (:conversationId, :senderId, :content, :type, :replyToId, NOW(), NOW())
-      ''', {'conversationId': conversationId, 'senderId': senderId, 'content': content, 'type': type, 'replyToId': replyToId});
+      ''', {
+        'conversationId': conversationId, 
+        'senderId': senderId, 
+        'content': content, 
+        'type': type, 
+        'replyToId': replyToId
+      });
       final messageId = insert.lastInsertID.toInt();
 
       if (uploadIds != null && uploadIds.isNotEmpty) {
+          final params = <String, dynamic>{};
+          final placeholders = [];
+          for (int i = 0; i < uploadIds.length; i++) {
+            final key = 'id$i';
+            placeholders.add(':$key');
+            params[key] = uploadIds[i];
+          }
+          await _db.execute(
+            "UPDATE file_uploads SET is_completed = TRUE, expires_at = DATE_ADD(NOW(), INTERVAL 1 YEAR) WHERE id IN (${placeholders.join(',')})",
+            params
+          );
+
         for (final uploadId in uploadIds) {
           final up = await _db.execute('''SELECT id, original_filename, stored_filename, file_path, file_size, mime_type FROM file_uploads WHERE id = :uploadId''', {'uploadId': uploadId});
           if (up.rows.isNotEmpty) {
@@ -429,8 +519,14 @@ class ChatRepository {
       );
 
       final msgRes = await _db.execute('''
-        SELECT m.id, m.conversation_id, m.sender_id, m.content, m.type, m.reply_to_id, m.is_edited, m.edited_at, m.created_at, m.updated_at, u.username as sender_name, u.avatar_url as sender_avatar
-        FROM messages m JOIN users u ON m.sender_id = u.id WHERE m.id = :messageId
+        SELECT m.id, m.conversation_id, m.sender_id, m.content, m.type, m.reply_to_id, 
+               m.is_edited, m.edited_at, m.created_at, m.updated_at, 
+               u.username as sender_name, u.avatar_url as sender_avatar,
+               mi.client_message_id
+        FROM messages m 
+        JOIN users u ON m.sender_id = u.id 
+        LEFT JOIN message_idempotency mi ON m.id = mi.server_message_id
+        WHERE m.id = :messageId
       ''', {'messageId': messageId});
       if (msgRes.rows.isNotEmpty) {
         final built = await _buildMessageFromRow(msgRes.rows.first, _db);
@@ -441,11 +537,24 @@ class ChatRepository {
   }
 
   Future<void> markMessagesAsRead({required List<String> messageIds, required String userId}) async {
-    for (final id in messageIds) {
-      await _db.execute('''
-        INSERT INTO message_reads (message_id, user_id, read_at) VALUES (:messageId, :userId, NOW()) ON DUPLICATE KEY UPDATE read_at = NOW()
-      ''', {'messageId': id, 'userId': userId});
+    if (messageIds.isEmpty) return;
+    
+    // P2 FIX: PERFORMANCE - Use batch insert instead of loop
+    final params = <String, dynamic>{'userId': userId};
+    final placeholders = [];
+    for (int i = 0; i < messageIds.length; i++) {
+      final key = 'm$i';
+      placeholders.add('(:m$i, :userId, NOW())');
+      params[key] = messageIds[i];
     }
+    
+    final query = '''
+      INSERT INTO message_reads (message_id, user_id, read_at) 
+      VALUES ${placeholders.join(', ')}
+      ON DUPLICATE KEY UPDATE read_at = NOW()
+    ''';
+    
+    await _db.execute(query, params);
   }
 
   Future<void> markConversationAsRead({required String conversationId, required String userId}) async {
@@ -472,6 +581,10 @@ class ChatRepository {
       await _db.execute('''INSERT INTO typing_events (conversation_id, user_id, is_typing, last_seen_at) VALUES (:conversationId, :userId, TRUE, NOW()) ON DUPLICATE KEY UPDATE is_typing = TRUE, last_seen_at = NOW()''', {'conversationId': conversationId, 'userId': userId});
     } else {
       await _db.execute('''DELETE FROM typing_events WHERE conversation_id = :conversationId AND user_id = :userId''', {'conversationId': conversationId, 'userId': userId});
+    }
+    // Optimization: Only purge events occasionally (e.g., 5% of calls) to reduce DB load
+    if (DateTime.now().millisecond % 20 == 0) {
+      await _db.execute('''DELETE FROM typing_events WHERE last_seen_at < DATE_SUB(NOW(), INTERVAL 1 HOUR)''');
     }
   }
 
@@ -551,7 +664,6 @@ class ChatRepository {
     });
     
     final conversationId = insert.lastInsertID.toInt();
-    if (conversationId == null) throw Exception('Failed to create conversation record');
 
     for (final userId in allParticipants) {
       await _db.execute('''
@@ -559,6 +671,9 @@ class ChatRepository {
         VALUES (:conversationId, :userId, NOW())
       ''', {'conversationId': conversationId, 'userId': userId});
     }
+
+    // P1 FIX: Invalidate presence caches for all participants so they see each other's status immediately
+    WebSocketServer.invalidatePresenceCache(allParticipants);
 
     return {'exists': false, 'id': conversationId.toString()};
   }
@@ -592,8 +707,8 @@ class ChatRepository {
         } catch (_) {
           waveform = [];
         }
-      } else if (waveform == null) {
-        waveform = [];
+      } else {
+        waveform ??= [];
       }
 
       voiceMessage = {
@@ -605,8 +720,16 @@ class ChatRepository {
       };
     }
 
+    String? clientMessageId;
+    try {
+      clientMessageId = row.colByName('client_message_id')?.toString();
+    } catch (_) {
+      // Column might not be selected in some specific queries
+    }
+
     return {
       'id': messageId,
+      'clientMessageId': clientMessageId,
       'conversationId': row.colByName('conversation_id')?.toString(),
       'senderId': row.colByName('sender_id')?.toString(),
       'senderName': row.colByName('sender_name'),
@@ -615,7 +738,7 @@ class ChatRepository {
       'type': row.colByName('type'),
       'attachments': attachments,
       'voiceMessage': voiceMessage,
-      'isEdited': row.colByName('is_edited') == 1,
+      'isEdited': row.colByName('is_edited') == '1',
       'createdAt': row.colByName('created_at')?.toString().replaceAll(' ', 'T'),
     };
   }
@@ -638,5 +761,23 @@ class ChatRepository {
     // It's a filename or /media/ path
     final relativePath = clean.replaceAll(RegExp(r'^[/\\]+media[/\\]+'), '').replaceAll(RegExp(r'^[/\\]+'), '');
     return '/media/$relativePath';
+  }
+
+  /// P2-1 FIX: Cleanup job for orphaned file uploads.
+  /// Deletes uploads older than 24h that were never attached to a message.
+  Future<int> cleanupOrphanedUploads() async {
+    try {
+      final res = await _db.execute('''
+        DELETE FROM file_uploads 
+        WHERE created_at < DATE_SUB(NOW(), INTERVAL 1 DAY)
+        AND file_path NOT IN (SELECT file_path FROM message_attachments)
+        AND file_path NOT IN (SELECT file_path FROM message_voice_messages)
+      ''');
+      print('[ChatRepository] Cleaned up ${res.affectedRows} orphaned uploads.');
+      return res.affectedRows.toInt();
+    } catch (e) {
+      print('[ChatRepository] Error during uploads cleanup: $e');
+      return 0;
+    }
   }
 }

@@ -139,9 +139,9 @@ class DemandService {
     try {
       final updateData = {
         'status': status,
-        if (resolutionNotes != null) 'resolutionNotes': resolutionNotes,
-        if (handledBy != null) 'handledBy': handledBy,
-        if (newPassword != null) 'new_password': newPassword,
+        'resolutionNotes': ?resolutionNotes,
+        'handledBy': ?handledBy,
+        'new_password': ?newPassword,
       };
 
       final result = await ApiService.put(

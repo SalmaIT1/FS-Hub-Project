@@ -136,11 +136,11 @@ class _HrSalariesPageState extends State<HrSalariesPage> {
       ],
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: _gold))
-          : SafeArea(
-              child: Container(
+          : Container(
               color: bg,
               child: Column(
                 children: [
+                   const SizedBox(height: 100),
                   // Month Picker Header
                   Container(
                     width: double.infinity,
@@ -231,7 +231,6 @@ class _HrSalariesPageState extends State<HrSalariesPage> {
                 ],
               ),
             ),
-          ),
     );
   }
 }
@@ -352,7 +351,7 @@ class _SalaryCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _DetailItem(label: isFr ? 'Base' : 'Base', value: '${salary.baseSalary.toStringAsFixed(0)}'),
+              _DetailItem(label: isFr ? 'Base' : 'Base', value: salary.baseSalary.toStringAsFixed(0)),
               _DetailItem(label: 'Bonus', value: '+${(salary.bonusAmount ?? 0).toStringAsFixed(0)}', color: Colors.green),
               _DetailItem(label: 'Deduc.', value: '-${(salary.deductions ?? 0).toStringAsFixed(0)}', color: Colors.redAccent),
               

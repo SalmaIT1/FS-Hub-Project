@@ -8,14 +8,14 @@ class NotificationRoutes {
   late final Router router;
 
   NotificationRoutes() {
+    final secured = Pipeline().addMiddleware(requireAuth());
     router = Router()
-      ..get('/', _getUserNotifications)
-      ..get('/unread-count', _getUnreadNotificationCount)
-      ..get('/<id>', _handleIdGet) // Disambiguate notification vs user
-      ..get('/<id>/unread-count', _getUnreadNotificationCount)
-      ..put('/<id>/read', _markNotificationAsRead)
-      ..put('/<id>/read-all', _markAllNotificationsAsRead)
-      ..put('/read-all', _markAllNotificationsAsRead);
+      ..get('/', secured.addHandler(_getUserNotifications))
+      ..get('/unread-count', secured.addHandler(_getUnreadNotificationCount))
+      ..get('/<id>', (Request r, String id) => secured.addHandler((req) => _handleIdGet(req, id))(r))
+      ..get('/<id>/unread-count', (Request r, String id) => secured.addHandler((req) => _getUnreadNotificationCount(req))(r))
+      ..put('/<id>/read', (Request r, String id) => secured.addHandler((req) => _markNotificationAsRead(req, id))(r))
+      ..put('/read-all', secured.addHandler(_markAllNotificationsAsRead));
   }
 
   Future<Response> _handleIdGet(Request request, String id) async {

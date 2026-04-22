@@ -13,12 +13,36 @@ class FinanceService {
       );
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        return data.map((json) => Invoice.fromJson(json)).toList();
+        final Map<String, dynamic> body = jsonDecode(response.body);
+        if (body['success'] == true) {
+          final List<dynamic> data = body['data'];
+          return data.map((json) => Invoice.fromJson(json)).toList();
+        }
       }
       return [];
     } catch (e) {
       print('Error fetching invoices: $e');
+      return [];
+    }
+  }
+
+  static Future<List<Invoice>> getMyInvoices() async {
+    try {
+      final response = await AuthService.authenticatedRequest(
+        '$_endpoint/invoices/mine',
+        'GET',
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> body = jsonDecode(response.body);
+        if (body['success'] == true) {
+          final List<dynamic> data = body['data'];
+          return data.map((json) => Invoice.fromJson(json)).toList();
+        }
+      }
+      return [];
+    } catch (e) {
+      print('Error fetching personal invoices: $e');
       return [];
     }
   }
@@ -31,8 +55,11 @@ class FinanceService {
       );
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        return data.map((json) => Invoice.fromJson(json)).toList();
+        final Map<String, dynamic> body = jsonDecode(response.body);
+        if (body['success'] == true) {
+          final List<dynamic> data = body['data'];
+          return data.map((json) => Invoice.fromJson(json)).toList();
+        }
       }
       return [];
     } catch (e) {
@@ -91,8 +118,11 @@ class FinanceService {
       );
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        return data.map((json) => Payment.fromJson(json)).toList();
+        final Map<String, dynamic> body = jsonDecode(response.body);
+        if (body['success'] == true) {
+          final List<dynamic> data = body['data'];
+          return data.map((json) => Payment.fromJson(json)).toList();
+        }
       }
       return [];
     } catch (e) {
@@ -128,6 +158,22 @@ class FinanceService {
     }
   }
 
+  static Future<Map<String, dynamic>> getMyFinanceSummary() async {
+    try {
+      final response = await AuthService.authenticatedRequest('$_endpoint/summary/mine', 'GET');
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body);
+        if (body['success'] == true) {
+          return body['data'];
+        }
+      }
+      return {};
+    } catch (e) {
+      print('Error in getMyFinanceSummary: $e');
+      return {};
+    }
+  }
+
   // QUOTES (DEVIS)
   static Future<List<Quote>> getMyQuotes() async {
     try {
@@ -137,8 +183,11 @@ class FinanceService {
       );
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        return data.map((json) => Quote.fromJson(json)).toList();
+        final Map<String, dynamic> body = jsonDecode(response.body);
+        if (body['success'] == true) {
+          final List<dynamic> data = body['data'];
+          return data.map((json) => Quote.fromJson(json)).toList();
+        }
       }
       return [];
     } catch (e) {
@@ -155,8 +204,11 @@ class FinanceService {
       );
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        return data.map((json) => Quote.fromJson(json)).toList();
+        final Map<String, dynamic> body = jsonDecode(response.body);
+        if (body['success'] == true) {
+          final List<dynamic> data = body['data'];
+          return data.map((json) => Quote.fromJson(json)).toList();
+        }
       }
       return [];
     } catch (e) {

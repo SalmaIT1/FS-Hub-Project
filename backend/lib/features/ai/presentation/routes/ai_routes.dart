@@ -9,14 +9,15 @@ class AIRoutes {
   late final Router router;
 
   AIRoutes() {
+    final secured = Pipeline().addMiddleware(requireAuth());
     router = Router()
-      ..get('/project-risks', Pipeline()
+      ..get('/project-risks', secured
         .addMiddleware(requirePermission('view_statistics'))
         .addHandler(_getProjectRisks))
-      ..get('/payment-behavior', Pipeline()
+      ..get('/payment-behavior', secured
         .addMiddleware(requirePermission('view_financial_reports'))
         .addHandler(_getPaymentBehavior))
-      ..get('/strategic-insights', Pipeline()
+      ..get('/strategic-insights', secured
         .addMiddleware(requirePermission('manage_system'))
         .addHandler(_getStrategicInsights));
   }

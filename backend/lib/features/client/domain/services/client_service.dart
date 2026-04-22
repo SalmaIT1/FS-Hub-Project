@@ -6,8 +6,13 @@ import '../../../auth/domain/services/auth_service.dart';
 class ClientService {
   static final _repository = ClientRepository();
 
-  static Future<List<Map<String, dynamic>>> getAllClients() async {
-    final clients = await _repository.getAllClients();
+  static Future<List<Map<String, dynamic>>> getAllClients({String? type, String? search, int limit = 50, int offset = 0}) async {
+    final clients = await _repository.getAllClients(
+      type: type,
+      search: search,
+      limit: limit,
+      offset: offset,
+    );
     return clients.map((c) => c.toJson()).toList();
   }
 

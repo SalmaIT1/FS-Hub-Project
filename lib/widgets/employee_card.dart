@@ -2,11 +2,9 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fs_hub/shared/models/employee_model.dart';
-import 'package:fs_hub/shared/widgets/authenticated_image.dart';
 import 'package:fs_hub/core/theme/app_theme.dart';
 import 'package:fs_hub/core/localization/translations.dart';
 import 'package:fs_hub/core/state/settings_controller.dart';
-import 'package:fs_hub/core/utils/url_utils.dart';
 import '../features/chat/presentation/widgets/avatar_helper.dart';
 
 class EmployeeCard extends StatefulWidget {

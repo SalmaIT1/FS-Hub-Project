@@ -1,4 +1,3 @@
-import 'package:mysql_client/mysql_client.dart';
 import '../models/expense_model.dart';
 import '../../../../shared/database/connection.dart';
 
@@ -104,6 +103,9 @@ class ExpenseRepository {
         SELECT e.*, ec.nom as category_name
         FROM depenses_entreprise e
         LEFT JOIN expense_categories ec ON e.category_id = ec.id
+        -- P0-2 FIX: Added parentheses to enforce correct operator precedence.
+        -- Without them, AND binds before OR, leaking salary/bonus rows into the base list.
+        WHERE (ec.nom != 'RH/Bonus-Primes' AND ec.nom != 'RH/Salaires') OR ec.id IS NULL
         ORDER BY e.date_depense DESC
       ''');
       

@@ -80,10 +80,19 @@ class ProjectService {
             totalPaid += p.montant ?? 0.0;
          }
       }
-      // Assuming devis amount if no invoices yet, but strictly speaking "invoice/quote_amount * 0.5"
-      // If totalBilled is 0, we can't calculate 50%. We should check the quote.
-      if (totalBilled > 0 && totalPaid < (totalBilled * 0.5)) {
-         throw Exception("50% upfront payment required to activate project.");
+
+      double baselineAmount = totalBilled;
+      if (baselineAmount <= 0) {
+        // P0 FIX: If no invoices issued yet, check the most recent approved quote for this project
+        final quotes = await financeRepo.getQuotesByProject(id);
+        final approvedQuotes = quotes.where((q) => q.statut == 'Accepté' || q.statut == 'Approved').toList();
+        if (approvedQuotes.isNotEmpty) {
+           baselineAmount = approvedQuotes.first.montantTtc;
+        }
+      }
+
+      if (baselineAmount > 0 && totalPaid < (baselineAmount * 0.5)) {
+         throw Exception("50% upfront payment required to activate project. (Required: ${(baselineAmount * 0.5).toStringAsFixed(2)}, Paid: ${totalPaid.toStringAsFixed(2)})");
       }
     }
 

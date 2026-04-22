@@ -1,12 +1,10 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../employees/services/employee_service.dart';
 import 'package:fs_hub/core/state/settings_controller.dart';
 import 'package:fs_hub/shared/widgets/glass_widgets.dart';
 import 'package:fs_hub/shared/widgets/luxury/luxury_app_bar.dart';
 import 'package:fs_hub/shared/widgets/luxury/luxury_status_dialog.dart';
-import '../../../email/services/email_service.dart';
 import '../../data/services/auth_service.dart';
 
 class ResetPasswordPage extends StatefulWidget {

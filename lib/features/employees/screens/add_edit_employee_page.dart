@@ -1,6 +1,5 @@
 import 'dart:ui';
 import 'dart:convert';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:fs_hub/shared/models/employee_model.dart';
@@ -660,7 +659,7 @@ class _AddEditEmployeePageState extends State<AddEditEmployeePage> {
                 ),
               ),
               child: DropdownButtonFormField<String>(
-                value: selectedValue,
+                initialValue: selectedValue,
                 isExpanded: true,
                 decoration: const InputDecoration(
                   border: InputBorder.none,
@@ -727,7 +726,7 @@ class _AddEditEmployeePageState extends State<AddEditEmployeePage> {
                 ),
               ),
               child: DropdownButtonFormField<Department>(
-                value: validDept,
+                initialValue: validDept,
                 isExpanded: true,
                 decoration: const InputDecoration(
                   border: InputBorder.none,
@@ -812,7 +811,7 @@ class _AddEditEmployeePageState extends State<AddEditEmployeePage> {
                 ),
               ),
               child: DropdownButtonFormField<String>(
-                value: selectedValue,
+                initialValue: selectedValue,
                 isExpanded: true,
                 decoration: const InputDecoration(
                   border: InputBorder.none,
@@ -892,7 +891,7 @@ class _AddEditEmployeePageState extends State<AddEditEmployeePage> {
                 ),
               ),
               child: DropdownButtonFormField<String>(
-                value: selectedValue,
+                initialValue: selectedValue,
                 isExpanded: true,
                 itemHeight: null, // Allow custom height for multiline items
                 decoration: const InputDecoration(

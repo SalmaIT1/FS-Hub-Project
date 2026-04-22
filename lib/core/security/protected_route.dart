@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:fs_hub/core/security/permission_guard.dart';
-import 'package:fs_hub/shared/widgets/luxury/luxury_status_dialog.dart';
 
 class ProtectedRoute extends StatelessWidget {
   final Widget child;
@@ -207,4 +206,6 @@ extension PermissionContext on BuildContext {
   bool hasRole(String role) => PermissionGuard.hasRole(role);
   
   bool canAccess(String route) => PermissionGuard.canAccessRoute(route);
+
+  String get userRole => PermissionGuard.currentRole;
 }

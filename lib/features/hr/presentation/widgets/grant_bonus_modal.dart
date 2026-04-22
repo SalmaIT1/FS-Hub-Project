@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:fs_hub/shared/models/employee_model.dart';
 import 'package:fs_hub/features/employees/services/employee_service.dart';
 import 'package:fs_hub/features/hr/data/services/hr_service.dart';
-import 'package:fs_hub/features/hr/data/models/bonus_model.dart';
 
 class GrantBonusModal extends StatefulWidget {
   final bool isFr;
@@ -321,7 +320,7 @@ class _GrantBonusModalState extends State<GrantBonusModal> {
 
   Widget _typeDropdown() {
     return DropdownButtonFormField<String>(
-      value: _bonusType,
+      initialValue: _bonusType,
       decoration: InputDecoration(
         labelText: widget.isFr ? 'Type' : 'Type',
         labelStyle: const TextStyle(fontSize: 12, color: Colors.grey),

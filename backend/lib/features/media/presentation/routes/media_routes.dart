@@ -2,7 +2,6 @@ import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 import '../../domain/services/media_service.dart';
 import '../../../../core/middleware/auth_middleware.dart';
-import '../../../../core/middleware/permission_middleware.dart';
 
 class MediaRoutes {
   late final Router router;

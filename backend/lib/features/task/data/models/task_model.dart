@@ -36,20 +36,20 @@ class TaskModel {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'sprintId': sprintId,
-      'employeeId': employeeId,
+      'sprint_id': sprintId,
+      'employee_id': employeeId,
       'titre': titre,
       'description': description,
-      'estimationHeures': estimationHeures,
-      'heuresReelles': heuresReelles,
+      'estimation_heures': estimationHeures,
+      'heures_reelles': heuresReelles,
       'statut': statut,
       'priorite': priorite,
-      'createdAt': createdAt,
-      'updatedAt': updatedAt,
-      'employeeNom': employeeNom,
-      'employeePrenom': employeePrenom,
-      'sprintNom': sprintNom,
-      'projectNom': projectNom,
+      'created_at': createdAt,
+      'updated_at': updatedAt,
+      'employee_nom': employeeNom,
+      'employee_prenom': employeePrenom,
+      'sprint_nom': sprintNom,
+      'project_nom': projectNom,
     };
   }
 

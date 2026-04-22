@@ -6,10 +6,10 @@ import '../../../features/demands/screens/demands_list_page.dart';
 import '../../../features/chat/presentation/pages/conversation_list_page.dart';
 import '../../../features/employees/screens/my_profile_page.dart';
 import '../../../core/security/permission_guard.dart';
-import '../../../core/security/protected_route.dart';
 import '../../../features/projects/screens/my_tasks_page.dart';
 import '../../../features/ai/presentation/pages/ai_dashboard_page.dart';
 import '../../../../pages/settings_page.dart';
+import 'package:fs_hub/features/client_portal/presentation/pages/client_portal_page.dart';
 
 class MainLayout extends StatefulWidget {
   final String? initialRoute;
@@ -71,7 +71,7 @@ class _MainLayoutState extends State<MainLayout> {
           switch (route) {
             case '/':
             case '/home':
-              return const HomePage();
+              return PermissionGuard.hasRole('Client') ? const ClientPortalPage() : const HomePage();
             case '/my-tasks':
             case '/tasks':
               return const MyTasksPage();

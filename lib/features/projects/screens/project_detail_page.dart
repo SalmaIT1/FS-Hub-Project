@@ -15,6 +15,7 @@ import 'package:fs_hub/features/projects/services/task_service.dart';
 import 'package:fs_hub/shared/widgets/reporting/burndown_chart.dart';
 import 'package:fs_hub/shared/widgets/luxury/luxury_status_dialog.dart';
 import 'package:fs_hub/features/finance/services/financial_calculation_service.dart';
+import 'package:fs_hub/core/security/permission_guard.dart';
 
 class ProjectDetailPage extends StatefulWidget {
   final Project project;
@@ -154,11 +155,12 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> with SingleTicker
                         'Project Team',
                         style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                       ),
-                      TextButton.icon(
-                        onPressed: () => _showAddMemberDialog(),
-                        icon: const Icon(Icons.person_add_alt_1_rounded, size: 18, color: AppTheme.accentGold),
-                        label: const Text('Add Member', style: TextStyle(color: AppTheme.accentGold)),
-                      ),
+                      if (!PermissionGuard.hasRole('Client'))
+                        TextButton.icon(
+                          onPressed: () => _showAddMemberDialog(),
+                          icon: const Icon(Icons.person_add_alt_1_rounded, size: 18, color: AppTheme.accentGold),
+                          label: const Text('Add Member', style: TextStyle(color: AppTheme.accentGold)),
+                        ),
                     ],
                   ),
                 ),
@@ -220,7 +222,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> with SingleTicker
                         'Agile Sprints',
                         style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                       ),
-                      if (_project.statut == 'En cours')
+                      if (_project.statut == 'En cours' && !PermissionGuard.hasRole('Client'))
                         TextButton.icon(
                           onPressed: () => _showAddEditSprintDialog(),
                           icon: const Icon(Icons.add_rounded, size: 18, color: AppTheme.accentGold),
@@ -480,7 +482,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> with SingleTicker
             ),
           ],
         ),
-        trailing: Row(
+        trailing: PermissionGuard.hasRole('Client') ? null : Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             IconButton(icon: const Icon(Icons.edit_rounded, size: 18, color: AppTheme.accentGold), onPressed: () => _showAddEditSprintDialog(sprint)),
@@ -589,7 +591,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> with SingleTicker
         ),
         title: Text(member.displayName, style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Text('${member.role} • ${member.poste ?? 'Staff'}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-        trailing: IconButton(
+        trailing: PermissionGuard.hasRole('Client') ? null : IconButton(
           icon: const Icon(Icons.person_remove_rounded, size: 20, color: Colors.redAccent),
           onPressed: () => _confirmRemoveMember(member),
         ),
@@ -869,7 +871,7 @@ class _AddMemberDialogState extends State<AddMemberDialog> {
                   ),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
-                    value: _role,
+                    initialValue: _role,
                     decoration: const InputDecoration(labelText: 'Role in Project'),
                     items: ['Employé', 'TeamLead', 'Manager'].map((r) => DropdownMenuItem(
                       value: r,

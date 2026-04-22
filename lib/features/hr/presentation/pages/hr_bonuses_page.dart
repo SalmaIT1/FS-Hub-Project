@@ -75,26 +75,25 @@ class _HrBonusesPageState extends State<HrBonusesPage> {
       showBackButton: true,
       body: _isLoading 
         ? const Center(child: CircularProgressIndicator(color: _gold))
-        : SafeArea(
-            child: Container(
-              color: bg,
-              child: Column(
-                children: [
-                   // Summary stats if Admin/HR
-                  if (isAdminOrHR && _bonuses.isNotEmpty) 
-                    _ManagerStats(isDark: isDark, isFr: isFr, bonuses: _bonuses),
-                  
-                  Expanded(
-                    child: _bonuses.isEmpty
-                      ? _buildEmptyState(isFr, isDark)
-                      : ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(20, 12, 20, 80),
-                          itemCount: _bonuses.length,
-                          itemBuilder: (ctx, i) => _buildBonusCard(_bonuses[i], isDark, isFr, isAdminOrHR),
-                        ),
-                  ),
-                ],
-              ),
+        : Container(
+            color: bg,
+            child: Column(
+              children: [
+                const SizedBox(height: 100),
+                 // Summary stats if Admin/HR
+                if (isAdminOrHR && _bonuses.isNotEmpty) 
+                  _ManagerStats(isDark: isDark, isFr: isFr, bonuses: _bonuses),
+                
+                Expanded(
+                  child: _bonuses.isEmpty
+                    ? _buildEmptyState(isFr, isDark)
+                    : ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 80),
+                        itemCount: _bonuses.length,
+                        itemBuilder: (ctx, i) => _buildBonusCard(_bonuses[i], isDark, isFr, isAdminOrHR),
+                      ),
+                ),
+              ],
             ),
           ),
       floatingActionButton: (isAdminOrHR)

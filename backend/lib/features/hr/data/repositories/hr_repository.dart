@@ -7,6 +7,19 @@ import '../models/bonus_model.dart';
 
 class HrRepository {
   final _db = DBConnection.getConnection();
+  
+  Future<String> _getSetting(String key, String defaultValue) async {
+    try {
+      final res = await _db.execute(
+        'SELECT setting_value FROM system_settings WHERE setting_key = :k',
+        {'k': key},
+      );
+      if (res.rows.isEmpty) return defaultValue;
+      return res.rows.first.colByName('setting_value')?.toString() ?? defaultValue;
+    } catch (_) {
+      return defaultValue;
+    }
+  }
 
   // --- Attendance ---
 
@@ -67,12 +80,61 @@ class HrRepository {
     }).toList();
   }
 
-  Future<void> submitLeaveRequest(Map<String, dynamic> data) async {
-    await _db.execute(
-      '''INSERT INTO leave_requests (employee_id, leave_type, start_date, end_date, total_days, reason, status)
-         VALUES (:employee_id, :leave_type, :start_date, :end_date, :total_days, :reason, :status)''',
-      data,
+  Future<int> getUsedPaidLeaveDaysInYear(String employeeId, int year) async {
+    final result = await _db.execute(
+      '''SELECT SUM(total_days) as used FROM leave_requests 
+         WHERE employee_id = :employeeId 
+         AND status != 'rejected' AND status != 'cancelled' 
+         AND YEAR(start_date) = :year 
+         AND leave_type = 'paid_leave' ''',
+      {'employeeId': employeeId, 'year': year},
     );
+    return int.tryParse(result.rows.first.colByName('used')?.toString() ?? '0') ?? 0;
+  }
+
+  Future<void> submitLeaveRequest(Map<String, dynamic> data) async {
+    await _db.transaction((tx) async {
+      final employeeId = data['employee_id']?.toString() ?? '';
+      
+      // P1.2 FIX: Lock the employee row to serialize leave requests for this specific user.
+      // This prevents multiple concurrent requests from bypassing the annual quota check.
+      await tx.execute('SELECT id FROM employees WHERE id = :id FOR UPDATE', {'id': employeeId});
+
+      if (data['leave_type']?.toString() == 'paid_leave') {
+        final startDateStr = data['start_date']?.toString() ?? '';
+        final year = startDateStr.isNotEmpty
+            ? (DateTime.tryParse(startDateStr)?.year ?? DateTime.now().year)
+            : DateTime.now().year;
+        final requestedDays =
+            int.tryParse(data['total_days']?.toString() ?? '0') ?? 0;
+
+        // Perform quota check within the transaction with the lock held
+        final result = await tx.execute(
+          '''SELECT SUM(total_days) as used FROM leave_requests 
+             WHERE employee_id = :employeeId 
+             AND status != 'rejected' AND status != 'cancelled' 
+             AND YEAR(start_date) = :year 
+             AND leave_type = 'paid_leave' ''',
+          {'employeeId': employeeId, 'year': year},
+        );
+        final usedDays = int.tryParse(result.rows.first.colByName('used')?.toString() ?? '0') ?? 0;
+        final remaining = 21 - usedDays;
+
+        if (usedDays + requestedDays > 21) {
+          throw Exception(
+            'Annual paid leave quota exceeded. '
+            'You have used $usedDays day(s) this year and have $remaining '
+            'day(s) remaining. Requested: $requestedDays day(s).'
+          );
+        }
+      }
+
+      await tx.execute(
+        '''INSERT INTO leave_requests (employee_id, leave_type, start_date, end_date, total_days, reason, status)
+           VALUES (:employee_id, :leave_type, :start_date, :end_date, :total_days, :reason, :status)''',
+        data,
+      );
+    });
   }
 
   Future<String?> getLeaveRequestEmployeeId(int id) async {
@@ -167,13 +229,21 @@ class HrRepository {
     return result.rows.map((row) => SalaryModel.fromMap(row.assoc())).toList();
   }
   
-  Future<List<SalaryModel>> getAllSalaries() async {
-    final result = await _db.execute(
-      '''SELECT s.*, e.nom, e.prenom FROM salaries s 
-         JOIN employees e ON s.employee_id = e.id 
-         ORDER BY s.salary_month DESC''',
-      {},
-    );
+  Future<List<SalaryModel>> getAllSalaries({String? before, int limit = 50}) async {
+    limit = limit > 200 ? 200 : limit;
+    String query = '''
+      SELECT s.*, e.nom, e.prenom FROM salaries s 
+      JOIN employees e ON s.employee_id = e.id 
+    ''';
+    Map<String, dynamic> params = {};
+    if (before != null && before.isNotEmpty) {
+      query += ' WHERE s.salary_month < :before';
+      params['before'] = before;
+    }
+    query += ' ORDER BY s.salary_month DESC LIMIT :limit';
+    params['limit'] = limit;
+    
+    final result = await _db.execute(query, params);
     return result.rows.map((row) => SalaryModel.fromMap(row.assoc())).toList();
   }
   
@@ -207,12 +277,17 @@ class HrRepository {
     return null;
   }
 
-  Future<int> bulkGenerateSalaries(String month) async {
-    // We ignore the 'month' parameter and generate all historical payroll 
-    // since the hiring date up to the current date (April 2026).
-    final today = DateTime(2026, 4, 8);
-    final endPeriod = DateTime(2026, 4, 8);
-    
+  Future<int> bulkGenerateSalaries(String month, {bool fullResync = false}) async {
+    final today = DateTime.now();
+    // targetMonth should be the first day of the requested month
+    DateTime targetMonth;
+    try {
+      targetMonth = DateTime.parse(month.contains('-') ? '$month-01' : month);
+      targetMonth = DateTime(targetMonth.year, targetMonth.month, 1);
+    } catch (_) {
+      targetMonth = DateTime(today.year, today.month, 1);
+    }
+
     final employeesRes = await _db.execute('SELECT id, dateEmbauche, base_salary FROM employees WHERE statut = "actif"');
     
     int generatedCount = 0;
@@ -223,32 +298,64 @@ class HrRepository {
       final baseSalary = double.tryParse(empRow.colAt(2).toString()) ?? 1200.0;
 
       DateTime hireDate;
-      try { hireDate = DateTime.parse(hireDateStr); } catch (_) { hireDate = DateTime(2025, 1, 1); }
+      try { 
+        // P2-01 FIX: Robust date parsing for various DB formats
+        if (hireDateStr.contains(' ')) {
+          hireDate = DateTime.parse(hireDateStr.split(' ')[0]);
+        } else {
+          hireDate = DateTime.parse(hireDateStr);
+        }
+      } catch (_) { 
+        print('[HR-REPO] Warning: Failed to parse hireDate "$hireDateStr", defaulting to epoch.');
+        hireDate = DateTime(2000, 1, 1); 
+      }
 
-      DateTime currentMonth = DateTime(hireDate.year, hireDate.month, 1);
-      int leaveDaysUsedThisYear = 0;
-      int unpaidDaysDeductedThisYear = 0;
-      int currentYear = currentMonth.year;
+      // If hiring date is after target month, they weren't employee yet
+      if (!fullResync && hireDate.isAfter(DateTime(targetMonth.year, targetMonth.month + 1, 0))) continue;
 
-      while (currentMonth.isBefore(endPeriod) || (currentMonth.year == endPeriod.year && currentMonth.month == endPeriod.month)) {
-        if (currentMonth.year != currentYear) {
+      await _db.transaction((tx) async {
+        DateTime currentMonth;
+        if (fullResync) {
+          currentMonth = DateTime(hireDate.year, hireDate.month, 1);
+        } else {
+          currentMonth = targetMonth;
+        }
+
+        int leaveDaysUsedThisYear = 0;
+        int unpaidDaysDeductedThisYear = 0;
+        int currentYearForQuota = currentMonth.year;
+
+        // If we are only doing one month, we still need to know how many days were used SO FAR this year
+        // for the 21-day quota logic to work.
+        if (!fullResync) {
+          final quotaCheckRes = await tx.execute(
+            'SELECT SUM(total_days) as used FROM leave_requests '
+            'WHERE employee_id = :id AND status = "approved" AND YEAR(start_date) = :year '
+            'AND leave_type = "paid_leave" AND end_date < :target FOR UPDATE',
+            {'id': empId, 'year': currentYearForQuota, 'target': currentMonth.toIso8601String().split('T')[0]}
+          );
+          leaveDaysUsedThisYear = int.tryParse(quotaCheckRes.rows.first.colByName('used')?.toString() ?? '0') ?? 0;
+        }
+
+        while (currentMonth.isBefore(today) || (currentMonth.year == today.year && currentMonth.month == today.month)) {
+        if (currentMonth.year != currentYearForQuota) {
           leaveDaysUsedThisYear = 0;
           unpaidDaysDeductedThisYear = 0;
-          currentYear = currentMonth.year;
+          currentYearForQuota = currentMonth.year;
         }
 
         final monthStart = DateTime(currentMonth.year, currentMonth.month, 1);
         final monthEnd = DateTime(currentMonth.year, currentMonth.month + 1, 0);
         final monthStr = monthStart.toIso8601String().split('T')[0];
 
-        // 1. Fetch Attendance and Leave Types
-        final attendanceRes = await _db.execute(
+        // 1. Fetch Attendance and Leave Types with row-level locking to prevent race conditions
+        final attendanceRes = await tx.execute(
           'SELECT a.status, a.check_out, a.attendance_date, lr.leave_type '
           'FROM attendance a '
           'LEFT JOIN leave_requests lr ON a.employee_id = lr.employee_id '
           'AND a.attendance_date BETWEEN lr.start_date AND lr.end_date '
           'AND lr.status = "approved" '
-          'WHERE a.employee_id = :id AND a.attendance_date BETWEEN :start AND :end',
+          'WHERE a.employee_id = :id AND a.attendance_date BETWEEN :start AND :end FOR UPDATE',
           {'id': empId, 'start': monthStart.toIso8601String().split('T')[0], 'end': monthEnd.toIso8601String().split('T')[0]}
         );
 
@@ -257,7 +364,7 @@ class HrRepository {
         int absentDays = 0;
         int lateCount = 0;
         int paidLeaveDaysThisMonth = 0;
-        int forcedUnpaidDaysThisMonth = 0; // Days marked as 'unpaid_leave' in request
+        int forcedUnpaidDaysThisMonth = 0;
         double otHours = 0;
 
         for (final att in attendanceRes.rows) {
@@ -265,18 +372,17 @@ class HrRepository {
           final leaveType = att.colByName('leave_type')?.toString();
           final checkOutStr = att.colByName('check_out')?.toString();
 
-          if (status == 'present') presentDays++;
-          else if (status == 'remote') remoteDays++;
+          if (status == 'present') {
+            presentDays++;
+          } else if (status == 'remote') remoteDays++;
           else if (status == 'absent') absentDays++;
           else if (status == 'late') { presentDays++; lateCount++; }
           else if (status == 'leave') {
             if (leaveType == 'unpaid_leave') {
               forcedUnpaidDaysThisMonth++;
             } else if (leaveType == 'paid_leave' || leaveType == null) {
-              // null defaults to paid_leave for backward compatibility or direct logs
               paidLeaveDaysThisMonth++;
             }
-            // Sick leave or others don't increment quotas here for simplicity in this MVP
           }
 
           if (checkOutStr != null && checkOutStr != 'null' && checkOutStr.isNotEmpty) {
@@ -289,7 +395,9 @@ class HrRepository {
         }
 
         // 2. Calculations
-        final dailyRate = baseSalary / 22.0;
+        final workingDaysSetting = await _getSetting('hr_working_days_per_month', '22');
+        final workingDays = double.tryParse(workingDaysSetting) ?? 22.0;
+        final dailyRate = baseSalary / workingDays;
         final hourlyRate = dailyRate / 8.0;
 
         // PAID LEAVE QUOTA LOGIC (21 days/year)
@@ -304,24 +412,26 @@ class HrRepository {
         leaveDaysUsedThisYear += paidLeaveDaysThisMonth;
 
         final otAmount = otHours * hourlyRate * 1.25;
-        // Deduction includes: Absences + Forced Unpaid Leave + Paid Leave exceeding 21-day quota
         final totalUnpaidDays = absentDays + forcedUnpaidDaysThisMonth + unpaidDueToQuotaThisMonth;
         final absenceDeduction = totalUnpaidDays * dailyRate;
         final latePenalty = lateCount * dailyRate * 0.05;
 
         double perfBonus = 0;
         if (presentDays + remoteDays > 15) {
-            perfBonus = baseSalary * (0.05 + (0.1 * (presentDays / 22.0)));
+            perfBonus = baseSalary * (0.05 + (0.1 * (presentDays / workingDays)));
         }
         final attendanceBonus = (absentDays == 0) ? baseSalary * 0.05 : 0.0;
         final totalBonus = perfBonus + attendanceBonus;
 
         final grossSalary = baseSalary + otAmount + totalBonus - absenceDeduction - latePenalty;
-        final cnss = grossSalary * 0.0918;
+        
+        final cnssRateSetting = await _getSetting('hr_cnss_rate', '0.0918');
+        final cnssRate = double.tryParse(cnssRateSetting) ?? 0.0918;
+        final cnss = grossSalary * cnssRate;
         final netSalary = grossSalary - cnss;
 
         // 3. Upsert
-        await _db.execute(
+        await tx.execute(
           '''INSERT INTO salaries (employee_id, base_salary, bonus_amount, deductions, net_salary, salary_month, payment_status)
              VALUES (:id, :base, :bonus, :deduc, :net, :month, "paid")
              ON DUPLICATE KEY UPDATE 
@@ -333,15 +443,14 @@ class HrRepository {
             'bonus': totalBonus + otAmount,
             'deduc': cnss + absenceDeduction + latePenalty,
             'net': netSalary,
-            'month': monthStr
           }
         );
-        generatedCount++;
-
         currentMonth = DateTime(currentMonth.year, currentMonth.month + 1, 1);
-      }
+        if (!fullResync) break; // If not full resync, we only do one loop
+        }
+      }); // end of per-employee transaction
+      generatedCount++;
     }
-
     return generatedCount;
   }
 
@@ -360,13 +469,21 @@ class HrRepository {
     }).toList();
   }
 
-  Future<List<Map<String, dynamic>>> getAllBonuses() async {
-    final result = await _db.execute(
-      '''SELECT b.*, e.nom, e.prenom FROM bonuses b 
-         JOIN employees e ON b.employee_id = e.id 
-         ORDER BY b.created_at DESC''',
-      {},
-    );
+  Future<List<Map<String, dynamic>>> getAllBonuses({String? before, int limit = 50}) async {
+    limit = limit > 200 ? 200 : limit;
+    String query = '''
+      SELECT b.*, e.nom, e.prenom FROM bonuses b 
+      JOIN employees e ON b.employee_id = e.id 
+    ''';
+    Map<String, dynamic> params = {};
+    if (before != null && before.isNotEmpty) {
+      query += ' WHERE b.created_at < :before';
+      params['before'] = before;
+    }
+    query += ' ORDER BY b.created_at DESC LIMIT :limit';
+    params['limit'] = limit;
+
+    final result = await _db.execute(query, params);
     return result.rows.map((row) {
       final map = row.assoc();
       return BonusModel.fromMap(map).toMap()..['nom'] = map['nom']..['prenom'] = map['prenom'];
@@ -384,39 +501,60 @@ class HrRepository {
   Future<int> bulkGrantBonuses(List<String> employeeIds, Map<String, dynamic> data) async {
     if (employeeIds.isEmpty) return 0;
     
-    // We'll prepare a multi-row insert for efficiency
-    final amount = data['amount'];
-    final reason = data['reason'] ?? '';
-    final type = data['bonus_type'] ?? 'performance';
-    final by = data['granted_by'] ?? 'SYSTEM';
-    final date = data['granted_date'] ?? DateTime.now().toIso8601String().split('T')[0];
+    return await _db.transaction<int>((tx) async {
+      final amount = data['amount'];
+      final reason = data['reason'] ?? '';
+      final type = data['bonus_type'] ?? 'performance';
+      final by = data['granted_by'] ?? 'SYSTEM';
+      final date = data['granted_date'] ?? DateTime.now().toIso8601String().split('T')[0];
 
-    // Due to mysql_client limitations on dynamic list size of params, 
-    // we'll batch them in groups of 100 for safety, though 1 query is possible.
-    int totalInserted = 0;
-    for (var i = 0; i < employeeIds.length; i += 100) {
-      final batchIds = employeeIds.skip(i).take(100).toList();
-      String query = 'INSERT INTO bonuses (employee_id, amount, reason, bonus_type, granted_by, granted_date) VALUES ';
-      final List<String> values = [];
-      final Map<String, dynamic> params = {
+      // Idempotency check: Filter out employees that already received this exact bonus
+      final existingParams = <String, dynamic>{
         'amount': amount,
         'reason': reason,
         'type': type,
-        'by': by,
         'date': date
       };
-
-      for (var j = 0; j < batchIds.length; j++) {
-        final keyId = 'id$j';
-        values.add('(:$keyId, :amount, :reason, :type, :by, :date)');
-        params[keyId] = batchIds[j];
+      final placeholders = [];
+      for (int i = 0; i < employeeIds.length; i++) {
+        final keyId = 'chk$i';
+        existingParams[keyId] = employeeIds[i];
+        placeholders.add(':$keyId');
       }
+      final existingRes = await tx.execute(
+        'SELECT employee_id FROM bonuses WHERE granted_date = :date AND reason = :reason AND amount = :amount AND bonus_type = :type AND employee_id IN (${placeholders.join(', ')}) FOR UPDATE',
+        existingParams
+      );
+      final existingIds = existingRes.rows.map((row) => row.colByName('employee_id')?.toString()).toSet();
       
-      query += values.join(', ');
-      final res = await _db.execute(query, params);
-      totalInserted += res.affectedRows.toInt();
-    }
-    return totalInserted;
+      final filteredEmployeeIds = employeeIds.where((id) => !existingIds.contains(id)).toList();
+      if (filteredEmployeeIds.isEmpty) return 0;
+
+      int totalInserted = 0;
+      for (var i = 0; i < filteredEmployeeIds.length; i += 100) {
+        final batchIds = filteredEmployeeIds.skip(i).take(100).toList();
+        String query = 'INSERT INTO bonuses (employee_id, amount, reason, bonus_type, granted_by, granted_date) VALUES ';
+        final List<String> values = [];
+        final Map<String, dynamic> params = {
+          'amount': amount,
+          'reason': reason,
+          'type': type,
+          'by': by,
+          'date': date
+        };
+
+        for (var j = 0; j < batchIds.length; j++) {
+          final keyId = 'id$j';
+          values.add('(:$keyId, :amount, :reason, :type, :by, :date)');
+          params[keyId] = batchIds[j];
+        }
+        
+        query += values.join(', ');
+        final res = await tx.execute(query, params);
+        totalInserted += res.affectedRows.toInt();
+      }
+      return totalInserted;
+    });
   }
 
   Future<String?> generatePayslipHtmlForSalary(int salaryId, {String? logoBase64}) async {

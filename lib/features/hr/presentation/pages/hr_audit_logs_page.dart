@@ -68,21 +68,19 @@ class _HrAuditLogsPageState extends State<HrAuditLogsPage> {
     return LuxuryScaffold(
       title: isFr ? 'Journaux d\'audit' : 'Audit Logs',
       showBackButton: true,
-      body: SafeArea(
-        child: Container(
-          color: bg,
-          child: Column(
-            children: [
-              const SizedBox(height: 100),
-              _buildSearchBar(isFr, isDark),
-              _buildFilters(isFr, isDark),
-              Expanded(
-                child: _isLoading
-                    ? const Center(child: CircularProgressIndicator(color: _gold))
-                    : _buildLogList(isFr, isDark),
-              ),
-            ],
-          ),
+      body: Container(
+        color: bg,
+        child: Column(
+          children: [
+            const SizedBox(height: 100),
+            _buildSearchBar(isFr, isDark),
+            _buildFilters(isFr, isDark),
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator(color: _gold))
+                  : _buildLogList(isFr, isDark),
+            ),
+          ],
         ),
       ),
     );

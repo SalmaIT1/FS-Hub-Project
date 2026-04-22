@@ -9,16 +9,17 @@ class TaskRoutes {
   late final Router router;
 
   TaskRoutes() {
+    final secured = Pipeline().addMiddleware(requireAuth());
     router = Router()
-      ..get('/', Pipeline().addMiddleware(requirePermission('view_tasks')).addHandler(_getAllTasks))
-      ..get('/my-tasks', Pipeline().addMiddleware(requirePermission('execute_tasks')).addHandler(_getMyTasks))
-      ..get('/sprint/<sprintId>', (Request request, String sprintId) => Pipeline().addMiddleware(requirePermission('view_tasks')).addHandler((req) => _getTasksBySprint(req, sprintId))(request))
-      ..get('/<id>', (Request request, String id) => Pipeline().addMiddleware(requirePermission('view_tasks')).addHandler((req) => _getTaskById(req, id))(request))
-      ..get('/sprint/<sprintId>/burndown', (Request request, String sprintId) => Pipeline().addMiddleware(requirePermission('view_tasks')).addHandler((req) => _getBurndownData(req, sprintId))(request))
-      ..post('/', Pipeline().addMiddleware(requirePermission('manage_tasks')).addHandler(_createTask))
-      ..post('/bulk-assign', Pipeline().addMiddleware(requirePermission('manage_tasks')).addHandler(_bulkAssignTasks))
-      ..put('/<id>', (Request request, String id) => Pipeline().addMiddleware(requireRoleOrPermission([], ['manage_tasks', 'update_task_progress'])).addHandler((req) => _updateTask(req, id))(request))
-      ..delete('/<id>', (Request request, String id) => Pipeline().addMiddleware(requirePermission('manage_tasks')).addHandler((req) => _deleteTask(req, id))(request));
+      ..get('/', secured.addMiddleware(requirePermission('view_tasks')).addHandler(_getAllTasks))
+      ..get('/my-tasks', secured.addMiddleware(requirePermission('execute_tasks')).addHandler(_getMyTasks))
+      ..get('/sprint/<sprintId>', (Request request, String sprintId) => secured.addMiddleware(requirePermission('view_tasks')).addHandler((req) => _getTasksBySprint(req, sprintId))(request))
+      ..get('/<id>', (Request request, String id) => secured.addMiddleware(requirePermission('view_tasks')).addHandler((req) => _getTaskById(req, id))(request))
+      ..get('/sprint/<sprintId>/burndown', (Request request, String sprintId) => secured.addMiddleware(requirePermission('view_tasks')).addHandler((req) => _getBurndownData(req, sprintId))(request))
+      ..post('/', secured.addMiddleware(requirePermission('manage_tasks')).addHandler(_createTask))
+      ..post('/bulk-assign', secured.addMiddleware(requirePermission('manage_tasks')).addHandler(_bulkAssignTasks))
+      ..put('/<id>', (Request request, String id) => secured.addMiddleware(requireRoleOrPermission([], ['manage_tasks', 'update_task_progress'])).addHandler((req) => _updateTask(req, id))(request))
+      ..delete('/<id>', (Request request, String id) => secured.addMiddleware(requirePermission('manage_tasks')).addHandler((req) => _deleteTask(req, id))(request));
   }
 
   Future<Response> _getAllTasks(Request request) async {

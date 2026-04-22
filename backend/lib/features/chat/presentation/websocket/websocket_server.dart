@@ -8,19 +8,56 @@ import 'package:uuid/uuid.dart';
 import '../../../../shared/database/connection.dart';
 import '../../domain/services/chat_service.dart';
 import '../../../auth/domain/services/auth_service.dart';
+import '../../../../core/services/redis_service.dart';
 
 const _uuid = Uuid();
 
 class WebSocketServer {
   static WebSocketServer? _instance;
+  final bool _isDisposed = false;
+
+  WebSocketServer._internal() {
+    _presenceBroadcastController.stream.listen(_handlePresenceBroadcast);
+    
+    // P1 SURGICAL FIX: Hook into Redis backplane for cross-instance broadcasting
+    RedisService().messageStream.listen((data) {
+      if (data['type'] == 'fshub:broadcast:room') {
+        _sendToConversationLocal(data['conversationId'], data['message'], excludeConnectionId: data['excludeConnectionId']);
+      } else if (data['type'] == 'fshub:broadcast:user') {
+        _sendToUserLocal(data['userId'], data['message']);
+      }
+    });
+  }
 
   // Store connections as dynamic to support both `dart:io.WebSocket`
   // and `package:web_socket_channel`'s WebSocketChannel used by some clients.
   final Map<String, dynamic> _connections = {};
-  final Map<String, String> _userConnections = {}; // connectionId -> userId
-  final Map<String, Set<String>> _userToConnections = {}; // userId -> set of connectionIds
-  final Map<String, Set<String>> _conversationRooms = {}; // conversationId -> set of connectionIds
+  static final Map<String, List<String>> _mutualUsersCache = {};
+  static final Map<String, DateTime> _mutualUsersCacheTime = {};
+  static final Map<String, List<String>> _conversationMembersCache = {};
+  static final Map<String, DateTime> _conversationMembersCacheTime = {};
+
+  // P1 FIX: Presence broadcast stream for decoupling
+  final StreamController<Map<String, dynamic>> _presenceBroadcastController = StreamController.broadcast();
+
+  final Map<String, String> _userConnections = {};
+  final Map<String, Set<String>> _userToConnections = {};
+  final Map<String, Set<String>> _conversationRooms = {};
   Timer? _cleanupTimer;
+
+  /// Invalidate presence caches for multiple users
+  static void invalidatePresenceCache(List<String> userIds) {
+    for (final id in userIds) {
+      _mutualUsersCache.remove(id);
+      _mutualUsersCacheTime.remove(id);
+    }
+  }
+
+  /// Invalidate conversation member cache
+  static void invalidateConversationCache(String conversationId) {
+    _conversationMembersCache.remove(conversationId);
+    _conversationMembersCacheTime.remove(conversationId);
+  }
 
   WebSocketServer() {
     _instance = this;
@@ -36,7 +73,8 @@ class WebSocketServer {
       // H-2 FIX: Removed legacy /ws?token=JWT path — JWTs in URLs are logged
       // by servers and proxies. All clients must use the ticket-based flow.
       ..get('/', _chatHandler)
-      ..get('/chat', _chatHandler);
+      ..get('/chat', _chatHandler)
+      ..all('/<ignored|.*>', _chatHandler); // Catch-all for the mount point if needed
   }
 
   FutureOr<Response> _chatHandler(Request request) {
@@ -78,6 +116,9 @@ class WebSocketServer {
     _connections[connectionId] = webSocket;
     _userConnections[connectionId] = userId; 
     _userToConnections.putIfAbsent(userId, () => {}).add(connectionId);
+    
+    // P1 SURGICAL FIX: Sync presence with Redis backplane
+    RedisService().setUserOnline(userId, connectionId);
 
     // Send welcome message
     _sendToConnection(connectionId, {
@@ -129,7 +170,7 @@ class WebSocketServer {
     }
   }
 
-  void _handleMessage(String connectionId, String userId, String message) {
+  Future<void> _handleMessage(String connectionId, String userId, String message) async {
     try {
       final json = jsonDecode(message);
       final String type = json['type'] ?? '';
@@ -163,6 +204,16 @@ class WebSocketServer {
             }
             _handleChatMessage(connectionId, userId, payload);
           break;
+
+        case 'message:ack':
+          // ACK protocol: client confirms it received a message.
+          final ackedId = payload['messageId']?.toString() ?? payload['message_id']?.toString();
+          if (ackedId != null) {
+            // P1.3 FIX: Await the ACK to ensure persistence and handle potential failures
+            await ChatService.markMessagesAsRead(messageIds: [ackedId], userId: userId);
+          }
+          print('[WS-ACK] userId=$userId acked messageId=$ackedId');
+          break;
           
         case 'typing':
           _handleTyping(connectionId, userId, payload);
@@ -190,14 +241,28 @@ class WebSocketServer {
     final instance = _instance;
     if (instance == null) return;
     
-    final connections = instance._userToConnections[userId];
+    final message = {
+      'type': 'notification',
+      'payload': notification,
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+    };
+
+    // 1. Send to local connections
+    instance._sendToUserLocal(userId, message);
+    
+    // 2. Publish to Redis for other instances
+    RedisService().publish('fshub:events', {
+      'type': 'fshub:broadcast:user',
+      'userId': userId,
+      'message': message,
+    });
+  }
+
+  void _sendToUserLocal(String userId, Map<String, dynamic> message) {
+    final connections = _userToConnections[userId];
     if (connections != null) {
       for (final connId in connections) {
-        instance._sendToConnection(connId, {
-          'type': 'notification',
-          'payload': notification,
-          'timestamp': DateTime.now().millisecondsSinceEpoch,
-        });
+        _sendToConnection(connId, message);
       }
     }
   }
@@ -218,21 +283,21 @@ class WebSocketServer {
         type: messageData['type'],
         replyToId: messageData['replyToId'],
         clientMessageId: messageData['clientMessageId'],
+        excludeConnectionId: connectionId, // Pass this to prevent echo to sender
       );
 
-      if (result['success']) {
-        final message = result['message'];
-        
-        // Confirmation is still needed for the sender if they didn't get it via broadcast
-        // (though in current logic, broadcast excludes sender, so we MUST send this)
-        _sendToConnection(connectionId, {
-          'type': 'message:created',
-          'payload': {'message': message},
-          'timestamp': DateTime.now().millisecondsSinceEpoch,
-        });
-      } else {
+      if (!result['success']) {
         _sendError(connectionId, result['message']);
+      } else {
+        // P0 FIX: Push message:ack back to the sender connection properly to prevent UI deadlock
+        _sendToConnection(connectionId, {
+          'type': 'message:ack',
+          'clientMessageId': messageData['clientMessageId'],
+          'serverMessage': result['message']
+        });
       }
+      // Note: No manual broadcast needed here. ChatService.sendMessage 
+      // already triggers the broadcast to all eligible participants.
     } catch (e) {
       print('Error handling chat message: $e');
       _sendError(connectionId, 'Failed to send message: $e');
@@ -265,7 +330,7 @@ class WebSocketServer {
             },
             'timestamp': DateTime.now().millisecondsSinceEpoch,
           },
-          excludeUserId: userId,
+          excludeConnectionId: connectionId,
         );
       }
     } catch (e) {
@@ -291,44 +356,78 @@ class WebSocketServer {
       );
 
       // 2. Find all unique users who share any conversation with this user
-      final membersRes = await conn.execute('''
-        SELECT DISTINCT cm2.user_id 
-        FROM conversation_members cm1
-        JOIN conversation_members cm2 ON cm1.conversation_id = cm2.conversation_id
-        WHERE cm1.user_id = :userId 
-        AND cm2.user_id != :userId 
-        AND cm1.left_at IS NULL
-        AND cm2.left_at IS NULL
-      ''', {'userId': userId});
+      List<String>? members = _mutualUsersCache[userId];
+      final cacheTime = _mutualUsersCacheTime[userId];
 
-      final event = {
-        'type': 'presence',
-        'payload': {
-          'userId': userId,
-          'state': state,
-          'lastSeen': DateTime.now().millisecondsSinceEpoch,
-        },
-        'timestamp': DateTime.now().millisecondsSinceEpoch,
-      };
-
-      // 3. Broadcast to all mutual members who are currently online
-      int reached = 0;
-      for (final row in membersRes.rows) {
-        final otherUserId = row.colByName('user_id')?.toString();
-        if (otherUserId != null) {
-          final connections = _userToConnections[otherUserId];
-          if (connections != null) {
-            for (final connId in connections) {
-              _sendToConnection(connId, event);
-              reached++;
-            }
-          }
+      // Cache for 30 seconds (reduced from 60 for better reactivity)
+      if (members == null || cacheTime == null || DateTime.now().difference(cacheTime).inSeconds > 30) {
+        // P2-02 FIX: LRU-style cache eviction to prevent unbounded memory growth.
+        // If cache exceeds 1000 entries, evict the oldest entry.
+        if (_mutualUsersCache.length > 1000) {
+          final oldestKey = _mutualUsersCacheTime.entries
+              .reduce((a, b) => a.value.isBefore(b.value) ? a : b)
+              .key;
+          _mutualUsersCache.remove(oldestKey);
+          _mutualUsersCacheTime.remove(oldestKey);
         }
+
+        final membersRes = await conn.execute('''
+          SELECT DISTINCT cm2.user_id 
+          FROM conversation_members cm1
+          JOIN conversation_members cm2 ON cm1.conversation_id = cm2.conversation_id
+          WHERE cm1.user_id = :userId 
+          AND cm2.user_id != :userId 
+          AND cm1.left_at IS NULL
+          AND cm2.left_at IS NULL
+        ''', {'userId': userId});
+        members = membersRes.rows.map((row) => row.colByName('user_id')?.toString() ?? '').where((id) => id.isNotEmpty).toList();
+        _mutualUsersCache[userId] = members;
+        _mutualUsersCacheTime[userId] = DateTime.now();
       }
-      
-      print('[WS-PRESENCE] userId=$userId is $state. Broadcast to $reached connections.');
+
+      // 3. Queue broadcast via stream
+      _presenceBroadcastController.add({
+        'userId': userId,
+        'state': state,
+        'members': members,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      });
+
     } catch (e) {
       print('[WS-PRESENCE-ERROR] Failed to update presence for $userId: $e');
+    }
+  }
+
+  /// P1 FIX: Decoupled broadcast handler
+  void _handlePresenceBroadcast(Map<String, dynamic> data) {
+    final userId = data['userId'] as String;
+    final state = data['state'] as String;
+    final members = data['members'] as List<String>;
+    final timestamp = data['timestamp'] as int;
+
+    final event = {
+      'type': 'presence',
+      'payload': {
+        'userId': userId,
+        'state': state,
+        'lastSeen': timestamp,
+      },
+      'timestamp': timestamp,
+    };
+
+    int reached = 0;
+    for (final otherUserId in members) {
+      if (otherUserId.isEmpty) continue;
+      final connections = _userToConnections[otherUserId];
+      if (connections != null) {
+        for (final connId in connections) {
+          _sendToConnection(connId, event);
+          reached++;
+        }
+      }
+    }
+    if (reached > 0) {
+      print('[WS-PRESENCE-BROADCAST] userId=$userId is $state. Reached $reached connections.');
     }
   }
 
@@ -344,12 +443,69 @@ class WebSocketServer {
   Future<void> _broadcastToConversation(
     String conversationId,
     Map<String, dynamic> message, {
-    String? excludeUserId,
+    String? excludeConnectionId,
   }) async {
     try {
-      final conn = DBConnection.getConnection();
+      // 1. Send to local connections
+      await _sendToConversationLocal(conversationId, message, excludeConnectionId: excludeConnectionId);
       
-      // 1. Find all members of this conversation
+      // 2. Publish to Redis backplane for other instances
+      RedisService().publish('fshub:events', {
+        'type': 'fshub:broadcast:room',
+        'conversationId': conversationId,
+        'message': message,
+        'excludeConnectionId': excludeConnectionId,
+      });
+      
+    } catch (e) {
+      print('[WS-BROADCAST-ERROR] Error broadcasting to conversation: $e');
+    }
+  }
+
+  Future<void> _sendToConversationLocal(
+    String conversationId,
+    Map<String, dynamic> message, {
+    String? excludeConnectionId,
+  }) async {
+      // P1-ARCHITECTURE FIX: Utilize _conversationRooms for efficient O(1) broadcasting
+      // to active participants. Non-active members (online but not in room) are still 
+      // reached via the legacy fallback to ensure unread count increments.
+      final roomKey = 'conv_$conversationId';
+      final activeConnections = _conversationRooms[roomKey] ?? {};
+      
+      // We still need the full member list to reach participants NOT in the room (for unread counts)
+      final members = await _getConversationMembers(conversationId);
+      final processedConnections = <String>{};
+
+      for (final memberId in members) {
+        final connections = _userToConnections[memberId];
+        if (connections == null) continue;
+
+        for (final connId in connections) {
+          if (connId == excludeConnectionId) continue;
+          if (processedConnections.contains(connId)) continue;
+
+          _sendToConnection(connId, message);
+          processedConnections.add(connId);
+        }
+      }
+      
+      // Safety check: ensure any mystery connection in the room (not caught by membership loop) gets it
+      for (final connId in activeConnections) {
+        if (connId == excludeConnectionId) continue;
+        if (!processedConnections.contains(connId)) {
+          _sendToConnection(connId, message);
+        }
+      }
+      print('[WS-BROADCAST-LOCAL] Sent ${message['type']} to conversation $conversationId');
+  }
+
+  Future<List<String>> _getConversationMembers(String conversationId) async {
+    var members = _conversationMembersCache[conversationId];
+    final cacheTime = _conversationMembersCacheTime[conversationId];
+    
+    if (members == null || cacheTime == null || DateTime.now().difference(cacheTime).inSeconds > 60) {
+      final conn = DBConnection.getConnection();
       final membersRes = await conn.execute(
         '''
         SELECT cm.user_id 
@@ -360,24 +516,11 @@ class WebSocketServer {
         ''',
         {'conversationId': conversationId}
       );
-
-      int sentCount = 0;
-      for (final row in membersRes.rows) {
-        final memberId = row.colByName('user_id')?.toString();
-        if (memberId == null || memberId == excludeUserId) continue;
-
-        final connections = _userToConnections[memberId];
-        if (connections != null) {
-          for (final connId in connections) {
-            _sendToConnection(connId, message);
-            sentCount++;
-          }
-        }
-      }
-      print('[WS-BROADCAST] Sent ${message['type']} to $sentCount connections in conversation $conversationId');
-    } catch (e) {
-      print('[WS-BROADCAST-ERROR] Error broadcasting to conversation: $e');
+      members = membersRes.rows.map((row) => row.colByName('user_id')?.toString() ?? '').where((id) => id.isNotEmpty).toList();
+      _conversationMembersCache[conversationId] = members;
+      _conversationMembersCacheTime[conversationId] = DateTime.now();
     }
+    return members;
   }
 
   void _sendToConnection(String connectionId, Map<String, dynamic> message) {
@@ -385,13 +528,12 @@ class WebSocketServer {
     if (connection != null) {
       try {
         final jsonMessage = jsonEncode(message);
-        
-        // Handle different WebSocket connection types
-        if (connection.toString().contains('WebSocketChannel')) {
-          // web_socket_channel package uses sink.add()
+        // P3-5 FIX: Use a try/sink.add first (web_socket_channel style),
+        // fall back to direct .add() (dart:io WebSocket style).
+        // The previous toString().contains() check was fragile against package updates.
+        try {
           connection.sink.add(jsonMessage);
-        } else {
-          // dart:io WebSocket uses add()
+        } catch (_) {
           connection.add(jsonMessage);
         }
       } catch (e) {
@@ -422,11 +564,23 @@ class WebSocketServer {
       _userToConnections.remove(userId);
     }
     
-    // Remove from all conversation rooms and prune empty sets to prevent memory leak.
+    // P1 SURGICAL FIX: Sync presence with Redis backplane
+    RedisService().setUserOffline(userId, connectionId);
+
+    // P2 FIX: Evict the conversation member cache for all rooms this
+    // connection was subscribed to, so subsequent broadcasts use fresh
+    // membership data rather than serving the departed user.
     final emptyRooms = <String>[];
     for (final entry in _conversationRooms.entries) {
       entry.value.remove(connectionId);
-      if (entry.value.isEmpty) emptyRooms.add(entry.key);
+      if (entry.value.isEmpty) {
+        emptyRooms.add(entry.key);
+      } else {
+        // Still has active members — invalidate the cached list so the next
+        // _getConversationMembers() call fetches the authoritative DB view.
+        final convId = entry.key.replaceFirst('conv_', '');
+        invalidateConversationCache(convId);
+      }
     }
     for (final key in emptyRooms) {
       _conversationRooms.remove(key);
@@ -482,6 +636,7 @@ class WebSocketServer {
     String conversationId,
     Map<String, dynamic> message, {
     String? excludeUserId,
+    String? excludeConnectionId,
   }) async {
     print('[WS-BROADCAST-STATIC] broadcastToConversationMembers called for conv=$conversationId');
     final instance = _instance;
@@ -491,11 +646,25 @@ class WebSocketServer {
     }
     
     try {
+      // If a specific connectionId is provided, use it (device-level exclusion).
+      // Otherwise fall back to user-level exclusion for REST-initiated broadcasts.
+      String? resolvedExcludeConnId = excludeConnectionId;
+      if (resolvedExcludeConnId == null && excludeUserId != null) {
+        // REST path: exclude ALL connections of the sender user (they sent via REST,
+        // so their WS clients should still receive it — but to preserve backward
+        // compatibility, we honour the legacy excludeUserId here).
+        final userConnIds = instance._userToConnections[excludeUserId];
+        if (userConnIds != null && userConnIds.length == 1) {
+          resolvedExcludeConnId = userConnIds.first;
+        }
+        // If user has multiple connections, we do NOT exclude any — all devices receive.
+      }
+
       print('[WS-BROADCAST-STATIC] Calling instance._broadcastToConversation...');
       await instance._broadcastToConversation(
         conversationId,
         message,
-        excludeUserId: excludeUserId,
+        excludeConnectionId: resolvedExcludeConnId,
       );
       print('[WS-BROADCAST-STATIC] broadcastToConversationMembers completed');
     } catch (e) {

@@ -30,10 +30,10 @@ class MediaRepository {
     final result = await _db.execute(
       '''INSERT INTO file_uploads (
            original_filename, stored_filename, file_path, file_size,
-           mime_type, uploaded_by, is_public, download_count, created_at, expires_at
+           mime_type, uploaded_by, is_public, is_completed, download_count, created_at, expires_at
          ) VALUES (
            :originalFilename, :storedFilename, :filePath, :fileSize,
-           :mimeType, :uploadedBy, :isPublic, :downloadCount, NOW(), :expiresAt
+           :mimeType, :uploadedBy, :isPublic, :isCompleted, :downloadCount, NOW(), :expiresAt
          )''',
       {
         'originalFilename': data['original_filename'],
@@ -42,8 +42,9 @@ class MediaRepository {
         'fileSize': data['file_size'],
         'mimeType': data['mime_type'],
         'uploadedBy': data['uploaded_by'],
-        'isPublic': data['is_public'] ? 1 : 0,
-        'downloadCount': 0,
+        'isPublic': (data['is_public'] == true || data['is_public'] == 1) ? 1 : 0,
+        'isCompleted': (data['is_completed'] == true || data['is_completed'] == 1) ? 1 : 0,
+        'downloadCount': data['download_count'] ?? 0,
         'expiresAt': data['expires_at'],
       },
     );
@@ -55,6 +56,10 @@ class MediaRepository {
     final List<String> sets = [];
     final Map<String, dynamic> params = {'id': id};
 
+    if (data.containsKey('original_filename')) {
+      sets.add('original_filename = :original_filename');
+      params['original_filename'] = data['original_filename'];
+    }
     if (data.containsKey('stored_filename')) {
       sets.add('stored_filename = :stored_filename');
       params['stored_filename'] = data['stored_filename'];
@@ -66,6 +71,18 @@ class MediaRepository {
     if (data.containsKey('file_size')) {
       sets.add('file_size = :file_size');
       params['file_size'] = data['file_size'];
+    }
+    if (data.containsKey('mime_type')) {
+      sets.add('mime_type = :mime_type');
+      params['mime_type'] = data['mime_type'];
+    }
+    if (data.containsKey('is_public')) {
+      sets.add('is_public = :is_public');
+      params['is_public'] = (data['is_public'] == true || data['is_public'] == 1) ? 1 : 0;
+    }
+    if (data.containsKey('is_completed')) {
+      sets.add('is_completed = :is_completed');
+      params['is_completed'] = (data['is_completed'] == true || data['is_completed'] == 1) ? 1 : 0;
     }
     if (data.containsKey('expires_at')) {
       sets.add('expires_at = :expires_at');

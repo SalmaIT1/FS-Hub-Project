@@ -261,15 +261,38 @@ class PermissionGuard {
     return routes.where((route) => canAccessRoute(route)).toList();
   }
 
-  /// Get navigation items for the GlassNavBar (Simplified to 3 items)
+  /// Get navigation items for the GlassNavBar
   static List<Map<String, dynamic>> getNavigationItems() {
-    return [
-      {
-        'title': 'Chat',
-        'route': '/chat',
-        'icon': 'chat',
-        'permissions': ['view_messages', 'send_messages'],
-      },
+    if (hasRole('Client')) {
+      return [
+        {
+          'title': 'Portail',
+          'route': '/',
+          'icon': 'home',
+          'permissions': [], 
+        },
+        {
+          'title': 'Chat',
+          'route': '/chat',
+          'icon': 'chat',
+          'permissions': [],
+        },
+        {
+          'title': 'Profil',
+          'route': '/profile',
+          'icon': 'person',
+          'permissions': [],
+        },
+        {
+          'title': 'Reglages',
+          'route': '/settings',
+          'icon': 'settings',
+          'permissions': [],
+        },
+      ];
+    }
+
+    final allItems = [
       {
         'title': 'Accueil',
         'route': '/',
@@ -277,12 +300,44 @@ class PermissionGuard {
         'permissions': [], 
       },
       {
-        'title': 'Paramètres',
+        'title': 'Tasks',
+        'route': '/tasks',
+        'icon': 'assignment',
+        'permissions': ['view_tasks'],
+      },
+      {
+        'title': 'Employees',
+        'route': '/employees',
+        'icon': 'people',
+        'permissions': ['view_employees'],
+      },
+      {
+        'title': 'Demands',
+        'route': '/demands',
+        'icon': 'description',
+        'permissions': ['view_demands'],
+      },
+      {
+        'title': 'Chat',
+        'route': '/chat',
+        'icon': 'chat',
+        'permissions': ['view_messages', 'send_messages'],
+      },
+      {
+        'title': 'Profile',
+        'route': '/profile',
+        'icon': 'person',
+        'permissions': [],
+      },
+      {
+        'title': 'Settings',
         'route': '/settings',
         'icon': 'settings',
         'permissions': [],
       },
     ];
+
+    return allItems.where((item) => canAccessRoute(item['route'] as String)).toList();
   }
 
   /// Dispose resources

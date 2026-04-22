@@ -18,7 +18,7 @@ class ChatAttachmentModel {
     this.thumbnailUrl,
     required this.displaySize,
     String? originalFilename,
-  }) : this.originalFilename = originalFilename ?? filename;
+  }) : originalFilename = originalFilename ?? filename;
 
   final String originalFilename;
 
@@ -41,9 +41,10 @@ class ChatAttachmentModel {
     final size = map['file_size'] is int ? map['file_size'] : int.tryParse(map['file_size']?.toString() ?? '0') ?? 0;
     
     // Simple display size calculation
-    String displaySize = '${size} B';
-    if (size > 1024 * 1024) displaySize = '${(size / (1024 * 1024)).toStringAsFixed(1)} MB';
-    else if (size > 1024) displaySize = '${(size / 1024).toStringAsFixed(1)} KB';
+    String displaySize = '$size B';
+    if (size > 1024 * 1024) {
+      displaySize = '${(size / (1024 * 1024)).toStringAsFixed(1)} MB';
+    } else if (size > 1024) displaySize = '${(size / 1024).toStringAsFixed(1)} KB';
 
     return ChatAttachmentModel(
       id: map['id']?.toString() ?? '',

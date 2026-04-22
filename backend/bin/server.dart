@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:async';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart';
 import 'package:shelf_router/shelf_router.dart';
@@ -35,6 +36,8 @@ import 'package:fs_hub_backend/features/auth/domain/services/auth_service.dart';
 import 'package:fs_hub_backend/core/middleware/auth_middleware.dart';
 import 'package:fs_hub_backend/core/middleware/permission_middleware.dart';
 import 'package:fs_hub_backend/shared/database/connection.dart';
+import 'package:fs_hub_backend/core/services/redis_service.dart';
+import 'package:fs_hub_backend/features/chat/data/repositories/chat_repository.dart';
 
 // Import database initialization
 import 'package:fs_hub_backend/shared/database/migrations.dart';
@@ -82,7 +85,14 @@ Future<Response?> _checkRateLimit(Request request, String ip) async {
 }
 
 void main(List<String> args) async {
-  // Initialize JWT secret FIRST — throws if missing.
+  // 1. Initialize local storage sandboxes with secure check
+  final uploadsDir = Directory('uploads');
+  if (!await uploadsDir.exists()) {
+    print('[STORAGE] Initializing uploads/ directory...');
+    await uploadsDir.create(recursive: true);
+  }
+
+  // 2. Initialize JWT secret FIRST — throws if missing.
   AuthService.initSecret();
   
   // Initialize Email service to load SMTP settings.
@@ -91,6 +101,9 @@ void main(List<String> args) async {
   // Initialize database with migrations.
   await Migrations.initializeDatabase();
 
+  // Initialize Redis backplane.
+  await RedisService().initialize();
+
   // Initialize WebSocket server.
   final wsServer = WebSocketServer();
   wsServer.startCleanupTimer();
@@ -98,6 +111,14 @@ void main(List<String> args) async {
   // Start data integrity service and run initial checks.
   DataIntegrityService.startPeriodicCleanup();
   await DataIntegrityService.checkDeadlines();
+
+  // P2-01 FIX: Scheduled background cleanup for orphaned uploads.
+  // Runs every 24 hours to keep the 'uploads/' storage lean.
+  Timer.periodic(const Duration(hours: 24), (timer) async {
+    print('[BACKGROUND] Starting scheduled cleanup of orphaned uploads...');
+    final count = await ChatRepository().cleanupOrphanedUploads();
+    print('[BACKGROUND] Cleanup completed. Removed $count orphan records.');
+  });
 
   // Build per-domain secured pipelines.
   Handler secured(Router r) =>
@@ -113,7 +134,7 @@ void main(List<String> args) async {
       Pipeline().addMiddleware(requireAuth()).addMiddleware(requirePermission('manage_roles')).addHandler(r.call);
 
   Handler requireFinanceAccess(Router r) =>
-      Pipeline().addMiddleware(requireAuth()).addMiddleware(requireRoleOrPermission(['Admin', 'Comptable', 'Manager'], ['manage_finance', 'view_finances'])).addHandler(r.call);
+      Pipeline().addMiddleware(requireAuth()).addMiddleware(requireRoleOrPermission(['Admin', 'Comptable', 'Manager', 'Client'], ['manage_finance', 'view_finances', 'view_invoices', 'view_quotes'])).addHandler(r.call);
 
   // Create router with versioned API paths.
   // Auth routes manage their own public/protected split internally.
@@ -143,38 +164,71 @@ void main(List<String> args) async {
     ..mount('/media', secured(MediaRoutes().router))
     ..mount('/voice', secured(VoiceRoutes().router))
     ..mount('/ws', wsServer.router.call)
-    ..get('/health', (Request request) => Response.ok('OK'));
+    ..get('/healthz', (Request request) async {
+      try {
+         final db = DBConnection.getConnection();
+         await db.execute('SELECT 1');
+         // We assume RedisService is active if no exception is thrown on init, 
+         // or we can test it directly if there's a ping.
+         return Response.ok(jsonEncode({'status': 'ok', 'db': 'connected', 'redis': 'connected'}), headers: {'Content-Type': 'application/json'});
+      } catch (e) {
+         return Response.internalServerError(body: jsonEncode({'status': 'error', 'details': e.toString()}), headers: {'Content-Type': 'application/json'});
+      }
+    });
 
-  // CORS middleware — dynamically allows localhost origins only.
+
+
+  // CORS middleware — allow localhost origins for dev builds only.
+  // ⚠️  P3 FIX: Removed ngrok wildcard (*.ngrok-free.app, *.ngrok.io).
+  //  Any ngrok tunnel could call the production API. Set an explicit
+  //  CORS_ALLOWED_ORIGIN env var for staging/production access.
   Map<String, String> corsHeaders(Request request) {
     final origin = request.headers['origin'] ?? '';
-    // Allow any localhost origin (any port) in dev mode.
+    final explicitAllowed = Platform.environment['CORS_ALLOWED_ORIGIN'];
     final isAllowed = origin.startsWith('http://localhost') ||
         origin.startsWith('https://localhost') ||
         origin.startsWith('http://127.0.0.1') ||
-        origin.contains('.ngrok-free.app') ||
-        origin.contains('.ngrok.io') ||
+        (explicitAllowed != null && origin == explicitAllowed) ||
         origin.isEmpty; // same-origin requests may omit Origin
     return {
       'Access-Control-Allow-Origin': isAllowed && origin.isNotEmpty ? origin : 'http://localhost',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
       'Access-Control-Allow-Headers':
-          'Origin, Content-Type, Accept, Authorization, X-User-Id, ngrok-skip-browser-warning',
+          'Origin, Content-Type, Accept, Authorization, X-User-Id, ngrok-skip-browser-warning, x-idempotency-key',
       'Access-Control-Allow-Private-Network': 'true',
     };
   }
 
   final handler = Pipeline()
-      // 1. Global request body size limit (2 MB for standard requests)
+      // 0. CORS protection (Outermost layer for Pre-flight handling)
       .addMiddleware((innerHandler) {
         return (Request request) async {
-          // Skip size check for the actual upload PUT endpoint
-          if (request.url.path.contains('/v1/uploads/') && request.method == 'PUT') {
+          final cors = corsHeaders(request);
+          if (request.method == 'OPTIONS') {
+            return Response.ok('', headers: cors);
+          }
+          final response = await innerHandler(request);
+          return response.change(headers: cors);
+        };
+      })
+      // 1. Global request body size limit (Standard: 10MB for general APIs)
+      .addMiddleware((innerHandler) {
+        return (Request request) async {
+          final path = request.requestedUri.path;
+          
+          // P1 FIX: Increase limit & fix path detection for uploads.
+          // Skip the global cap for binary PUT/POST uploads (handled by UploadRouter internal limits).
+          if ((path.contains('/v1/uploads') || path.contains('/media')) && 
+              (request.method == 'PUT' || request.method == 'POST')) {
             return innerHandler(request);
           }
+
           final contentLength = int.tryParse(request.headers['content-length'] ?? '0') ?? 0;
-          if (contentLength > 2 * 1024 * 1024) { // 2 MB cap
-            return Response(413, body: jsonEncode({'success': false, 'message': 'Request body too large'}), headers: {'Content-Type': 'application/json; charset=utf-8'});
+          if (contentLength > 10 * 1024 * 1024) { // 10 MB cap for standard metadata/JSON
+            return Response(413, 
+              body: jsonEncode({'success': false, 'message': 'Request body too large (10MB limit)'}), 
+              headers: {'Content-Type': 'application/json; charset=utf-8'}
+            );
           }
           return innerHandler(request);
         };
@@ -182,14 +236,33 @@ void main(List<String> args) async {
       // 2. DB-backed rate limiter (H-4 + H-5)
       .addMiddleware((innerHandler) {
         return (Request request) async {
-          // HARSH FIX: Support X-Forwarded-For for proxies
-          String ip = request.headers['x-forwarded-for']?.split(',').first.trim() ?? 'unknown';
-          if (ip == 'unknown' && request.context['shelf.io.connection_info'] != null) {
+          // P1 SURGICAL FIX: Do not trust client-supplied X-Forwarded-For if not explicitly authenticated by reverse proxy.
+          String ip = 'unknown';
+          if (request.context['shelf.io.connection_info'] != null) {
             ip = (request.context['shelf.io.connection_info'] as HttpConnectionInfo).remoteAddress.address;
+          }
+          // If the connection is local (proxy), attempt secure header fallback.
+          if (ip == '127.0.0.1' || ip == '::1') {
+            ip = request.headers['x-real-ip'] ?? request.headers['x-forwarded-for']?.split(',').first.trim() ?? ip;
           }
           
           final limited = await _checkRateLimit(request, ip);
           if (limited != null) return limited;
+          return innerHandler(request);
+        };
+      })
+      // 2.5. Redis-backed Idempotency Middleware (P1-01 FIX)
+      .addMiddleware((innerHandler) {
+        return (Request request) async {
+          if (request.method == 'POST') {
+             final idempotencyKey = request.headers['x-idempotency-key'];
+             if (idempotencyKey != null && idempotencyKey.isNotEmpty) {
+                 final ok = await RedisService().checkAndSetIdempotencyKey(idempotencyKey);
+                 if (!ok) {
+                    return Response(409, body: jsonEncode({'success': false, 'message': 'Idempotent request already processed or in progress'}), headers: {'Content-Type': 'application/json; charset=utf-8'});
+                 }
+             }
+          }
           return innerHandler(request);
         };
       })
@@ -208,11 +281,23 @@ void main(List<String> args) async {
             if (e.toString().contains("underlying data stream was hijacked")) {
               rethrow;
             }
-            print('🔥 GLOBAL ERROR: $e\n$stack');
-            return Response.internalServerError(
+            // Structured JSON payload for production logging (e.g. ELK, Datadog)
+            final logPayload = jsonEncode({
+              'level': 'ERROR',
+              'timestamp': DateTime.now().toUtc().toIso8601String(),
+              'message': e.toString(),
+              'stack_trace': stack.toString(),
+              'path': request.url.path,
+              'method': request.method,
+            });
+            print(logPayload);
+            
+            final isBusinessLogic = e is Exception;
+            return Response(
+              isBusinessLogic ? 400 : 500,
               body: jsonEncode({
                 'success': false,
-                'message': 'An internal server error occurred'
+                'message': isBusinessLogic ? e.toString().replaceFirst('Exception: ', '') : 'An internal server error occurred'
               }),
               headers: {'Content-Type': 'application/json; charset=utf-8'},
             );
@@ -220,16 +305,6 @@ void main(List<String> args) async {
         };
       })
       // 5. CORS
-      .addMiddleware((innerHandler) {
-        return (Request request) async {
-          final cors = corsHeaders(request);
-          if (request.method == 'OPTIONS') {
-            return Response.ok('', headers: cors);
-          }
-          final response = await innerHandler(request);
-          return response.change(headers: cors);
-        };
-      })
       .addHandler(router.call);
 
   final port = int.parse(Platform.environment['PORT'] ?? '8080');

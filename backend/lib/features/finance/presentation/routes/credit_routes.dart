@@ -4,42 +4,42 @@ import 'package:shelf_router/shelf_router.dart';
 import '../../domain/services/credit_service.dart';
 import '../../../../core/middleware/auth_middleware.dart';
 import '../../../../core/middleware/permission_middleware.dart';
-import '../../data/models/credit_model.dart';
 
 class CreditRoutes {
   final CreditService _creditService = CreditService();
   final Router _router = Router();
 
   CreditRoutes() {
-    _setupRoutes();
+    final secured = Pipeline().addMiddleware(requireAuth());
+    _setupRoutes(secured);
   }
 
-  void _setupRoutes() {
+  void _setupRoutes(Pipeline secured) {
     // Credit routes
-    _router.get('/', Pipeline().addMiddleware(requirePermission('view_financial_reports')).addHandler(_getAllCredits));
-    _router.get('/<id>', (Request request, String id) => Pipeline().addMiddleware(requirePermission('view_financial_reports')).addHandler((req) => _getCreditById(req, id))(request));
-    _router.post('/', Pipeline().addMiddleware(requirePermission('manage_credits')).addHandler(_createCredit));
-    _router.put('/<id>', (Request request, String id) => Pipeline().addMiddleware(requirePermission('manage_credits')).addHandler((req) => _updateCredit(req, id))(request));
-    _router.delete('/<id>', (Request request, String id) => Pipeline().addMiddleware(requirePermission('manage_credits')).addHandler((req) => _deleteCredit(req, id))(request));
+    _router.get('/', secured.addMiddleware(requirePermission('view_financial_reports')).addHandler(_getAllCredits));
+    _router.get('/<id>', (Request request, String id) => secured.addMiddleware(requirePermission('view_financial_reports')).addHandler((req) => _getCreditById(req, id))(request));
+    _router.post('/', secured.addMiddleware(requirePermission('manage_credits')).addHandler(_createCredit));
+    _router.put('/<id>', (Request request, String id) => secured.addMiddleware(requirePermission('manage_credits')).addHandler((req) => _updateCredit(req, id))(request));
+    _router.delete('/<id>', (Request request, String id) => secured.addMiddleware(requirePermission('manage_credits')).addHandler((req) => _deleteCredit(req, id))(request));
 
     // Project credits routes
-    _router.get('/project/<id>', (Request request, String id) => Pipeline().addMiddleware(requirePermission('view_financial_reports')).addHandler((req) => _getProjectCredits(req, id))(request));
+    _router.get('/project/<id>', (Request request, String id) => secured.addMiddleware(requirePermission('view_financial_reports')).addHandler((req) => _getProjectCredits(req, id))(request));
     
     // Client credits routes
-    _router.get('/client/<id>', (Request request, String id) => Pipeline().addMiddleware(requirePermission('view_financial_reports')).addHandler((req) => _getClientCredits(req, id))(request));
+    _router.get('/client/<id>', (Request request, String id) => secured.addMiddleware(requirePermission('view_financial_reports')).addHandler((req) => _getClientCredits(req, id))(request));
     
     // Summary routes
-    _router.get('/summary', Pipeline().addMiddleware(requirePermission('view_financial_reports')).addHandler(_getCreditSummary));
-    _router.get('/project/<id>/summary', (Request request, String id) => Pipeline().addMiddleware(requirePermission('view_financial_reports')).addHandler((req) => _getProjectCreditSummary(req, id))(request));
-    _router.get('/client/<id>/summary', (Request request, String id) => Pipeline().addMiddleware(requirePermission('view_financial_reports')).addHandler((req) => _getClientCreditSummary(req, id))(request));
+    _router.get('/summary', secured.addMiddleware(requirePermission('view_financial_reports')).addHandler(_getCreditSummary));
+    _router.get('/project/<id>/summary', (Request request, String id) => secured.addMiddleware(requirePermission('view_financial_reports')).addHandler((req) => _getProjectCreditSummary(req, id))(request));
+    _router.get('/client/<id>/summary', (Request request, String id) => secured.addMiddleware(requirePermission('view_financial_reports')).addHandler((req) => _getClientCreditSummary(req, id))(request));
     
     // Credit limit routes
-    _router.get('/client/<id>/limit', (Request request, String id) => Pipeline().addMiddleware(requirePermission('view_financial_reports')).addHandler((req) => _getClientCreditLimit(req, id))(request));
-    _router.put('/client/<id>/limit', (Request request, String id) => Pipeline().addMiddleware(requirePermission('manage_credits')).addHandler((req) => _updateClientCreditLimit(req, id))(request));
+    _router.get('/client/<id>/limit', (Request request, String id) => secured.addMiddleware(requirePermission('view_financial_reports')).addHandler((req) => _getClientCreditLimit(req, id))(request));
+    _router.put('/client/<id>/limit', (Request request, String id) => secured.addMiddleware(requirePermission('manage_credits')).addHandler((req) => _updateClientCreditLimit(req, id))(request));
     
     // Application routes
-    _router.post('/<id>/apply/project', (Request request, String id) => Pipeline().addMiddleware(requirePermission('manage_credits')).addHandler((req) => _applyCreditToProject(req, id))(request));
-    _router.post('/<id>/apply-invoice', (Request request, String id) => Pipeline().addMiddleware(requirePermission('manage_credits')).addHandler((req) => _applyCreditToInvoice(req, id))(request));
+    _router.post('/<id>/apply/project', (Request request, String id) => secured.addMiddleware(requirePermission('manage_credits')).addHandler((req) => _applyCreditToProject(req, id))(request));
+    _router.post('/<id>/apply-invoice', (Request request, String id) => secured.addMiddleware(requirePermission('manage_credits')).addHandler((req) => _applyCreditToInvoice(req, id))(request));
   }
 
   // Credit handlers
@@ -182,7 +182,7 @@ class CreditRoutes {
       return Response.ok(
         jsonEncode({
           'success': true,
-          'data': credits.map((credit) => credit?.toJson() ?? {}).toList(),
+          'data': credits.map((credit) => credit.toJson() ?? {}).toList(),
           'message': 'Project credits retrieved successfully',
         }),
         headers: {'content-type': 'application/json; charset=utf-8'},
@@ -206,7 +206,7 @@ class CreditRoutes {
       return Response.ok(
         jsonEncode({
           'success': true,
-          'data': credits.map((credit) => credit?.toJson() ?? {}).toList(),
+          'data': credits.map((credit) => credit.toJson() ?? {}).toList(),
           'message': 'Client credits retrieved successfully',
         }),
         headers: {'content-type': 'application/json; charset=utf-8'},

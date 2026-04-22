@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 import '../../../features/auth/data/services/auth_service.dart';
-import '../../../features/employees/services/employee_service.dart';
 import '../../../features/notifications/services/notification_service.dart';
 import '../../../features/chat/presentation/providers/chat_provider.dart';
 import 'package:fs_hub/core/theme/app_theme.dart';
@@ -25,6 +24,7 @@ class LuxuryAppBar extends StatefulWidget implements PreferredSizeWidget {
   final String? initials;
   final bool isGroup;
   final PreferredSizeWidget? bottom;
+  final bool showDefaultActions; // New flag to toggle default premium actions
 
   const LuxuryAppBar({
     super.key,
@@ -42,6 +42,7 @@ class LuxuryAppBar extends StatefulWidget implements PreferredSizeWidget {
     this.initials,
     this.isGroup = false,
     this.bottom,
+    this.showDefaultActions = true,
   });
 
   @override
@@ -280,6 +281,8 @@ class _LuxuryAppBarState extends State<LuxuryAppBar> with TickerProviderStateMix
                                       Flexible(
                                         child: Text(
                                           widget.title,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
                                           style: TextStyle(
                                             color: isDark ? const Color(0xFFF4F4F4).withValues(alpha: 1.0) : const Color(0xFF0A0A0A).withValues(alpha: 1.0),
                                             fontSize: 20,
@@ -293,6 +296,8 @@ class _LuxuryAppBarState extends State<LuxuryAppBar> with TickerProviderStateMix
                                         Flexible(
                                           child: Text(
                                             widget.subtitle!,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
                                             style: TextStyle(
                                               color: isDark ? const Color(0xFFC9A24D).withValues(alpha: 0.8) : const Color(0xFF666666).withValues(alpha: 0.8),
                                               fontSize: 12,
@@ -532,18 +537,21 @@ class _LuxuryAppBarState extends State<LuxuryAppBar> with TickerProviderStateMix
       }
     }
 
-    // 2. Add notification badge dropdown
-    controls.add(_NotificationDropdownButton(
-      notificationCount: _notificationCount,
-      isDark: isDark,
-      onCountChanged: (count) {
-        if (mounted) setState(() => _notificationCount = count);
-      },
-    ));
-    controls.add(const SizedBox(width: 8));
-    
-    // 3. Add user menu dropdown
-    controls.add(_UserMenuDropdownButton(isDark: isDark, appBarContext: context));
+     // 2. Add default actions only if showDefaultActions is true
+    if (widget.showDefaultActions) {
+      // Notification badge dropdown
+      controls.add(_NotificationDropdownButton(
+        notificationCount: _notificationCount,
+        isDark: isDark,
+        onCountChanged: (count) {
+          if (mounted) setState(() => _notificationCount = count);
+        },
+      ));
+      controls.add(const SizedBox(width: 8));
+      
+      // User menu dropdown
+      controls.add(_UserMenuDropdownButton(isDark: isDark, appBarContext: context));
+    }
 
     return controls;
   }

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:fs_hub/features/auth/data/datasources/auth_remote_datasource.dart';
@@ -100,6 +101,21 @@ class _AuthenticatedImageState extends State<AuthenticatedImage> {
         errorBuilder: (context, error, stackTrace) =>
             widget.errorWidget ?? const Center(child: Icon(Icons.broken_image)),
       );
+    }
+
+    // Local file path — desktop/mobile preview
+    if (!kIsWeb) {
+      final bool isLocalPath = url.contains(':\\') || (url.startsWith('/') && !url.contains('://'));
+      if (isLocalPath) {
+        return Image.file(
+          File(url),
+          fit: widget.fit,
+          width: widget.width,
+          height: widget.height,
+          errorBuilder: (context, error, stackTrace) =>
+              widget.errorWidget ?? const Center(child: Icon(Icons.broken_image)),
+        );
+      }
     }
 
     // Show placeholder while awaiting first token fetch.

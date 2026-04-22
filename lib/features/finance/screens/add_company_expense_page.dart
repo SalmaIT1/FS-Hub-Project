@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:fs_hub/features/finance/services/expense_service.dart';
 import 'package:fs_hub/core/theme/app_theme.dart';
 import 'package:fs_hub/core/state/settings_controller.dart';
-import 'package:fs_hub/core/security/permission_guard.dart';
 import 'package:fs_hub/core/security/protected_route.dart';
 import 'package:fs_hub/shared/widgets/luxury/luxury_app_bar.dart';
 import 'package:fs_hub/shared/widgets/luxury/luxury_status_dialog.dart';
@@ -153,7 +152,6 @@ class _AddCompanyExpensePageState extends State<AddCompanyExpensePage> {
         extendBodyBehindAppBar: true,
         appBar: LuxuryAppBar(
           title: _isEditing ? 'Modifier la Dépense Société' : 'Ajouter une Dépense Société',
-          backgroundColor: isDark ? const Color(0xFF0A0A0A) : const Color(0xFFF5F5F5),
         ),
         body: _buildBody(settings),
       ),
@@ -321,7 +319,7 @@ class _AddCompanyExpensePageState extends State<AddCompanyExpensePage> {
         border: Border.all(color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05)),
       ),
       child: DropdownButtonFormField<String>(
-        value: _selectedCategoryId,
+        initialValue: _selectedCategoryId,
         decoration: InputDecoration(
           labelText: 'Catégorie',
           hintText: 'Sélectionnez une catégorie',

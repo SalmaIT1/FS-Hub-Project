@@ -6,7 +6,6 @@ import '../../../auth/data/services/auth_service.dart';
 import '../../../employees/services/employee_service.dart';
 import '../../../notifications/services/notification_service.dart';
 import 'package:fs_hub/core/routes/app_routes.dart';
-import '../../../../navigation/chat_router.dart';
 import 'package:fs_hub/core/security/permission_guard.dart';
 
 import 'package:provider/provider.dart';
@@ -110,9 +109,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       extendBodyBehindAppBar: true,
       appBar: LuxuryAppBar(
         title: 'FS HUB',
-        subtitle: '${_getGreeting(settings)}',
+        subtitle: _getGreeting(settings),
         showBackButton: false,
         isPremium: true,
+        showDefaultActions: true,
       ),
       body: Stack(
         children: [
@@ -456,13 +456,17 @@ class _LuxStatPill extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          Text(
-            label.toUpperCase(),
-            style: TextStyle(
-              fontSize: 9,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1.5,
-              color: isDark ? Colors.white54 : Colors.black54,
+          Flexible(
+            child: Text(
+              label.toUpperCase(),
+              style: TextStyle(
+                fontSize: 10,
+                color: isDark ? Colors.white38 : Colors.black38,
+                letterSpacing: 0.5,
+                fontWeight: FontWeight.w700,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],

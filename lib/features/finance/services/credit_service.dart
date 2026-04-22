@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:fs_hub/features/auth/data/services/auth_service.dart';
 import 'package:fs_hub/core/config/app_config.dart';
 

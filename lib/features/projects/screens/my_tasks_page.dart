@@ -8,7 +8,6 @@ import 'package:fs_hub/features/auth/data/services/auth_service.dart';
 import 'package:fs_hub/shared/models/sprint_model.dart';
 import 'package:fs_hub/features/projects/services/sprint_service.dart';
 import 'package:fs_hub/features/projects/services/project_service.dart';
-import 'package:fs_hub/shared/models/project_model.dart';
 import 'package:fs_hub/shared/widgets/luxury/luxury_status_dialog.dart';
 import 'package:provider/provider.dart';
 import 'package:fs_hub/core/state/settings_controller.dart';
@@ -758,7 +757,7 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
         child: DropdownButtonFormField<int>(
           isExpanded: true,
           dropdownColor: isDark ? const Color(0xFF1A1A1A) : Colors.white,
-          value: _selectedSprintId,
+          initialValue: _selectedSprintId,
           items: widget.activeSprints.map((s) => DropdownMenuItem(
             value: s.id,
             child: Text(s.nom, style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 14), overflow: TextOverflow.ellipsis),

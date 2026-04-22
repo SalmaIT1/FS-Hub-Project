@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:fs_hub/features/voice/widgets/audio_player_widget.dart';
 import 'package:fs_hub/features/voice/services/waveform_generator.dart';
 import 'package:fs_hub/features/chat/domain/entities/chat_entities.dart';
 

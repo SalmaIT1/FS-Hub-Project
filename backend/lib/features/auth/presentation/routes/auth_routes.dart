@@ -5,6 +5,7 @@ import 'package:shelf_router/shelf_router.dart';
 import '../../domain/services/auth_service.dart';
 import '../../../../core/middleware/auth_middleware.dart';
 import '../../../../core/middleware/permission_middleware.dart';
+import '../../../../core/middleware/rate_limit_middleware.dart';
 
 class AuthRoutes {
   late final Router router;
@@ -13,22 +14,31 @@ class AuthRoutes {
     router = Router();
 
     // -- Public Routes --
-    router.post('/login', _login);
+    router.post('/login', Pipeline()
+        .addMiddleware(rateLimit(maxAttempts: 5, windowSeconds: 900))
+        .addHandler((r) => _login(r)));
     router.post('/refresh', _refreshToken);
-    router.post('/forgot-password', _forgotPassword);
-    router.post('/reset-password', _resetPassword);
+    router.post('/forgot-password', Pipeline()
+        .addMiddleware(rateLimit(maxAttempts: 3, windowSeconds: 3600))
+        .addHandler((r) => _forgotPassword(r)));
+    router.post('/reset-password', Pipeline()
+        .addMiddleware(rateLimit(maxAttempts: 3, windowSeconds: 3600))
+        .addHandler((r) => _resetPassword(r)));
 
     // -- Protected Routes --
     // We apply requireAuth() only to these specific handlers.
-    Handler _secured(Function handler) => 
+    Handler secured(Function handler) => 
         Pipeline().addMiddleware(requireAuth()).addHandler((r) => handler(r) as FutureOr<Response>);
 
-    router.post('/logout', _secured(_logout));
-    router.get('/profile', _secured(_getProfile));
-    router.post('/change-password', _secured(_changePassword));
-    router.get('/settings', _secured(_getUserSettings));
+    router.post('/logout', secured(_logout));
+    router.get('/profile', secured(_getProfile));
+    router.post('/change-password', Pipeline()
+        .addMiddleware(requireAuth())
+        .addMiddleware(rateLimit(maxAttempts: 5, windowSeconds: 3600))
+        .addHandler((r) => _changePassword(r)));
+    router.get('/settings', secured(_getUserSettings));
     router.post('/settings', _updateUserSettings); // _updateUserSettings is already a handler
-    router.post('/ws-ticket', _secured(_getWsTicket));
+    router.post('/ws-ticket', secured(_getWsTicket));
     
     // Admin-guarded route
     router.post('/admin/reset-user-password', (Request req) => 
@@ -187,14 +197,7 @@ class AuthRoutes {
   /// Changes the user's password
   Future<Response> _changePassword(Request request) async {
     try {
-      final userId = request.authUserId; // Set by auth_middleware
-      if (userId == null) {
-        return Response(
-          401,
-          body: jsonEncode({'success': false, 'message': 'Unauthorized'}),
-          headers: {'Content-Type': 'application/json; charset=utf-8'},
-        );
-      }
+      final userId = request.authUserId;
 
       final body = await request.readAsString();
       final data = jsonDecode(body) as Map<String, dynamic>;
@@ -248,7 +251,6 @@ class AuthRoutes {
   Future<Response> _getUserSettings(Request request) async {
     try {
       final userId = request.authUserId;
-      if (userId == null) return Response(401, body: jsonEncode({'success': false, 'message': 'Unauthorized'}), headers: {'Content-Type': 'application/json; charset=utf-8'});
 
       final result = await AuthService.getUserSettings(userId);
       return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json; charset=utf-8'});
@@ -260,7 +262,6 @@ class AuthRoutes {
   Future<Response> _updateUserSettings(Request request) async {
     try {
       final userId = request.authUserId;
-      if (userId == null) return Response(401, body: jsonEncode({'success': false, 'message': 'Unauthorized'}), headers: {'Content-Type': 'application/json; charset=utf-8'});
 
       final body = await request.readAsString();
       final data = jsonDecode(body) as Map<String, dynamic>;

@@ -9,10 +9,10 @@ import 'package:fs_hub/utils/web_download_stub.dart'
 import 'package:fs_hub/features/chat/domain/entities/chat_entities.dart';
 import 'package:fs_hub/features/voice/widgets/adaptive_voice_note.dart';
 import 'package:fs_hub/features/voice/widgets/whatsapp_voice_note.dart';
-import 'package:fs_hub/shared/models/chat_models.dart';
 import 'package:fs_hub/core/utils/url_utils.dart';
-import 'package:fs_hub/core/services/api_service.dart';
 import 'package:fs_hub/shared/widgets/authenticated_image.dart';
+import 'package:fs_hub/features/auth/data/datasources/auth_remote_datasource.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 /// Simple image bubble: inline thumbnail, tap to open modal full-screen.
 class InlineImageBubble extends StatelessWidget {
@@ -43,7 +43,7 @@ class InlineImageBubble extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8), 
           color: Theme.of(context).brightness == Brightness.dark 
-              ? Colors.white.withOpacity(0.05) 
+              ? Colors.white.withValues(alpha: 0.05) 
               : Colors.grey[200]
         ),
         child: AuthenticatedImage(
@@ -84,8 +84,13 @@ class FileAttachmentBubble extends StatelessWidget {
     try {
       // Try web download helper first (on web this will perform a browser download).
       try {
-        await webTriggerDownload(url, attachment.filename);
-        Navigator.of(context).pop();
+        final token = await AuthRemoteDatasource.getAccessToken();
+        final authenticatedUrl = kIsWeb ? UrlUtils.appendToken(url, token) : url;
+        
+        await webTriggerDownload(authenticatedUrl, attachment.filename);
+        if (context.mounted) {
+          Navigator.of(context).pop();
+        }
         return;
       } catch (e) {
         // If web helper is not supported on this platform, continue with native download flow.
@@ -110,11 +115,15 @@ class FileAttachmentBubble extends StatelessWidget {
       }
       await sink.close();
 
-      Navigator.of(context).pop();
+      if (context.mounted) {
+        Navigator.of(context).pop();
+      }
       await OpenFilex.open(savePath);
     } catch (e) {
-      Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Download failed: $e')));
+      if (context.mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Download failed: $e')));
+      }
     } finally {
       progress.dispose();
     }

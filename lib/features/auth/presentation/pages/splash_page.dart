@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import '../../data/services/auth_service.dart';
-import 'package:fs_hub/core/routes/app_routes.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:fs_hub/core/config/app_config.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -58,6 +59,16 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     
     if (!mounted) return;
     
+    final prefs = await SharedPreferences.getInstance();
+    final currentProt = prefs.getString('protocol_version');
+    
+    // FORCED CACHE FLUSH: If protocol has evolved, clear all local sessions/data
+    if (currentProt != AppConfig.protocolVersion) {
+      print('[PROTOCOL-MIGRATION] Flush required: $currentProt -> ${AppConfig.protocolVersion}');
+      await AuthService.clearAllCache();
+      await prefs.setString('protocol_version', AppConfig.protocolVersion);
+    }
+
     final isLoggedIn = await AuthService.isLoggedIn();
     
     if (mounted) {

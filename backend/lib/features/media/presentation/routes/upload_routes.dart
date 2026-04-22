@@ -7,7 +7,7 @@ import 'package:uuid/uuid.dart';
 import '../../domain/services/media_service.dart';
 import '../../../../core/middleware/auth_middleware.dart';
 
-const int _maxUploadBytes = 50 * 1024 * 1024;
+const int _maxUploadBytes = 100 * 1024 * 1024;
 const Set<String> _allowedExtensions = {
   'jpg', 'jpeg', 'png', 'gif', 'webp',
   'mp3', 'wav', 'ogg', 'aac', 'm4a', 'webm',
@@ -21,9 +21,9 @@ class UploadRoutes {
     router = Router()
       ..post('/', _uploadFile)
       ..post('/signed-url', _getSignedUrl)
-      ..put('/<uploadId>/put', _putUpload)
+      ..put('/<uploadId>/put', (Request r, String id) => _putUpload(r, id))
       ..post('/complete', _completeUpload)
-      ..get('/<uploadId>', _getUploadStatus);
+      ..get('/<uploadId>', (Request r, String id) => _getUploadStatus(r, id));
   }
 
   Future<Response> _putUpload(Request request, String uploadId) async {
@@ -114,7 +114,8 @@ class UploadRoutes {
             'mime_type': mimeType ?? 'application/octet-stream',
             'uploaded_by': userId,
             'is_public': false,
-            'expires_at': DateTime.now().add(const Duration(hours: 1)).toIso8601String(),
+            'is_completed': false,
+            'expires_at': DateTime.now().add(const Duration(hours: 1)),
           });
           uploadId = newId.toString();
 
@@ -150,6 +151,7 @@ class UploadRoutes {
             'file_path': filePath,
             'file_size': totalBytes,
             'mime_type': sniffedMime,
+            'is_completed': true,
           });
         }
       }
@@ -177,8 +179,8 @@ class UploadRoutes {
       final data = jsonDecode(body);
 
       final filename = data['filename']?.toString();
-      final mimeType = data['mime']?.toString();
-      final fileSize = int.tryParse(data['size']?.toString() ?? '0') ?? 0;
+      final mimeType = data['mime']?.toString() ?? data['contentType']?.toString();
+      final fileSize = int.tryParse(data['size']?.toString() ?? data['fileSize']?.toString() ?? '0') ?? 0;
 
       if (filename == null || mimeType == null || fileSize <= 0 || fileSize > _maxUploadBytes) {
         return Response.badRequest(body: jsonEncode({'success': false, 'message': 'Invalid parameters'}));
@@ -203,15 +205,16 @@ class UploadRoutes {
         'mime_type': mimeType,
         'uploaded_by': userId,
         'is_public': false,
-        'expires_at': expiresAt.toIso8601String(),
+        'is_completed': false,
+        'expires_at': expiresAt,
       });
 
       final baseUrl = '${request.requestedUri.scheme}://${request.requestedUri.host}:${request.requestedUri.port}';
       return Response.ok(jsonEncode({
         'success': true,
-        'upload_id': uploadId,
-        'upload_url': '$baseUrl/v1/uploads/$uploadId/put',
-        'expires_at': expiresAt.toIso8601String(),
+        'uploadId': uploadId.toString(),
+        'signedUrl': '$baseUrl/v1/uploads/$uploadId/put',
+        'expiresAt': expiresAt.toIso8601String(),
       }));
     } catch (e) {
       return Response.internalServerError(body: jsonEncode({'success': false, 'message': 'Failed to create upload slot'}));
@@ -233,7 +236,10 @@ class UploadRoutes {
         return Response(422, body: jsonEncode({'success': false, 'message': 'File not yet uploaded'}));
       }
 
-      await MediaService.setExpiry(uploadId, DateTime.now().add(const Duration(days: 365)).toIso8601String());
+      await MediaService.updateMedia(uploadId, {
+        'expires_at': DateTime.now().add(const Duration(days: 365)),
+        'is_completed': true,
+      });
 
       final baseUrl = '${request.requestedUri.scheme}://${request.requestedUri.host}:${request.requestedUri.port}';
       return Response.ok(jsonEncode({

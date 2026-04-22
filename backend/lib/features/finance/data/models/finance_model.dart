@@ -10,6 +10,7 @@ class InvoiceModel {
   final String? dateEcheance;
   final String statut;
   final String? projectNom;
+  final int? devisId;
 
   InvoiceModel({
     this.id,
@@ -23,21 +24,23 @@ class InvoiceModel {
     this.dateEcheance,
     required this.statut,
     this.projectNom,
+    this.devisId,
   });
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'projectId': projectId,
-      'clientId': clientId,
-      'numeroFacture': numeroFacture,
-      'montantHt': montantHt,
+      'projet_id': projectId,
+      'client_id': clientId,
+      'numero_facture': numeroFacture,
+      'montant_ht': montantHt,
       'tva': tva,
-      'montantTtc': montantTtc,
-      'dateEmission': dateEmission,
-      'dateEcheance': dateEcheance,
+      'montant_ttc': montantTtc,
+      'date_emission': dateEmission,
+      'date_echeance': dateEcheance,
       'statut': statut,
-      'projectNom': projectNom,
+      'project_nom': projectNom,
+      'devis_id': devisId,
     };
   }
 
@@ -54,6 +57,7 @@ class InvoiceModel {
       dateEcheance: map['date_echeance']?.toString(),
       statut: map['statut']?.toString() ?? 'Brouillon',
       projectNom: map['project_nom']?.toString(),
+      devisId: map['devis_id'] != null ? int.tryParse(map['devis_id'].toString()) : null,
     );
   }
 }
@@ -78,11 +82,11 @@ class PaymentModel {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'invoiceId': invoiceId,
+      'facture_id': invoiceId,
       'montant': montant,
       'mode': mode,
-      'datePaiement': datePaiement,
-      'referenceTransaction': referenceTransaction,
+      'date_paiement': datePaiement,
+      'reference_transaction': referenceTransaction,
     };
   }
 
@@ -130,17 +134,17 @@ class QuoteModel {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'projectId': projectId,
-      'clientId': clientId,
-      'numeroDevis': numeroDevis,
-      'montantHt': montantHt,
+      'projet_id': projectId,
+      'client_id': clientId,
+      'numero_devis': numeroDevis,
+      'montant_ht': montantHt,
       'tva': tva,
-      'montantTtc': montantTtc,
-      'dateEmission': dateEmission,
-      'dateValidite': dateValidite,
+      'montant_ttc': montantTtc,
+      'date_emission': dateEmission,
+      'date_validite': dateValidite,
       'statut': statut,
-      'projectNom': projectNom,
-      'clientNom': clientNom,
+      'project_nom': projectNom,
+      'client_nom': clientNom,
     };
   }
 

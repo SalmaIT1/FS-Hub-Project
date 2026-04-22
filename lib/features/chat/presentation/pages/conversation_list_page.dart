@@ -3,14 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fs_hub/features/chat/domain/entities/chat_entities.dart';
 import '../providers/chat_provider.dart';
-import 'chat_thread_page.dart';
 import 'package:fs_hub/core/state/settings_controller.dart';
-import 'package:fs_hub/core/routes/app_routes.dart';
 import '../widgets/avatar_helper.dart';
 import 'package:fs_hub/shared/widgets/luxury/luxury_app_bar.dart';
 import 'package:fs_hub/core/theme/app_theme.dart';
-import 'package:fs_hub/core/utils/url_utils.dart';
-import 'package:fs_hub/shared/widgets/authenticated_image.dart';
 import 'package:fs_hub/shared/widgets/luxury/luxury_status_dialog.dart';
 import 'group_creation_page.dart';
 
@@ -113,9 +109,9 @@ class _ConversationListPageState extends State<ConversationListPage> with Single
             icon: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: AppTheme.accentGold.withOpacity(0.1),
+                color: AppTheme.accentGold.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
-                border: Border.all(color: AppTheme.accentGold.withOpacity(0.2)),
+                border: Border.all(color: AppTheme.accentGold.withValues(alpha: 0.2)),
               ),
               child: const Icon(Icons.person_add_rounded, color: AppTheme.accentGold, size: 18),
             ),
@@ -128,9 +124,9 @@ class _ConversationListPageState extends State<ConversationListPage> with Single
             icon: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: AppTheme.accentGold.withOpacity(0.1),
+                color: AppTheme.accentGold.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
-                border: Border.all(color: AppTheme.accentGold.withOpacity(0.2)),
+                border: Border.all(color: AppTheme.accentGold.withValues(alpha: 0.2)),
               ),
               child: const Icon(Icons.group_add_rounded, color: AppTheme.accentGold, size: 18),
             ),
@@ -383,7 +379,7 @@ class _ConversationTile extends StatelessWidget {
                     ),
                   );
 
-                  if (confirm == true) {
+                  if (confirm == true && context.mounted) {
                     try {
                       final controller = context.read<ChatController>();
                       await controller.deleteConversation(conversation.id);
@@ -515,7 +511,7 @@ class _ConversationTile extends StatelessWidget {
           color: isDark ? Colors.white38 : Colors.black45,
           fontSize: 13,
           fontWeight: conversation.unreadCount > 0 ? FontWeight.w600 : FontWeight.w400,
-          fontStyle: conversation.lastMessage == null ? FontStyle.italic : FontStyle.normal,
+          fontStyle: FontStyle.normal,
         ),
       ),
     );

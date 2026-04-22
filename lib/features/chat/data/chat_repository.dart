@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
+import 'dart:io';
+import 'dart:convert';
+import 'package:path_provider/path_provider.dart';
 import 'package:fs_hub/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:fs_hub/features/chat/data/datasources/chat_socket_datasource.dart';
 import 'package:fs_hub/features/chat/data/datasources/upload_datasource.dart';
 import 'package:fs_hub/features/chat/domain/entities/chat_entities.dart';
-import 'package:fs_hub/shared/models/chat_models.dart';
 
 abstract class ChatRepository {
   ChatRemoteDatasource get rest;
@@ -25,6 +28,7 @@ abstract class ChatRepository {
     required String conversationId,
     required String senderId,
     required String content,
+    String? clientMessageId,
   });
   Future<ChatMessage> sendMessageWithAttachments({
     required String conversationId,
@@ -33,6 +37,7 @@ abstract class ChatRepository {
     String type = 'text',
     required List<String> uploadIds,
     Map<String, dynamic>? voiceMetadata,
+    String? clientMessageId,
   });
   Future<void> retryMessage(String messageId);
   Future<void> processOfflineQueue();
@@ -47,6 +52,9 @@ abstract class ChatRepository {
   Future<void> markConversationAsRead(String conversationId);
   Future<void> deleteConversation(String conversationId);
   void sendTypingStatus(String conversationId, bool isTyping);
+  Future<void> saveDraft(String conversationId, String content);
+  Future<Map<String, String>> loadDrafts();
+  Future<void> clearDraft(String conversationId);
   void dispose();
 }
 
@@ -76,6 +84,66 @@ class ChatRepositoryImpl implements ChatRepository {
     required this.uploads,
   });
 
+  // P1-02 FIX: Queue Persistence Layer
+  // Saves the offline queue to a local JSON file to prevent message loss 
+  // if the application crashes or is closed while some messages are still pending.
+  Future<void> _persistQueue() async {
+    if (kIsWeb) return; // path_provider not available on web
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final file = File('${directory.path}/chat_offline_queue.json');
+      final jsonList = _offlineQueue.map((msg) => msg.toJson()).toList();
+      await file.writeAsString(jsonEncode(jsonList));
+    } catch (e) {
+      print('[REPO] Failed to persist offline queue: $e');
+    }
+  }
+
+  // P3 FIX: Draft Persistence Logic
+  Future<void> _saveDraftsToDisk(Map<String, String> drafts) async {
+    if (kIsWeb) return;
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final file = File('${directory.path}/chat_drafts.json');
+      await file.writeAsString(jsonEncode(drafts));
+    } catch (e) {
+      print('[REPO] Failed to persist drafts: $e');
+    }
+  }
+
+  Future<Map<String, String>> _loadDraftsFromDisk() async {
+    if (kIsWeb) return {};
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final file = File('${directory.path}/chat_drafts.json');
+      if (await file.exists()) {
+        final content = await file.readAsString();
+        return Map<String, String>.from(jsonDecode(content));
+      }
+    } catch (e) {
+      print('[REPO] Failed to load drafts: $e');
+    }
+    return {};
+  }
+
+  Future<void> _loadQueue() async {
+    if (kIsWeb) return; // path_provider not available on web
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final file = File('${directory.path}/chat_offline_queue.json');
+      if (await file.exists()) {
+        final content = await file.readAsString();
+        final jsonList = jsonDecode(content) as List<dynamic>;
+        _offlineQueue.clear();
+        _offlineQueue.addAll(jsonList.map((j) => ChatMessage.fromJson(j as Map<String, dynamic>)));
+        _queueController.add(List.unmodifiable(_offlineQueue));
+        print('[REPO] Restored ${_offlineQueue.length} messages from persistent queue.');
+      }
+    } catch (e) {
+      print('[REPO] Failed to load offline queue: $e');
+    }
+  }
+
   @override
   Stream<ChatMessage> get messageUpdated => _messageController.stream;
   @override
@@ -93,6 +161,7 @@ class ChatRepositoryImpl implements ChatRepository {
 
   @override
   Future<void> init() async {
+    await _loadQueue();
     await socket.connect();
     
     _subscriptions.add(socket.messageStream.listen((msg) {
@@ -100,8 +169,15 @@ class ChatRepositoryImpl implements ChatRepository {
     }));
 
     _subscriptions.add(socket.onlineStream.listen((isOnline) {
+      final wasOffline = !_isOnline;
       _isOnline = isOnline;
       if (!_onlineController.isClosed) _onlineController.add(isOnline);
+      
+      // Automatically process queue when coming back online
+      if (isOnline && wasOffline && _offlineQueue.isNotEmpty) {
+        print('[REPO] Connection restored. Processing ${_offlineQueue.length} queued messages...');
+        processOfflineQueue();
+      }
     }));
     
     _subscriptions.add(socket.presenceStream.listen((data) {
@@ -144,6 +220,7 @@ class ChatRepositoryImpl implements ChatRepository {
     required String conversationId,
     required String senderId,
     required String content,
+    String? clientMessageId,
   }) async {
     if (!_isOnline) {
       // Queue message for later
@@ -156,8 +233,10 @@ class ChatRepositoryImpl implements ChatRepository {
         type: 'text',
         createdAt: DateTime.now(),
         isFromMe: true,
+        state: MessageState.queued, // Explicitly set to queued
       );
       _offlineQueue.add(msg);
+      _persistQueue();
       _queueController.add(List.unmodifiable(_offlineQueue));
       return msg;
     }
@@ -166,6 +245,8 @@ class ChatRepositoryImpl implements ChatRepository {
       conversationId: conversationId,
       senderId: senderId,
       content: content,
+      clientMessageId: clientMessageId,
+      excludeConnectionId: socket.connectionId,
     );
     
     if (!_messageController.isClosed) _messageController.add(message);
@@ -180,6 +261,7 @@ class ChatRepositoryImpl implements ChatRepository {
     String type = 'text',
     required List<String> uploadIds,
     Map<String, dynamic>? voiceMetadata,
+    String? clientMessageId,
   }) {
     return rest.sendMessageWithAttachments(
       conversationId: conversationId,
@@ -188,6 +270,8 @@ class ChatRepositoryImpl implements ChatRepository {
       type: type,
       uploadIds: uploadIds,
       voiceMetadata: voiceMetadata,
+      clientMessageId: clientMessageId,
+      excludeConnectionId: socket.connectionId,
     ).then((msg) {
       if (!_messageController.isClosed) _messageController.add(msg);
       return msg;
@@ -200,6 +284,7 @@ class ChatRepositoryImpl implements ChatRepository {
     if (msgIndex >= 0) {
       final msg = _offlineQueue[msgIndex];
       _offlineQueue.removeAt(msgIndex);
+      _persistQueue();
       _queueController.add(List.unmodifiable(_offlineQueue));
       
       await rest.sendTextMessage(
@@ -224,6 +309,7 @@ class ChatRepositoryImpl implements ChatRepository {
           conversationId: msg.conversationId,
           senderId: msg.senderId,
           content: msg.content ?? '',
+          clientMessageId: msg.id,
         );
       } catch (e) {
         print('Failed to send queued message: $e');
@@ -231,6 +317,7 @@ class ChatRepositoryImpl implements ChatRepository {
       }
     }
     
+    _persistQueue();
     _queueController.add(List.unmodifiable(_offlineQueue));
   }
 
@@ -275,6 +362,42 @@ class ChatRepositoryImpl implements ChatRepository {
   @override
   void sendTypingStatus(String conversationId, bool isTyping) {
     socket.sendTypingIndicator(conversationId, isTyping);
+  }
+
+  @override
+  Future<void> saveDraft(String conversationId, String content) async {
+    final drafts = await loadDrafts();
+    if (content.isEmpty) {
+      drafts.remove(conversationId);
+    } else {
+      drafts[conversationId] = content;
+    }
+    await _saveDraftsToDisk(drafts);
+  }
+
+  @override
+  Future<Map<String, String>> loadDrafts() async {
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final file = File('${directory.path}/chat_drafts.json');
+      if (await file.exists()) {
+        final content = await file.readAsString();
+        final map = jsonDecode(content) as Map<String, dynamic>;
+        return map.map((key, value) => MapEntry(key, value.toString()));
+      }
+    } catch (e) {
+      print('[REPO] Failed to load drafts: $e');
+    }
+    return {};
+  }
+
+  @override
+  Future<void> clearDraft(String conversationId) async {
+    final drafts = await loadDrafts();
+    if (drafts.containsKey(conversationId)) {
+      drafts.remove(conversationId);
+      await _saveDraftsToDisk(drafts);
+    }
   }
 
   @override

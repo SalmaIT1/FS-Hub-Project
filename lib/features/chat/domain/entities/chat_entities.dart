@@ -1,6 +1,13 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:fs_hub/shared/models/chat_models.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:mime/mime.dart';
+import '../../data/chat_repository.dart';
+
 
 // Re-export for backwards compatibility
 export 'package:fs_hub/shared/models/chat_models.dart';
@@ -148,6 +155,8 @@ class AttachmentEntity {
   final String? uploadId;
   final AttachmentState state;
 
+  final Uint8List? bytes;
+
   AttachmentEntity({
     required this.id,
     required this.uploadUrl,
@@ -159,6 +168,7 @@ class AttachmentEntity {
     this.uploadProgress,
     this.uploadId,
     this.state = AttachmentState.ready,
+    this.bytes,
   });
 
   // Aliases for compatibility
@@ -258,12 +268,15 @@ class VoiceNoteEntity {
 
 /// Attachment manager for handling attachments in chat
 class AttachmentManager extends ChangeNotifier {
+  ChatRepository? repository;
   final List<AttachmentEntity> _attachments = [];
   bool _isUploading = false;
 
   List<AttachmentEntity> get attachments => List.unmodifiable(_attachments);
   bool get isUploading => _isUploading;
   bool get hasAttachments => _attachments.isNotEmpty;
+
+  AttachmentManager({this.repository});
   
   // Stream controller for reactive updates
   final _attachmentsController = StreamController<List<AttachmentEntity>>.broadcast();
@@ -326,24 +339,134 @@ class AttachmentManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Stub methods for compatibility
+  // Real implementations
   Future<List<AttachmentEntity>> selectImages({bool fromCamera = false}) async {
-    // This is a stub - actual implementation would use image_picker
+    try {
+      final ImagePicker picker = ImagePicker();
+      if (fromCamera) {
+        final XFile? image = await picker.pickImage(source: ImageSource.camera);
+        if (image != null) {
+          final bytes = await image.readAsBytes();
+          final attachment = AttachmentEntity(
+            id: 'local_${DateTime.now().millisecondsSinceEpoch}',
+            uploadUrl: image.path, // XFile.path is a blob: URL on web
+            fileName: image.name,
+            fileSize: bytes.length,
+            mimeType: 'image/jpeg',
+            bytes: bytes,
+          );
+          addAttachment(attachment);
+          return [attachment];
+        }
+      } else {
+        final List<XFile> images = await picker.pickMultiImage();
+        final List<AttachmentEntity> results = [];
+        for (var image in images) {
+          final bytes = await image.readAsBytes();
+          final attachment = AttachmentEntity(
+            id: 'local_${DateTime.now().millisecondsSinceEpoch}_${results.length}',
+            uploadUrl: image.path, // XFile.path is a blob: URL on web
+            fileName: image.name,
+            fileSize: bytes.length,
+            mimeType: 'image/jpeg',
+            bytes: bytes,
+          );
+          addAttachment(attachment);
+          results.add(attachment);
+        }
+        return results;
+      }
+    } catch (e) {
+      print('Error picking images: $e');
+    }
     return [];
   }
 
   Future<List<AttachmentEntity>> selectFiles() async {
-    // This is a stub - actual implementation would use file_picker
+    try {
+      final result = await FilePicker.platform.pickFiles(allowMultiple: true, withData: kIsWeb);
+      if (result != null && result.files.isNotEmpty) {
+        final List<AttachmentEntity> results = [];
+        for (var file in result.files) {
+          // On web, even accessing the .path property throws an exception.
+          // We must check kIsWeb first before touching .path.
+          final bytes = file.bytes ?? 
+              ((!kIsWeb && file.path != null) ? await File(file.path!).readAsBytes() : null);
+          
+          if (bytes == null) continue;
+          
+          final mimeType = lookupMimeType(file.name) ?? 'application/octet-stream';
+          
+          final attachment = AttachmentEntity(
+            id: 'local_${DateTime.now().millisecondsSinceEpoch}_${results.length}',
+            uploadUrl: !kIsWeb ? (file.path ?? '') : '', // Use empty string on web
+            fileName: file.name,
+            fileSize: bytes.length,
+            mimeType: mimeType,
+            bytes: bytes,
+          );
+          addAttachment(attachment);
+          results.add(attachment);
+        }
+        return results;
+      }
+    } catch (e) {
+      print('Error picking files: $e');
+    }
     return [];
   }
 
   Future<Map<String, dynamic>> uploadAllAttachments() async {
-    // Return upload IDs with optional voice metadata
-    final uploadIds = _attachments.map((a) => a.id).toList();
-    return {
-      'uploadIds': uploadIds,
-      'voiceMetadata': null,
-    };
+    if (repository == null) throw Exception('Repository not initialized in AttachmentManager');
+    
+    setUploading(true);
+    final List<String> uploadIds = [];
+    Map<String, dynamic>? voiceMetadata;
+
+    try {
+      for (var i = 0; i < _attachments.length; i++) {
+        final attachment = _attachments[i];
+        updateAttachmentProgress(attachment.id, 0.1);
+
+        // 1. Get signed URL
+        final signedData = await repository!.uploads.requestSignedUrl(
+          filename: attachment.fileName,
+          mimeType: attachment.mimeType,
+          fileSize: attachment.fileSize,
+        );
+
+        final uploadId = signedData['uploadId'];
+        final signedUrl = signedData['signedUrl'];
+
+        // 2. Upload bytes
+        updateAttachmentProgress(attachment.id, 0.3);
+        final uploadResult = await repository!.uploads.uploadFile(
+          uploadId: uploadId,
+          signedUrl: signedUrl,
+          bytes: attachment.bytes,
+          onProgress: (p) => updateAttachmentProgress(attachment.id, 0.3 + (p * 0.6)),
+        );
+
+        uploadIds.add(uploadId);
+        
+        // If it's a voice note, we might want to collect metadata
+        // For now, assume if it's the only audio attachment, it's the voice note
+        if (attachment.mimeType == 'audio/aac' || attachment.mimeType == 'audio/m4a') {
+          // This would ideally come from the voice recorder and be stored in AttachmentEntity
+          // As a workaround, we check if we have any voice-specific data in the entity
+        }
+      }
+      
+      setUploading(false);
+      return {
+        'uploadIds': uploadIds,
+        'voiceMetadata': voiceMetadata,
+      };
+    } catch (e) {
+      setUploading(false);
+      print('Upload failed: $e');
+      rethrow;
+    }
   }
 
   Future<void> clearAllAttachments() async {

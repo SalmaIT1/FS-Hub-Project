@@ -4,18 +4,31 @@ import '../models/client_model.dart';
 class ClientRepository {
   final _db = DBConnection.getConnection();
 
-  Future<List<ClientModel>> getAllClients() async {
-    final result = await _db.execute('''
-      SELECT id, nom, prenom, raison_sociale, email, telephone, type, score_credit, credit, matricule_fiscale, adresse, patente_document
-      FROM clients
-      ORDER BY id DESC
-    ''');
+  Future<List<ClientModel>> getAllClients({String? type, String? search, int limit = 50, int offset = 0}) async {
+    String query = 'SELECT id, nom, prenom, raison_sociale, email, telephone, type, score_credit, solde_du, matricule_fiscale, adresse, patente_document FROM clients WHERE 1=1';
+    Map<String, dynamic> params = {};
+
+    if (type != null && type.isNotEmpty) {
+      query += ' AND type = :type';
+      params['type'] = type == 'entreprise' ? 'Entreprise' : 'Particulier';
+    }
+
+    if (search != null && search.isNotEmpty) {
+      query += ' AND (nom LIKE :search OR prenom LIKE :search OR raison_sociale LIKE :search OR email LIKE :search)';
+      params['search'] = '%$search%';
+    }
+
+    query += ' ORDER BY id DESC LIMIT :limit OFFSET :offset';
+    params['limit'] = limit;
+    params['offset'] = offset;
+
+    final result = await _db.execute(query, params);
     return result.rows.map<ClientModel>((row) => ClientModel.fromMap(row.assoc())).toList();
   }
 
   Future<ClientModel?> getClientById(int id) async {
     final result = await _db.execute('''
-      SELECT id, nom, prenom, raison_sociale, email, telephone, type, score_credit, credit, matricule_fiscale, adresse, patente_document
+      SELECT id, nom, prenom, raison_sociale, email, telephone, type, score_credit, solde_du, matricule_fiscale, adresse, patente_document
       FROM clients
       WHERE id = :id
     ''', {'id': id});
@@ -26,7 +39,7 @@ class ClientRepository {
 
   Future<ClientModel?> getClientByUserId(String userId) async {
     final result = await _db.execute('''
-      SELECT id, nom, prenom, raison_sociale, email, telephone, type, score_credit, credit, matricule_fiscale, adresse, patente_document
+      SELECT id, nom, prenom, raison_sociale, email, telephone, type, score_credit, solde_du, matricule_fiscale, adresse, patente_document
       FROM clients
       WHERE user_id = :uid
     ''', {'uid': userId});
@@ -63,25 +76,54 @@ class ClientRepository {
   }
 
   Future<void> updateClient(int id, Map<String, dynamic> data) async {
-    String clientType = data['type'] == 'entreprise' ? 'Entreprise' : 'Particulier';
+    final fields = <String>[];
+    final params = <String, dynamic>{'id': id};
 
-    await _db.execute('''
-      UPDATE clients 
-      SET nom = :nom, prenom = :prenom, raison_sociale = :raison_sociale, email = :email, telephone = :telephone, type = :type,
-          matricule_fiscale = :matricule_fiscale, adresse = :adresse, patente_document = :patente_document
-      WHERE id = :id
-    ''', {
-      'nom': data['nom'],
-      'prenom': data['prenom'],
-      'raison_sociale': data['raisonSociale'],
-      'email': data['email'],
-      'telephone': data['telephone'],
-      'type': clientType,
-      'matricule_fiscale': data['matriculeFiscale'],
-      'adresse': data['adresse'],
-      'patente_document': data['patenteDocument'],
-      'id': id,
-    });
+    if (data.containsKey('nom')) {
+      fields.add('nom = :nom');
+      params['nom'] = data['nom'];
+    }
+    if (data.containsKey('prenom')) {
+      fields.add('prenom = :prenom');
+      params['prenom'] = data['prenom'];
+    }
+    if (data.containsKey('raisonSociale') || data.containsKey('raison_sociale')) {
+      fields.add('raison_sociale = :raison_sociale');
+      params['raison_sociale'] = data['raisonSociale'] ?? data['raison_sociale'];
+    }
+    if (data.containsKey('email')) {
+      fields.add('email = :email');
+      params['email'] = data['email'];
+    }
+    if (data.containsKey('telephone')) {
+      fields.add('telephone = :telephone');
+      params['telephone'] = data['telephone'];
+    }
+    if (data.containsKey('type')) {
+      fields.add('type = :type');
+      params['type'] = data['type'] == 'entreprise' ? 'Entreprise' : 'Particulier';
+    }
+    if (data.containsKey('matriculeFiscale') || data.containsKey('matricule_fiscale')) {
+      fields.add('matricule_fiscale = :matricule_fiscale');
+      params['matricule_fiscale'] = data['matriculeFiscale'] ?? data['matricule_fiscale'];
+    }
+    if (data.containsKey('adresse')) {
+      fields.add('adresse = :adresse');
+      params['adresse'] = data['adresse'];
+    }
+    if (data.containsKey('patente_document')) {
+      fields.add('patente_document = :patente_document');
+      params['patente_document'] = data['patente_document'];
+    }
+    if (data.containsKey('score_credit')) {
+      fields.add('score_credit = :score_credit');
+      params['score_credit'] = data['score_credit'];
+    }
+
+    if (fields.isEmpty) return;
+
+    final query = 'UPDATE clients SET ${fields.join(', ')} WHERE id = :id';
+    await _db.execute(query, params);
   }
 
   Future<bool> deleteClient(int id) async {
@@ -89,11 +131,11 @@ class ClientRepository {
     return (result.affectedRows.toInt()) > 0;
   }
 
-  /// Dedicated method for finance credit deduction — avoids needing all client fields.
-  Future<void> updateClientCredit(int id, double newCredit) async {
+  /// Dedicated method for finance debt update — avoids needing all client fields.
+  Future<void> updateClientSolde(int id, double newSolde) async {
     await _db.execute(
-      'UPDATE clients SET credit = :credit WHERE id = :id',
-      {'credit': newCredit, 'id': id},
+      'UPDATE clients SET solde_du = :solde WHERE id = :id',
+      {'solde': newSolde, 'id': id},
     );
   }
 }

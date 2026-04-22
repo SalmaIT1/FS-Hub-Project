@@ -1,4 +1,3 @@
-﻿import 'package:mysql_client/mysql_client.dart';
 import '../models/role_permission_model.dart';
 import '../../../../shared/database/connection.dart';
 

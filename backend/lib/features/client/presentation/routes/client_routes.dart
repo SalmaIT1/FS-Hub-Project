@@ -17,12 +17,25 @@ class ClientRoutes {
       ..delete('/<id>', (Request request, String id) => Pipeline().addMiddleware(requirePermission('manage_clients')).addHandler((req) => _deleteClient(req, id))(request))
       ..get('/<id>/credit-score', (Request request, String id) => Pipeline().addMiddleware(requirePermission('view_clients')).addHandler((req) => _getClientCreditScore(req, id))(request))
       ..get('/with-credit-scores', Pipeline().addMiddleware(requirePermission('view_clients')).addHandler(_getAllClientsWithCreditScores))
+      ..patch('/<id>/score', (Request request, String id) => Pipeline().addMiddleware(requirePermission('manage_clients')).addHandler((req) => _updateClientScore(req, id))(request))
       ..get('/<id>/payment-history', (Request request, String id) => Pipeline().addMiddleware(requirePermission('view_clients')).addHandler((req) => _getPaymentHistory(req, id))(request));
   }
 
   Future<Response> _getAllClients(Request request) async {
     try {
-      final clients = await ClientService.getAllClients();
+      final params = request.url.queryParameters;
+      final type = params['type'];
+      final search = params['search'];
+      final limit = int.tryParse(params['limit'] ?? '50') ?? 50;
+      final page = int.tryParse(params['page'] ?? '1') ?? 1;
+      final offset = (page - 1) * limit;
+
+      final clients = await ClientService.getAllClients(
+        type: type,
+        search: search,
+        limit: limit,
+        offset: offset,
+      );
       return Response.ok(jsonEncode(clients), headers: {'Content-Type': 'application/json; charset=utf-8'});
     } catch (e) {
       return Response.internalServerError(body: jsonEncode({'error': 'Internal server error'}));
@@ -100,6 +113,22 @@ class ClientRoutes {
       }
     } catch (e) {
       return Response.internalServerError(body: jsonEncode({'message': 'Internal server error'}));
+    }
+  }
+
+  Future<Response> _updateClientScore(Request request, String idString) async {
+    try {
+      final id = int.tryParse(idString);
+      if (id == null) return Response.badRequest(body: jsonEncode({'error': 'Invalid ID'}));
+      
+      final body = await request.readAsString();
+      final data = jsonDecode(body);
+      final score = int.tryParse(data['score_credit']?.toString() ?? '0') ?? 0;
+      
+      final result = await ClientService.updateClient(id, {'score_credit': score}, callerId: request.authUserId);
+      return Response.ok(jsonEncode(result), headers: {'Content-Type': 'application/json; charset=utf-8'});
+    } catch (e) {
+      return Response.internalServerError(body: jsonEncode({'error': 'Internal server error'}));
     }
   }
 

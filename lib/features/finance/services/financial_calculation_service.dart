@@ -3,7 +3,6 @@ import 'package:fs_hub/features/finance/services/expense_service.dart';
 import 'package:fs_hub/features/projects/services/project_service.dart';
 import 'package:fs_hub/features/finance/services/credit_service.dart';
 import 'package:fs_hub/features/clients/services/client_service.dart';
-import 'package:fs_hub/shared/models/project_model.dart';
 import 'package:fs_hub/features/clients/models/client_model.dart';
 
 class FinancialCalculationService {

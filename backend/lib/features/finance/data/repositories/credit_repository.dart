@@ -1,4 +1,3 @@
-﻿import 'package:mysql_client/mysql_client.dart';
 import '../models/credit_model.dart';
 import '../../../../shared/database/connection.dart';
 
@@ -8,11 +7,11 @@ class CreditRepository {
   Future<List<CreditModel>> getAllCredits() async {
     try {
       final results = await _db.execute('''
-        SELECT c.*, cl.nom as client_name, pj.nom as project_name, inv.numero as invoice_number
+        SELECT c.*, cl.nom as client_name, pj.nom as project_name, inv.numero_facture as invoice_number
         FROM credits c
         LEFT JOIN clients cl ON c.client_id = cl.id
         LEFT JOIN projets pj ON c.projet_id = pj.id
-        LEFT JOIN invoices inv ON c.invoice_id = inv.id
+        LEFT JOIN factures inv ON c.invoice_id = inv.id
         ORDER BY c.date_credit DESC
       ''');
       
@@ -25,12 +24,12 @@ class CreditRepository {
   Future<CreditModel?> getCreditById(int id) async {
     try {
       final results = await _db.execute('''
-        SELECT c.*, cl.nom as client_name, pj.nom as project_name, inv.numero as invoice_number
+        SELECT c.*, cl.nom as client_name, pj.nom as project_name, inv.numero_facture as invoice_number
         FROM credits c
         LEFT JOIN clients cl ON c.client_id = cl.id
         LEFT JOIN projets pj ON c.projet_id = pj.id
-        LEFT JOIN invoices inv ON c.invoice_id = inv.id
-        WHERE c.id = ?
+        LEFT JOIN factures inv ON c.invoice_id = inv.id
+        WHERE c.id = :id
       ''', {'id': id});
       
       if (results.rows.isEmpty) return null;
@@ -44,7 +43,7 @@ class CreditRepository {
     try {
       final results = await _db.execute('''
         INSERT INTO credits (type, montant, date_credit, description, client_id, projet_id, invoice_id, created_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (:type, :montant, :date_credit, :description, :client_id, :projet_id, :invoice_id, :created_by)
       ''', {
         'type': credit.type,
         'montant': credit.montant,
@@ -67,8 +66,8 @@ class CreditRepository {
     try {
       await _db.execute('''
         UPDATE credits 
-        SET type = ?, montant = ?, date_credit = ?, description = ?, client_id = ?, projet_id = ?, invoice_id = ?, updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
+        SET type = :type, montant = :montant, date_credit = :date_credit, description = :description, client_id = :client_id, projet_id = :projet_id, invoice_id = :invoice_id, updated_at = CURRENT_TIMESTAMP
+        WHERE id = :id
       ''', {
         'type': credit.type,
         'montant': credit.montant,
@@ -88,7 +87,7 @@ class CreditRepository {
 
   Future<bool> deleteCredit(int id) async {
     try {
-      final results = await _db.execute('DELETE FROM credits WHERE id = ?', {'id': id});
+      final results = await _db.execute('DELETE FROM credits WHERE id = :id', {'id': id});
       return results.affectedRows.toInt() > 0;
     } catch (e) {
       return false;
@@ -98,11 +97,11 @@ class CreditRepository {
   Future<List<CreditModel>> getProjectCredits(int projectId) async {
     try {
       final results = await _db.execute('''
-        SELECT c.*, cl.nom as client_name, inv.numero as invoice_number
+        SELECT c.*, cl.nom as client_name, inv.numero_facture as invoice_number
         FROM credits c
         LEFT JOIN clients cl ON c.client_id = cl.id
-        LEFT JOIN invoices inv ON c.invoice_id = inv.id
-        WHERE c.projet_id = ?
+        LEFT JOIN factures inv ON c.invoice_id = inv.id
+        WHERE c.projet_id = :projectId
         ORDER BY c.date_credit DESC
       ''', {'projectId': projectId});
       
@@ -115,11 +114,11 @@ class CreditRepository {
   Future<List<CreditModel>> getClientCredits(int clientId) async {
     try {
       final results = await _db.execute('''
-        SELECT c.*, pj.nom as project_name, inv.numero as invoice_number
+        SELECT c.*, pj.nom as project_name, inv.numero_facture as invoice_number
         FROM credits c
         LEFT JOIN projets pj ON c.projet_id = pj.id
-        LEFT JOIN invoices inv ON c.invoice_id = inv.id
-        WHERE c.client_id = ?
+        LEFT JOIN factures inv ON c.invoice_id = inv.id
+        WHERE c.client_id = :clientId
         ORDER BY c.date_credit DESC
       ''', {'clientId': clientId});
       
@@ -131,23 +130,21 @@ class CreditRepository {
 
   Future<Map<String, dynamic>> getCreditSummary() async {
     try {
+      // P0-1 FIX: Removed broken subquery (missing FROM clause + non-existent deleted_at column).
+      // Direct flat query over the credits table with NULL-safe aggregation.
       final results = await _db.execute('''
         SELECT 
           COUNT(*) as total_credits,
-          SUM(montant) as total_amount,
-          SUM(CASE WHEN used = 1 THEN montant ELSE 0 END) as used_credits,
-          SUM(CASE WHEN used = 0 THEN montant ELSE 0 END) as available_credits
-        FROM (
-          SELECT *, 
-          CASE WHEN invoice_id IS NOT NULL OR projet_id IS NOT NULL THEN 1 ELSE 0 END as used
-        ) c
-        WHERE c.deleted_at IS NULL
+          COALESCE(SUM(montant), 0) as total_amount,
+          COALESCE(SUM(CASE WHEN invoice_id IS NOT NULL OR projet_id IS NOT NULL THEN montant ELSE 0 END), 0) as used_credits,
+          COALESCE(SUM(CASE WHEN invoice_id IS NULL AND projet_id IS NULL THEN montant ELSE 0 END), 0) as available_credits
+        FROM credits
       ''');
-      
+
       if (results.rows.isEmpty) return {};
-      
-      final row = results.rows.first;
-      
+
+      final row = results.rows.first.assoc();
+
       return {
         'total_credits': row['total_credits'],
         'total_amount': row['total_amount'],
@@ -155,6 +152,7 @@ class CreditRepository {
         'available_credits': row['available_credits'],
       };
     } catch (e) {
+      print('[CreditRepository] getCreditSummary error: $e');
       return {};
     }
   }
@@ -168,7 +166,7 @@ class CreditRepository {
           SUM(CASE WHEN invoice_id IS NOT NULL THEN montant ELSE 0 END) as used_credits,
           SUM(CASE WHEN invoice_id IS NULL AND projet_id IS NOT NULL THEN montant ELSE 0 END) as project_credits
         FROM credits c
-        WHERE c.projet_id = ? AND c.deleted_at IS NULL
+        WHERE c.projet_id = :projectId AND c.deleted_at IS NULL
       ''', {'projectId': projectId});
       
       if (results.rows.isEmpty) return {};
@@ -195,7 +193,7 @@ class CreditRepository {
           SUM(CASE WHEN invoice_id IS NOT NULL THEN montant ELSE 0 END) as used_credits,
           SUM(CASE WHEN invoice_id IS NULL AND client_id IS NOT NULL THEN montant ELSE 0 END) as client_credits
         FROM credits c
-        WHERE c.client_id = ? AND c.deleted_at IS NULL
+        WHERE c.client_id = :clientId AND c.deleted_at IS NULL
       ''', {'clientId': clientId});
       
       if (results.rows.isEmpty) return {};
@@ -218,9 +216,9 @@ class CreditRepository {
       final results = await _db.execute('''
         SELECT 
           COALESCE(SUM(montant), 0) as total_credits,
-          COALESCE(SUM(CASE WHEN invoice_id IS NULL AND client_id = ? THEN montant ELSE 0 END), 0) as available_credits
+          COALESCE(SUM(CASE WHEN invoice_id IS NULL AND client_id = :clientId THEN montant ELSE 0 END), 0) as available_credits
         FROM credits c
-        WHERE c.client_id = ? AND c.deleted_at IS NULL
+        WHERE c.client_id = :clientId AND c.deleted_at IS NULL
       ''', {'clientId': clientId});
       
       if (results.rows.isEmpty) return {};
@@ -241,8 +239,8 @@ class CreditRepository {
     try {
       await _db.execute('''
         UPDATE clients 
-        SET credit_limit = ?
-        WHERE id = ?
+        SET credit_limit = :newLimit
+        WHERE id = :clientId
       ''', {'newLimit': newLimit, 'clientId': clientId});
       
       return true;
@@ -255,8 +253,8 @@ class CreditRepository {
     try {
       await _db.execute('''
         UPDATE credits 
-        SET montant = montant - ?, projet_id = ?
-        WHERE id = ? AND (montant - ?) >= 0
+        SET montant = montant - :amount, projet_id = :projectId
+        WHERE id = :creditId AND (montant - :amount) >= 0
       ''', {'amount': amount, 'projectId': projectId, 'creditId': creditId});
       
       return true;
@@ -269,8 +267,8 @@ class CreditRepository {
     try {
       await _db.execute('''
         UPDATE credits 
-        SET montant = montant - ?, invoice_id = ?
-        WHERE id = ? AND (montant - ?) >= 0
+        SET montant = montant - :amount, invoice_id = :invoiceId
+        WHERE id = :creditId AND (montant - :amount) >= 0
       ''', {'amount': amount, 'invoiceId': invoiceId, 'creditId': creditId});
       
       return true;

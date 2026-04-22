@@ -61,6 +61,7 @@ class ChatService {
     required String type,
     String? replyToId,
     String? clientMessageId,
+    String? excludeConnectionId,
     List<String>? uploadIds,
     Map<String, dynamic>? voiceMetadata,
   }) async {
@@ -69,7 +70,6 @@ class ChatService {
       if (uploadIds != null && uploadIds.isNotEmpty) {
         final ok = await DataIntegrityService.validateUploadsForMessage(uploadIds);
         if (!ok) return {'success': false, 'message': 'One or more uploads are invalid or expired'};
-        await DataIntegrityService.markUploadsAsUsed(uploadIds);
       }
 
       final msgFinal = await _repository.sendMessage(
@@ -91,7 +91,11 @@ class ChatService {
             'payload': {'message': msgFinal['message']},
             'timestamp': DateTime.now().millisecondsSinceEpoch,
           },
-          excludeUserId: senderId,
+          // P1 FIX: Remove user-level exclusion to allow multi-device synchronization.
+          // Double UI bubbles on the active sender device are still prevented by 
+          // passing the connection-specific ID in 'excludeConnectionId'.
+          excludeUserId: null,
+          excludeConnectionId: excludeConnectionId,
         );
       }
 
@@ -120,16 +124,18 @@ class ChatService {
     }
   }
 
+  static const String SYSTEM_ID = '00000000-0000-0000-0000-000000000000';
+
   static Future<Map<String, dynamic>> leaveConversation({required String conversationId, required String userId}) async {
     try {
       final res = await _repository.leaveConversation(conversationId: conversationId, userId: userId);
       if (res['success'] == false) return res;
 
       if (res['type'] == 'group') {
-        // System message for leaving
+        // P0 FIX: System message for leaving using a reserved SYSTEM_ID
         await sendMessage(
           conversationId: conversationId,
-          senderId: userId,
+          senderId: SYSTEM_ID,
           content: 'User left the group',
           type: 'system'
         );
@@ -187,7 +193,7 @@ class ChatService {
       if (type == 'group') {
         await sendMessage(
           conversationId: res['id'],
-          senderId: creatorId,
+          senderId: SYSTEM_ID,
           content: 'Group created',
           type: 'system'
         );

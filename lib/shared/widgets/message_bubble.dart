@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import '../models/message_model.dart';
+import 'package:fs_hub/shared/models/chat_models.dart';
 
 class MessageBubble extends StatelessWidget {
-  final Message message;
+  final ChatMessage message;
   final bool isMe;
   final bool compact; // true when grouped with previous message
 
@@ -28,10 +28,10 @@ class MessageBubble extends StatelessWidget {
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(_formatTime(message.timestamp), style: TextStyle(color: Colors.white38, fontSize: 11)),
+                Text(_formatTime(message.createdAt.millisecondsSinceEpoch), style: TextStyle(color: Colors.white38, fontSize: 11)),
                 if (isMe) ...[
                   SizedBox(width: 8),
-                  Icon(message.read ? Icons.done_all : Icons.check, size: 14, color: message.read ? Color(0xFFFFD700) : Colors.white38),
+                  Icon(message.isRead ? Icons.done_all : Icons.check, size: 14, color: message.isRead ? Color(0xFFFFD700) : Colors.white38),
                 ]
               ],
             )
@@ -42,12 +42,10 @@ class MessageBubble extends StatelessWidget {
   }
 
   Widget _buildContent() {
-    switch (message.type) {
-      case MessageType.text:
-        return Text(message.content, style: TextStyle(color: Colors.white, fontSize: 15, height: 1.2));
-      default:
-        return Text('[${message.type.toString().split('.').last}]', style: TextStyle(color: Colors.white70));
+    if (message.type == 'text') {
+      return Text(message.content ?? '', style: TextStyle(color: Colors.white, fontSize: 15, height: 1.2));
     }
+    return Text('[${message.type}]', style: TextStyle(color: Colors.white70));
   }
 
   String _formatTime(int ts) {

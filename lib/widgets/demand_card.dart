@@ -193,14 +193,14 @@ class _DemandCardState extends State<DemandCard> with SingleTickerProviderStateM
                                   ),
                                   const SizedBox(height: 2),
                                     Text(
-                                      'Ticket #${(widget.demand.id?.toString().length ?? 0) >= 8 ? widget.demand.id?.toString().substring(0, 8) : widget.demand.id ?? Translations.getText('unknown', languageCode)}',
+                                      'Ticket #${(widget.demand.id.toString().length ?? 0) >= 8 ? widget.demand.id.toString().substring(0, 8) : widget.demand.id ?? Translations.getText('unknown', languageCode)}',
                                       style: TextStyle(
                                         color: isDark ? Colors.white38 : Colors.black38,
                                         fontSize: 11,
                                         fontWeight: FontWeight.w500,
                                       ),
                                     ),
-                                    if (widget.demand.requesterName?.isNotEmpty == true) ...[
+                                    if (widget.demand.requesterName.isNotEmpty == true) ...[
                                       const SizedBox(height: 2),
                                       Text(
                                         'By: ${widget.demand.requesterName}',

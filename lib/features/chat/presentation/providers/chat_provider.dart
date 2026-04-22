@@ -18,6 +18,10 @@ class ChatController extends ChangeNotifier {
   String? _currentConversationId;
   String get currentConversationId => _currentConversationId ?? '';
 
+  // P2 FIX: Cache the current user ID so _handleMessageUpdate can compare
+  // sender IDs without an async call inside a hot listener.
+  String? _cachedUserId;
+
   // State streams
   StreamSubscription? _messageSubscription;
   StreamSubscription? _conversationSubscription;
@@ -35,6 +39,11 @@ class ChatController extends ChangeNotifier {
 
   // Error handling
   String? _lastError;
+
+  // P3-DRAFT FIX: Message Draft Persistence
+  // Stores unsent text for each conversation to prevent loss on navigation or restart.
+  final Map<String, String> _drafts = {};
+  String get currentDraft => _drafts[_currentConversationId] ?? '';
 
   // Getters for UI
   List<ConversationEntity> get conversations => List.unmodifiable(_conversations);
@@ -64,6 +73,12 @@ class ChatController extends ChangeNotifier {
   Future<void> init() async {
     try {
       await repository.init();
+      
+      // P3 FIX: Load persisted drafts
+      final loadedDrafts = await repository.loadDrafts();
+      _drafts.addAll(loadedDrafts);
+      
+      notifyListeners();
     } catch (e) {
       _lastError = 'Failed to initialize: $e';
       notifyListeners();
@@ -105,23 +120,27 @@ class ChatController extends ChangeNotifier {
         final restMessages = await repository.getMessages(conversationId: conversationId);
         final existingMessages = _conversationMessages[conversationId]!;
         
-        // Create a map of existing messages by ID
-        final existingMap = {for (var msg in existingMessages) msg.id: msg};
-        
         // Add any new messages from REST that aren't already in the list
         for (var msg in restMessages) {
-          if (!existingMap.containsKey(msg.id)) {
+          final idx = existingMessages.indexWhere((m) => m.id == msg.id);
+          if (idx < 0) {
             print('[CTRL] Adding REST message that wasn\'t in cache: ${msg.id}');
             existingMessages.add(msg);
           } else {
             // Update existing messages with fresh data from REST
-            existingMap[msg.id] = msg;
+            existingMessages[idx] = msg;
           }
         }
         
         // Re-sort all messages
         existingMessages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
         print('[CTRL] Merged cache and REST: now ${existingMessages.length} total messages');
+      }
+
+      // Mark the conversation as read locally immediately for UX
+      final idx = _conversations.indexWhere((c) => c.id == conversationId);
+      if (idx >= 0) {
+        _conversations[idx] = _conversations[idx].copyWith(unreadCount: 0);
       }
 
       notifyListeners();
@@ -131,7 +150,23 @@ class ChatController extends ChangeNotifier {
     }
   }
 
-  /// Send a text message
+  void updateDraft(String content) {
+    if (_currentConversationId != null) {
+      _drafts[_currentConversationId!] = content;
+      repository.saveDraft(_currentConversationId!, content);
+      // We don't notifyListeners here to avoid rebuilds on every keystroke
+      // unless the UI specifically needs it.
+    }
+  }
+
+  void clearDraft() {
+    if (_currentConversationId != null) {
+      _drafts.remove(_currentConversationId);
+      repository.clearDraft(_currentConversationId!);
+    }
+  }
+
+  /// Send a text message (optimistic — bubble appears immediately)
   Future<void> sendMessage(String content) async {
     if (_currentConversationId == null || _currentConversationId!.isEmpty) {
       _lastError = 'No conversation selected';
@@ -139,36 +174,74 @@ class ChatController extends ChangeNotifier {
       return;
     }
 
+    final userId = await getCurrentUserId();
+    if (userId == null || userId.isEmpty) {
+      _lastError = 'Failed to get user ID';
+      notifyListeners();
+      return;
+    }
+    _cachedUserId ??= userId; // populate the cache on first send
+
+    final clientMessageId = 'client_${DateTime.now().millisecondsSinceEpoch}_${content.hashCode}';
+
+    // ── STEP 1: Inject optimistic placeholder BEFORE the network call ──────
+    final optimistic = ChatMessage(
+      id: clientMessageId,          // temp ID — overwritten on server ACK
+      clientMessageId: clientMessageId,
+      conversationId: _currentConversationId!,
+      senderId: userId,
+      content: content,
+      type: 'text',
+      createdAt: DateTime.now(),
+      isFromMe: true,
+      senderName: 'Me',
+      state: MessageState.sending,
+    );
+    _lastError = null;
+    _handleMessageUpdate(optimistic);
+    notifyListeners();
+    // ─────────────────────────────────────────────────────────────────────────
+
     try {
-      _lastError = null;
       print('[CTRL] sendMessage: "$content" to conversation=$_currentConversationId');
-      
-      // Get current user ID from JWT token
-      final userId = await getCurrentUserId();
-      if (userId == null || userId.isEmpty) {
-        _lastError = 'Failed to get user ID';
-        notifyListeners();
-        return;
-      }
-      
-      print('[CTRL] Sending message as userId=$userId');
       
       final message = await repository.sendTextMessage(
         conversationId: _currentConversationId!,
         senderId: userId,
         content: content,
-      );
+        clientMessageId: clientMessageId,
+      ).timeout(const Duration(seconds: 60)); // P1 FIX: Increased timeout for slow networks
       
-      // Manually update cache to ensure immediate UI refresh
+      clearDraft(); // Success, so clear the draft
+      
+      // Server returned the canonical message — replace the optimistic one.
       _handleMessageUpdate(message);
       notifyListeners();
     } catch (e) {
+      // P1 FIX: Optimistic UI Revert Pattern
+      // Instead of removing the bubble, mark it as failed for visual feedback & retry.
+      final msgs = _conversationMessages[_currentConversationId] ?? [];
+      final idx = msgs.indexWhere((m) => m.clientMessageId == clientMessageId);
+      if (idx >= 0) {
+        msgs[idx] = ChatMessage(
+          id: clientMessageId,
+          clientMessageId: clientMessageId,
+          conversationId: _currentConversationId!,
+          senderId: userId,
+          content: content,
+          type: 'text',
+          createdAt: msgs[idx].createdAt,
+          isFromMe: true,
+          senderName: 'Me',
+          state: MessageState.failed,
+        );
+      }
       _lastError = 'Failed to send message: $e';
       notifyListeners();
     }
   }
 
-  /// Send message with attachments
+  /// Send message with attachments (optimistic — placeholder appears immediately)
   Future<void> sendMessageWithAttachments(String content, List<String> uploadIds, {Map<String, dynamic>? voiceMetadata}) async {
     if (_currentConversationId == null || _currentConversationId!.isEmpty) {
       _lastError = 'No conversation selected';
@@ -176,27 +249,49 @@ class ChatController extends ChangeNotifier {
       return;
     }
 
+    // Resolve user ID before entering async upload so we can inject the
+    // optimistic placeholder synchronously.
+    final userId = await getCurrentUserId();
+    if (userId == null || userId.isEmpty) {
+      _lastError = 'Failed to get user ID';
+      notifyListeners();
+      return;
+    }
+    _cachedUserId ??= userId; // populate the cache on first send
+
+    // Determine message type upfront so the placeholder mirrors the real type.
+    String messageType = 'text';
+    if (uploadIds.isNotEmpty) {
+      messageType = voiceMetadata != null ? 'voice' : 'file';
+    }
+
+    final clientMessageId = 'client_${DateTime.now().millisecondsSinceEpoch}_${content.hashCode}';
+
+    // P1-3 FIX: Inject optimistic placeholder BEFORE the upload round-trip.
+    // Previously sendMessageWithAttachments had no optimistic UI, causing
+    // a silent hang (10–30 s for large files) that led users to tap again.
+    final optimisticContent = content.isNotEmpty
+        ? content
+        : (messageType == 'voice' ? '🎤 Voice message' : '📎 Attachment');
+    final optimistic = ChatMessage(
+      id: clientMessageId,
+      clientMessageId: clientMessageId,
+      conversationId: _currentConversationId!,
+      senderId: userId,
+      content: optimisticContent,
+      type: messageType,
+      createdAt: DateTime.now(),
+      isFromMe: true,
+      senderName: 'Me',
+      state: MessageState.sending,
+    );
+    _lastError = null;
+    _handleMessageUpdate(optimistic);
+    notifyListeners();
+
     try {
-      _lastError = null;
       print('[CTRL] sendMessageWithAttachments: "$content" with ${uploadIds.length} attachments to conversation=$_currentConversationId');
-      
-      // Get current user ID from JWT token
-      final userId = await getCurrentUserId();
-      if (userId == null || userId.isEmpty) {
-        _lastError = 'Failed to get user ID';
-        notifyListeners();
-        return;
-      }
-      
-      print('[CTRL] Sending message as userId=$userId');
-      
-      // Determine message type based on content and attachments
-      String messageType = 'text';
-      if (uploadIds.isNotEmpty) {
-        // Use 'voice' type for voice attachments, 'file' for others
-        messageType = voiceMetadata != null ? 'voice' : 'file';
-      }
-      
+
       final message = await repository.sendMessageWithAttachments(
         conversationId: _currentConversationId!,
         senderId: userId,
@@ -204,12 +299,32 @@ class ChatController extends ChangeNotifier {
         type: messageType,
         uploadIds: uploadIds,
         voiceMetadata: voiceMetadata,
-      );
-      
-      // Manually update cache to ensure immediate UI refresh
+        clientMessageId: clientMessageId,
+      ).timeout(const Duration(seconds: 120)); // P1 FIX: Substantial timeout for large file uploads
+
+      clearDraft(); // Success
+
+      // Replace the optimistic placeholder with the canonical server message.
       _handleMessageUpdate(message);
       notifyListeners();
     } catch (e) {
+      // P1 FIX: Optimistic UI Revert Pattern
+      final msgs = _conversationMessages[_currentConversationId] ?? [];
+      final idx = msgs.indexWhere((m) => m.clientMessageId == clientMessageId);
+      if (idx >= 0) {
+        msgs[idx] = ChatMessage(
+          id: clientMessageId,
+          clientMessageId: clientMessageId,
+          conversationId: _currentConversationId!,
+          senderId: userId,
+          content: optimisticContent,
+          type: messageType,
+          createdAt: msgs[idx].createdAt,
+          isFromMe: true,
+          senderName: 'Me',
+          state: MessageState.failed,
+        );
+      }
       _lastError = 'Failed to send message with attachments: $e';
       notifyListeners();
     }
@@ -499,17 +614,36 @@ class ChatController extends ChangeNotifier {
       return null;
     }
 
-    try {
-      _lastError = null;
-      print('[CTRL] sendVoiceNote: conversationId=$_currentConversationId duration=${durationMs}ms fileSize=${audioBytes.length}');
+    _lastError = null;
+    // P1-01 FIX: Immediate Optimistic UI for Voice Notes
+    // Resolve user ID and inject placeholder bubble before entering the 
+    // potentially long Sign/Upload/Send sequence.
+    final userId = await getCurrentUserId();
+    if (userId == null || userId.isEmpty) {
+      _lastError = 'Failed to get user ID';
+      notifyListeners();
+      return null;
+    }
+    _cachedUserId ??= userId;
 
-      // Get current user ID
-      final userId = await getCurrentUserId();
-      if (userId == null || userId.isEmpty) {
-        _lastError = 'Failed to get user ID';
-        notifyListeners();
-        return null;
-      }
+    final clientMessageId = 'client_voice_${DateTime.now().millisecondsSinceEpoch}';
+    final optimistic = ChatMessage(
+      id: clientMessageId,
+      clientMessageId: clientMessageId,
+      conversationId: _currentConversationId!,
+      senderId: userId,
+      content: '🎤 Voice message',
+      type: 'voice',
+      createdAt: DateTime.now(),
+      isFromMe: true,
+      senderName: 'Me',
+      state: MessageState.sending,
+    );
+    _handleMessageUpdate(optimistic);
+    notifyListeners();
+
+    try {
+      print('[CTRL] sendVoiceNote: conversationId=$_currentConversationId duration=${durationMs}ms fileSize=${audioBytes.length}');
 
       // Step 1: Request signed URL from backend
       print('[CTRL] Requesting signed URL for voice upload...');
@@ -558,6 +692,7 @@ class ChatController extends ChangeNotifier {
           'duration_seconds': durationSeconds,
           'waveform_data': waveformData,
         },
+        clientMessageId: clientMessageId,
       );
 
       print('[CTRL] Voice message sent successfully: ${message.id}');
@@ -601,6 +736,23 @@ class ChatController extends ChangeNotifier {
     } else {
       messages.add(msg);
     }
+    
+    // Update the conversation preview in the list
+      final convoIdx = _conversations.indexWhere((c) => c.id == convId);
+      if (convoIdx >= 0) {
+        final oldConvo = _conversations[convoIdx];
+        // P2 FIX: Do not increment unread count for messages sent by the
+        // current user. Without this, a second device connection would
+        // inflate the badge for messages the user themselves just sent.
+        final isOwnMessage = _cachedUserId != null && msg.senderId == _cachedUserId;
+        _conversations[convoIdx] = oldConvo.copyWith(
+          lastMessage: (msg.content?.isEmpty ?? true) && msg.type != 'text' ? '[${msg.type}]' : (msg.content ?? ''),
+          lastMessageAt: msg.createdAt,
+          unreadCount: (convId == _currentConversationId || isOwnMessage)
+              ? 0
+              : (oldConvo.unreadCount + 1),
+        );
+      }
     
     // Re-sort all messages by date
     messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));

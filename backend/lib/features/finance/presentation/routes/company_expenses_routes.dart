@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 import '../../domain/services/expense_service.dart';
-import '../../../../core/middleware/auth_middleware.dart';
 import '../../data/models/expense_model.dart';
 
 class CompanyExpensesRoutes {
@@ -69,7 +68,7 @@ class CompanyExpensesRoutes {
       return Response.ok(
         jsonEncode({
           'success': true,
-          'data': expense?.toJson() ?? {},
+          'data': expense.toJson() ?? {},
           'message': 'Company expense retrieved successfully',
         }),
         headers: {'content-type': 'application/json; charset=utf-8'},
@@ -190,7 +189,7 @@ class CompanyExpensesRoutes {
       return Response.ok(
         jsonEncode({
           'success': true,
-          'data': categories.map((c) => c?.toJson() ?? {}).toList(),
+          'data': categories.map((c) => c.toJson() ?? {}).toList(),
           'message': 'Company expense categories retrieved successfully',
         }),
         headers: {'content-type': 'application/json; charset=utf-8'},
@@ -222,7 +221,7 @@ class CompanyExpensesRoutes {
         201,
         body: jsonEncode({
           'success': true,
-          'data': category?.toJson() ?? {},
+          'data': category.toJson() ?? {},
           'message': 'Company expense category created successfully',
         }),
         headers: {'content-type': 'application/json; charset=utf-8'},

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import '../models/message_model.dart';
+import 'package:fs_hub/shared/models/chat_models.dart';
 import 'package:fs_hub/core/utils/url_utils.dart';
 import 'package:fs_hub/shared/widgets/authenticated_image.dart';
 
 class MediaMessageBubble extends StatelessWidget {
-  final Message message;
+  final ChatMessage message;
   final bool isMe;
 
   const MediaMessageBubble({super.key, required this.message, this.isMe = false});
@@ -23,14 +23,14 @@ class MediaMessageBubble extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (message.meta != null && message.meta!['thumb'] != null)
+              if (message.attachments.isNotEmpty && message.attachments.any((a) => a.isImage))
                 AuthenticatedImage(
-                  url: UrlUtils.ensureAbsoluteUrl(message.meta!['thumb']), 
+                  url: UrlUtils.ensureAbsoluteUrl(message.attachments.firstWhere((a) => a.isImage).url), 
                   fit: BoxFit.cover
                 ),
               Padding(
                 padding: EdgeInsets.all(10),
-                child: Text(message.content, style: TextStyle(color: Colors.white70, fontSize: 13)),
+                child: Text(message.content ?? '', style: TextStyle(color: Colors.white70, fontSize: 13)),
               )
             ],
           ),

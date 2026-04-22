@@ -1,7 +1,5 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import '../../data/datasources/upload_datasource.dart';
-import '../providers/chat_provider.dart';
 
 /// Attachment types supported by the system
 enum AttachmentType {

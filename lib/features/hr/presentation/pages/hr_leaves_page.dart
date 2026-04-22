@@ -43,8 +43,12 @@ class _HrLeavesPageState extends State<HrLeavesPage> {
   }
 
   int _getEmployeeTotalApproved(String empId) {
+    final currentYear = DateTime.now().year;
     return _leaves
-        .where((l) => l.employeeId == empId && l.status == 'approved')
+        .where((l) => l.employeeId == empId && 
+                      l.status == 'approved' && 
+                      l.leaveType == 'paid_leave' &&
+                      l.startDate.year == currentYear)
         .fold(0, (sum, l) => sum + (l.totalDays ?? 0));
   }
 
@@ -68,11 +72,11 @@ class _HrLeavesPageState extends State<HrLeavesPage> {
       showBackButton: true,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: _gold))
-          : SafeArea(
-              child: Container(
+          : Container(
               color: bg,
               child: Column(
                 children: [
+                  const SizedBox(height: 100),
                   // Improved Header Stats
                   _StatsBar(
                     isDark: isDark,
@@ -115,7 +119,6 @@ class _HrLeavesPageState extends State<HrLeavesPage> {
                 ],
               ),
             ),
-          ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
           final res = await showModalBottomSheet(
@@ -172,8 +175,11 @@ class _BalanceSummary extends StatelessWidget {
           final empId = employeeLeaves.keys.elementAt(i);
           final leaves = employeeLeaves[empId]!;
           final name = leaves.first.employeeNom ?? empId;
+          final currentYear = DateTime.now().year;
           final totalApproved = leaves
-              .where((l) => l.status == 'approved')
+              .where((l) => l.status == 'approved' && 
+                            l.leaveType == 'paid_leave' &&
+                            l.startDate.year == currentYear)
               .fold(0, (sum, l) => sum + (l.totalDays ?? 0));
           
           final isOverLimit = totalApproved > 21;

@@ -41,22 +41,22 @@ class _HrRecruitmentPageState extends State<HrRecruitmentPage> {
     final isFr = context.watch<SettingsController>().languageCode == 'fr';
     final bg = isDark ? const Color(0xFF0F0F0F) : const Color(0xFFF6F6F6);
 
-    return Scaffold(
-      backgroundColor: bg,
-      appBar: LuxuryAppBar(
-        title: isFr ? 'Recrutement' : 'Recruitment',
-        subtitle: isFr ? 'Gestion des documents & contrats' : 'Document & Contracts Management',
-        isPremium: true,
-      ),
+    return LuxuryScaffold(
+      title: isFr ? 'Recrutement' : 'Recruitment',
+      subtitle: isFr ? 'Gestion des documents & contrats' : 'Document & Contracts Management',
+      showBackButton: true,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: _gold))
-          : ListView.builder(
-              padding: const EdgeInsets.all(24),
-              itemCount: _employees.length,
-              itemBuilder: (context, index) {
-                final emp = _employees[index];
-                return _buildEmployeeCard(emp, isDark, isFr);
-              },
+          : Container(
+              color: bg,
+              child: ListView.builder(
+                padding: const EdgeInsets.fromLTRB(24, 100, 24, 24),
+                itemCount: _employees.length,
+                itemBuilder: (context, index) {
+                  final emp = _employees[index];
+                  return _buildEmployeeCard(emp, isDark, isFr);
+                },
+              ),
             ),
     );
   }
