@@ -184,12 +184,22 @@ void main(List<String> args) async {
   //  CORS_ALLOWED_ORIGIN env var for staging/production access.
   Map<String, String> corsHeaders(Request request) {
     final origin = request.headers['origin'] ?? '';
-    final explicitAllowed = Platform.environment['CORS_ALLOWED_ORIGIN'];
+
+    // CORS_ALLOWED_ORIGIN supports comma-separated values for multi-origin setups
+    // e.g. "https://fs-hub-frontend.onrender.com,http://localhost"
+    final explicitAllowedRaw = Platform.environment['CORS_ALLOWED_ORIGIN'] ?? '';
+    final explicitAllowed = explicitAllowedRaw
+        .split(',')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toSet();
+
     final isAllowed = origin.startsWith('http://localhost') ||
         origin.startsWith('https://localhost') ||
         origin.startsWith('http://127.0.0.1') ||
-        (explicitAllowed != null && origin == explicitAllowed) ||
+        explicitAllowed.contains(origin) ||
         origin.isEmpty; // same-origin requests may omit Origin
+
     return {
       'Access-Control-Allow-Origin': isAllowed && origin.isNotEmpty ? origin : 'http://localhost',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',

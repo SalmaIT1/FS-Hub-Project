@@ -14,16 +14,22 @@ services:
       - DB_NAME=fs_hub_db
       - DB_USER=root
       - DB_PASSWORD=admin
+      - DB_SECURE=false          # CRITICAL FIX: disable SSL for local MySQL container
       - JWT_SECRET=3a5393b577f563814863eb5c206fee61
-      - CORS_ALLOWED_ORIGIN=http://localhost
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      # For Render: set this to your frontend Render URL (e.g. https://fs-hub-frontend.onrender.com)
+      - CORS_ALLOWED_ORIGIN=https://fs-hub-project-2.onrender.com
     depends_on:
       database:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - fshub-network
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8080/healthz"]
-      interval: 10s # More frequent initially
+      interval: 10s
       timeout: 5s
       retries: 5
 
@@ -33,8 +39,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - API_BASE_URL=http://localhost:8080   # local: bypass nginx proxy, call backend port directly
     ports:
       - "80:80"
+    environment:
+      - BACKEND_URL=http://backend:8080   # nginx template substitution for /api/ proxy
     depends_on:
       backend:
         condition: service_healthy
@@ -57,6 +67,19 @@ services:
       - fshub-network
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis (required by backend for idempotency, rate-limiting & presence)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - fshub-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5

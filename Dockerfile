@@ -12,9 +12,13 @@ RUN flutter pub get
 # Copy the rest of the application code
 COPY . .
 
-# Enable web and build release
+# Accept the API URL as a build argument
+ARG API_BASE_URL
+ENV API_BASE_URL=$API_BASE_URL
+
+# Enable web and build release with the injected API URL
 RUN flutter config --enable-web && \
-    flutter build web --release
+    flutter build web --release --dart-define=API_BASE_URL=$API_BASE_URL
 
 # Stage 2: Production environment using Nginx
 FROM nginx:alpine
