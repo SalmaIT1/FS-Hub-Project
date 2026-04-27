@@ -11,7 +11,10 @@ class AuthService {
     try {
       final response = await http.post(
         Uri.parse('$_baseUrl/auth/login'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true',
+        },
         body: jsonEncode({'username': username, 'password': password}),
       );
 
@@ -141,6 +144,7 @@ class AuthService {
     
     final requestHeaders = {
       'Content-Type': 'application/json',
+      'ngrok-skip-browser-warning': 'true',
       if (token != null) 'Authorization': 'Bearer $token',
       ...?headers,
     };

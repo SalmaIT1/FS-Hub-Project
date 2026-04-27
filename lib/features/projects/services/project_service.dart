@@ -119,6 +119,7 @@ class ProjectService {
 
       final request = http.MultipartRequest('POST', uri)
         ..headers['Authorization'] = 'Bearer $token'
+        ..headers['ngrok-skip-browser-warning'] = 'true'
         ..files.add(http.MultipartFile.fromBytes('file', fileBytes, filename: filename));
 
       final streamedResponse = await request.send();

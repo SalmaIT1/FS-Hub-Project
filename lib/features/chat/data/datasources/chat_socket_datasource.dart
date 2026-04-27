@@ -62,7 +62,7 @@ class ChatSocketDatasource {
       }
 
       final ticket = jsonDecode(ticketRes.body)['ticket'];
-      final uri = Uri.parse('$wsUrl?ticket=$ticket');
+      final uri = Uri.parse('$wsUrl?ticket=$ticket&ngrok-skip-browser-warning=1');
       
       print('[WS] Connecting to $wsUrl with ticket...');
       _channel = WebSocketChannel.connect(uri);

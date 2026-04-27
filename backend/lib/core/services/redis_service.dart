@@ -17,10 +17,8 @@ class RedisService {
 
   Future<void> initialize() async {
     if (_isConnected) return;
-
-    // includePlatformEnvironment: true ensures Docker/Render env vars are read,
-    // not just the .env file (which doesn't exist in containers).
-    final env = DotEnv(includePlatformEnvironment: true)..load(['.env']);
+    
+    final env = DotEnv()..load(['.env']);
     final host = env['REDIS_HOST'] ?? 'localhost';
     final port = int.tryParse(env['REDIS_PORT'] ?? '6379') ?? 6379;
     final password = env['REDIS_PASSWORD'];
@@ -105,7 +103,7 @@ class RedisService {
   }
 
   Future<bool> checkAndSetIdempotencyKey(String key, {int ttlSeconds = 86400}) async {
-    if (!_isConnected) return true; // Fail-open: Redis down → allow request through
+    if (!_isConnected) return false;
     try {
       // SET key value EX seconds NX
       // NX: Only set the key if it does not already exist.
