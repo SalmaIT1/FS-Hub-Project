@@ -17,7 +17,7 @@ class ChatRemoteDatasource {
   Future<List<ConversationEntity>> getConversations() async {
     final token = await tokenProvider();
     final response = await http.get(
-      Uri.parse('$baseUrl/v1/conversations'),
+      Uri.parse('$baseUrl/v1/conversations?ngrok-skip-browser-warning=1'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
@@ -43,7 +43,7 @@ class ChatRemoteDatasource {
     }
 
     final response = await http.get(
-      Uri.parse(url),
+      Uri.parse('$url${url.contains('?') ? '&' : '?'}ngrok-skip-browser-warning=1'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
@@ -71,7 +71,7 @@ class ChatRemoteDatasource {
   }) async {
     final token = await tokenProvider();
     final response = await http.post(
-      Uri.parse('$baseUrl/v1/conversations/$conversationId/messages'),
+      Uri.parse('$baseUrl/v1/conversations/$conversationId/messages?ngrok-skip-browser-warning=1'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
@@ -116,7 +116,7 @@ class ChatRemoteDatasource {
     }
 
     final response = await http.post(
-      Uri.parse('$baseUrl/v1/conversations/$conversationId/messages'),
+      Uri.parse('$baseUrl/v1/conversations/$conversationId/messages?ngrok-skip-browser-warning=1'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
@@ -138,7 +138,7 @@ class ChatRemoteDatasource {
   }) async {
     final token = await tokenProvider();
     final response = await http.post(
-      Uri.parse('$baseUrl/v1/uploads/signed-url'),
+      Uri.parse('$baseUrl/v1/uploads/signed-url?ngrok-skip-browser-warning=1'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
@@ -159,7 +159,7 @@ class ChatRemoteDatasource {
   Future<List<Map<String, dynamic>>> getAvailableUsers() async {
     final token = await tokenProvider();
     final response = await http.get(
-      Uri.parse('$baseUrl/v1/conversations/users/list'),
+      Uri.parse('$baseUrl/v1/conversations/users/list?ngrok-skip-browser-warning=1'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
@@ -176,7 +176,7 @@ class ChatRemoteDatasource {
   Future<ConversationEntity> createConversation({required String user2Id}) async {
     final token = await tokenProvider();
     final response = await http.post(
-      Uri.parse('$baseUrl/v1/conversations'),
+      Uri.parse('$baseUrl/v1/conversations?ngrok-skip-browser-warning=1'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
@@ -198,7 +198,7 @@ class ChatRemoteDatasource {
   }) async {
     final token = await tokenProvider();
     final response = await http.post(
-      Uri.parse('$baseUrl/v1/conversations'),
+      Uri.parse('$baseUrl/v1/conversations?ngrok-skip-browser-warning=1'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
@@ -236,7 +236,7 @@ class ChatRemoteDatasource {
   Future<void> markConversationAsRead(String conversationId) async {
     final token = await tokenProvider();
     await http.post(
-      Uri.parse('$baseUrl/v1/conversations/$conversationId/read'),
+      Uri.parse('$baseUrl/v1/conversations/$conversationId/read?ngrok-skip-browser-warning=1'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
@@ -247,7 +247,7 @@ class ChatRemoteDatasource {
   Future<void> deleteConversation(String conversationId) async {
     final token = await tokenProvider();
     final response = await http.delete(
-      Uri.parse('$baseUrl/v1/conversations/$conversationId/leave'),
+      Uri.parse('$baseUrl/v1/conversations/$conversationId/leave?ngrok-skip-browser-warning=1'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
