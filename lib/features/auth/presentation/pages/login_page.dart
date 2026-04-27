@@ -112,6 +112,10 @@ class _GlassLoginPageState extends State<GlassLoginPage> {
                                 letterSpacing: -0.5,
                               ),
                             ),
+                            const Text(
+                              '(NGROK VERSION)',
+                              style: TextStyle(color: Colors.orange, fontSize: 12, fontWeight: FontWeight.bold),
+                            ),
                             const SizedBox(height: 8),
                             Text(
                               settings.translate('signin_continue'),
