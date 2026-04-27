@@ -18,6 +18,7 @@ class ClientService {
       if (search != null) queryParams['search'] = search;
       if (page != null) queryParams['page'] = page.toString();
       if (limit != null) queryParams['limit'] = limit.toString();
+      queryParams['ngrok-skip-browser-warning'] = '1';
 
       final uri = Uri.parse(_baseUrl).replace(queryParameters: queryParams);
       final response = await http.get(
@@ -48,7 +49,7 @@ class ClientService {
   static Future<Map<String, dynamic>> getClientById(int id) async {
     try {
       final response = await http.get(
-        Uri.parse('$_baseUrl/$id'),
+        Uri.parse('$_baseUrl/$id?ngrok-skip-browser-warning=1'),
         headers: await ApiService.getAuthHeaders(),
       );
 
@@ -76,7 +77,7 @@ class ClientService {
     try {
       final headers = await ApiService.getAuthHeaders();
       final response = await http.post(
-        Uri.parse(_baseUrl),
+        Uri.parse('$_baseUrl?ngrok-skip-browser-warning=1'),
         headers: headers,
         body: json.encode(client.toJson()),
       );
@@ -106,7 +107,7 @@ class ClientService {
     try {
       final headers = await ApiService.getAuthHeaders();
       final response = await http.put(
-        Uri.parse('$_baseUrl/$id'),
+        Uri.parse('$_baseUrl/$id?ngrok-skip-browser-warning=1'),
         headers: headers,
         body: json.encode(client.toJson()),
       );
@@ -135,7 +136,7 @@ class ClientService {
   static Future<Map<String, dynamic>> deleteClient(int id) async {
     try {
       final response = await http.delete(
-        Uri.parse('$_baseUrl/$id'),
+        Uri.parse('$_baseUrl/$id?ngrok-skip-browser-warning=1'),
         headers: await ApiService.getAuthHeaders(),
       );
 
@@ -163,7 +164,7 @@ class ClientService {
     try {
       final headers = await ApiService.getAuthHeaders();
       final response = await http.patch(
-        Uri.parse('$_baseUrl/$id/score'),
+        Uri.parse('$_baseUrl/$id/score?ngrok-skip-browser-warning=1'),
         headers: headers,
         body: json.encode({'score_credit': score}),
       );
