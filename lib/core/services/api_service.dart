@@ -27,7 +27,7 @@ class ApiService {
     try {
       final token = await _getToken();
       final response = await http.get(
-        Uri.parse('$baseUrl$apiVersion$endpoint'),
+        Uri.parse('$baseUrl$apiVersion$endpoint${endpoint.contains('?') ? '&' : '?'}ngrok-skip-browser-warning=1'),
         headers: {..._headers(token: token), ...?headers},
       );
 
@@ -41,7 +41,7 @@ class ApiService {
     try {
       final token = await _getToken();
       final response = await http.post(
-        Uri.parse('$baseUrl$apiVersion$endpoint'),
+        Uri.parse('$baseUrl$apiVersion$endpoint${endpoint.contains('?') ? '&' : '?'}ngrok-skip-browser-warning=1'),
         headers: {..._headers(token: token), ...?headers},
         body: jsonEncode(data ?? body),
       );
@@ -56,7 +56,7 @@ class ApiService {
     try {
       final token = await _getToken();
       final response = await http.put(
-        Uri.parse('$baseUrl$apiVersion$endpoint'),
+        Uri.parse('$baseUrl$apiVersion$endpoint${endpoint.contains('?') ? '&' : '?'}ngrok-skip-browser-warning=1'),
         headers: {..._headers(token: token), ...?headers},
         body: jsonEncode(data ?? body),
       );
@@ -71,7 +71,7 @@ class ApiService {
     try {
       final token = await _getToken();
       final response = await http.delete(
-        Uri.parse('$baseUrl$apiVersion$endpoint'),
+        Uri.parse('$baseUrl$apiVersion$endpoint${endpoint.contains('?') ? '&' : '?'}ngrok-skip-browser-warning=1'),
         headers: {..._headers(token: token), ...?headers},
       );
 
