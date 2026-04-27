@@ -209,11 +209,11 @@ void main(List<String> args) async {
     }
 
     return {
-      'Access-Control-Allow-Origin': isAllowed && origin.isNotEmpty ? origin : (isLocal ? origin : 'http://localhost'),
+      'Access-Control-Allow-Origin': isAllowed && origin.isNotEmpty ? origin : 'http://localhost',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers':
-          'Origin, Content-Type, Accept, Authorization, X-User-Id, ngrok-skip-browser-warning, x-idempotency-key',
-      'Access-Control-Allow-Private-Network': 'true',
+      'Access-Control-Allow-Headers': 'Origin, Content-Type, Accept, Authorization, X-User-Id, ngrok-skip-browser-warning, x-idempotency-key',
+      'Access-Control-Allow-Credentials': 'true',
+      'Access-Control-Max-Age': '86400',
     };
   }
 
@@ -225,8 +225,26 @@ void main(List<String> args) async {
           if (request.method == 'OPTIONS') {
             return Response.ok('', headers: cors);
           }
-          final response = await innerHandler(request);
-          return response.change(headers: cors);
+          try {
+            final response = await innerHandler(request);
+            
+            // P4 FIX: If the request is a WebSocket upgrade (hijacked), do not modify headers
+            // as the response is already handled by the WebSocket adapter.
+            if (response.statusCode == 101 || (response.headers['connection']?.toLowerCase() == 'upgrade')) {
+              return response;
+            }
+
+            // Merge CORS headers with existing headers
+            final Map<String, String> newHeaders = Map.from(response.headers);
+            cors.forEach((key, value) => newHeaders[key] = value);
+            return response.change(headers: newHeaders);
+          } catch (e, stack) {
+            print('[SERVER-ERROR] $e\n$stack');
+            return Response.internalServerError(
+              body: jsonEncode({'error': e.toString()}),
+              headers: {...cors, 'Content-Type': 'application/json'}
+            );
+          }
         };
       })
       // 1. Global request body size limit (Standard: 10MB for general APIs)
