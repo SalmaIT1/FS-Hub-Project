@@ -10,6 +10,7 @@ COPY pubspec.yaml pubspec.lock ./
 RUN flutter pub get
 
 # Copy the rest of the application code
+# Cache-breaker: 2026-04-27-12-42
 COPY . .
 
 # Accept the API URL as a build argument
