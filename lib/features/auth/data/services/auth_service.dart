@@ -10,7 +10,7 @@ class AuthService {
   static Future<Map<String, dynamic>> login(String username, String password) async {
     try {
       final response = await http.post(
-        Uri.parse('$_baseUrl/auth/login'),
+        Uri.parse('$_baseUrl/auth/login?ngrok-skip-browser-warning=1'),
         headers: {
           'Content-Type': 'application/json',
           'ngrok-skip-browser-warning': 'true',
@@ -140,7 +140,7 @@ class AuthService {
 
   static Future<http.Response> authenticatedRequest(String endpoint, String method, {Map<String, dynamic>? body, Map<String, String>? headers}) async {
     final token = await getToken();
-    final uri = Uri.parse('$_baseUrl$endpoint');
+    final uri = Uri.parse('$_baseUrl$endpoint${endpoint.contains('?') ? '&' : '?'}ngrok-skip-browser-warning=1');
     
     final requestHeaders = {
       'Content-Type': 'application/json',
