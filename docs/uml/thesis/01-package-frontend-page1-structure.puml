@@ -1,0 +1,104 @@
+@startuml
+title "Architecture Frontend Flutter — Structure (page 1/2)"
+
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam defaultFontSize 12
+skinparam packageFontSize 13
+skinparam componentFontSize 11
+skinparam ranksep 35
+skinparam nodesep 25
+skinparam padding 8
+skinparam diagramPadding 20
+skinparam packagePadding 12
+skinparam linetype ortho
+
+skinparam package {
+  BorderColor #2C5282
+  BackgroundColor #F7FAFC
+}
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor #4A5568
+}
+
+top to bottom direction
+
+artifact "main.dart" as Main #LightYellow
+
+package "shared / legacy" as SharedLegacy #FEFCBF {
+  component [SharedModels\n(User, Emp, Proj...)] as Models
+  component [SharedWidgets\n(MainLayout, GlassUI)] as Widgets
+  component [pages/*\nwidgets/* racine] as Legacy
+}
+
+package "features/" {
+
+  package "Auth & Security" {
+    component [LoginUI / Splash] as UI_Auth
+    component [AuthRemoteDS] as DS_Auth
+    UI_Auth -down-> DS_Auth
+  }
+
+  package "Métier (via AuthService)" #EBF8FF {
+    component [HrUI / EmpUI / DeptUI] as UI_HR
+    component [HrService] as Svc_HR
+    component [EmpService] as Svc_Emp
+    component [DeptService] as Svc_Dept
+    component [ProjUI / TaskUI] as UI_Proj
+    component [ProjectService] as Svc_Proj
+    component [TaskService] as Svc_Task
+    component [FinUI] as UI_Fin
+    component [FinanceService\n+ Expense + Credit] as Svc_Fin
+    component [Role/Perm Service] as Svc_Role
+    UI_HR -down-> Svc_HR
+    UI_HR -down-> Svc_Emp
+    UI_HR -down-> Svc_Dept
+    UI_Proj -down-> Svc_Proj
+    UI_Proj -down-> Svc_Task
+    UI_Fin -down-> Svc_Fin
+  }
+
+  package "Métier (via ApiService)" #E6FFFA {
+    component [DemandUI] as UI_Dem
+    component [NotifUI] as UI_Notif
+    component [ClientUI] as UI_Cli
+    component [DemandService] as Svc_Dem
+    component [NotificationService] as Svc_Notif
+    component [ClientService] as Svc_Cli
+    UI_Dem -down-> Svc_Dem
+    UI_Notif -down-> Svc_Notif
+    UI_Cli -down-> Svc_Cli
+  }
+
+  package "Chat & Misc (Clean Architecture)" #F0FFF4 {
+    component [ChatUI] as UI_Chat
+    component [ChatController] as Ctrl_Chat
+    component [ChatRepository] as Repo_Chat
+    component [ChatSocketDS\n(Ticket + WS)] as DS_Sock
+    component [ChatRemoteDS] as DS_REST
+    component [UploadDS] as DS_Up
+    component [AiService] as Svc_AI
+    component [EmailService] as Svc_Email
+    UI_Chat -down-> Ctrl_Chat
+    Ctrl_Chat -down-> Repo_Chat
+    Repo_Chat -down-> DS_Sock
+    Repo_Chat -down-> DS_REST
+    Repo_Chat -down-> DS_Up
+  }
+
+  DS_Auth -[hidden]down-> UI_HR
+  UI_HR -[hidden]down-> UI_Dem
+  UI_Dem -[hidden]down-> UI_Chat
+}
+
+Main -down-> Widgets
+Main -down-> UI_Auth
+Main -down-> Ctrl_Chat : MultiProvider
+
+note bottom
+  Suite : **01-package-frontend-page2-network.puml**
+  (chemins ApiService, AuthService, HTTP direct, WebSocket).
+end note
+
+@enduml

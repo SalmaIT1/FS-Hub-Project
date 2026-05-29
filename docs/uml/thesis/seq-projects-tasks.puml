@@ -1,0 +1,46 @@
+@startuml
+title "Séquence — Projets : Création → assignation tâche → suivi"
+
+skinparam shadowing false
+autonumber
+
+actor Manager
+participant "ProjectsListPage" as FE <<boundary>>
+participant "ProjectRoutes" as PR <<control>>
+participant "ProjectService" as PS <<control>>
+participant "ProjectRepository" as PRepo <<control>>
+participant "TaskRoutes" as TR <<control>>
+participant "TaskService" as TS <<control>>
+participant "TaskRepository" as TRepo <<control>>
+participant "NotificationService" as Notif <<control>>
+database "MySQL" as DB <<database>>
+
+Manager -> FE : créer projet
+FE -> PR : POST /v1/projects
+PR -> PS : createProject(data, callerId)
+PS -> PS : ProjectStatus.validate(statut)
+PS -> PRepo : createProject()
+PRepo -> DB : INSERT projets
+PS -> PS : AuditService.log(PROJECT_CREATED)
+PS --> FE : project id
+
+Manager -> FE : créer tâche + assigner
+FE -> TR : POST /v1/tasks
+TR -> TS : createTask(data, callerId)
+TS -> TRepo : createTask()
+TRepo -> DB : INSERT taches
+TS -> Notif : createNotification()\ntype TASK_ASSIGNED
+Notif -> DB : INSERT notifications
+TS --> FE : 201 Created
+
+== Suivi progression (Employé) ==
+
+actor Employee
+Employee -> FE : update statut / heures
+FE -> TR : PUT /v1/tasks/{id}
+TR -> TS : updateTask()\npermission update_task_progress
+TS -> TRepo : updateTask()
+TRepo -> DB : UPDATE statut, heures_reelles
+TS --> FE : OK
+
+@enduml

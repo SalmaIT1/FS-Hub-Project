@@ -1,0 +1,42 @@
+@startuml
+title "Séquence — Finance : Facture → paiement → statut"
+
+skinparam shadowing false
+autonumber
+
+actor Comptable
+participant "InvoicesListPage" as FE <<boundary>>
+participant "FinanceRoutes" as FR <<control>>
+participant "FinanceService" as FS <<control>>
+participant "FinanceRepository" as Repo <<control>>
+database "MySQL" as DB <<database>>
+
+Comptable -> FE : créer facture
+FE -> FR : POST /v1/finance/invoices
+FR -> FS : createInvoice(data)
+FS -> FS : statut défaut Brouillon\nvérif devis Accepté si INVOICE
+FS -> Repo : createInvoice()
+Repo -> DB : INSERT factures
+FS --> FE : OK
+
+Comptable -> FE : valider / envoyer\n(update statut)
+FE -> FR : PUT /v1/finance/invoices/{id}
+FR -> FS : updateInvoice()
+Repo -> DB : UPDATE statut\n(ex: Envoyée)
+
+Comptable -> FE : enregistrer paiement
+FE -> FR : POST /v1/finance/payments
+FR -> FS : createPayment(data)
+FS -> DB : BEGIN TRANSACTION
+FS -> DB : SELECT factures FOR UPDATE
+FS -> DB : SUM paiements existants
+FS -> FS : vérifier montant <= solde
+FS -> DB : INSERT paiements
+note right of DB
+  Trigger DB met à jour
+  statut : Payée / Partiellement Payée
+end note
+FS -> DB : COMMIT
+FS --> FE : paiement enregistré
+
+@enduml

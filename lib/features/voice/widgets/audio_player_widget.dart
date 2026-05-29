@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:fs_hub/features/auth/data/datasources/auth_remote_datasource.dart';
 import 'package:fs_hub/core/utils/url_utils.dart';
+import 'package:fs_hub/core/services/media_auth_service.dart';
 
 /// Real audio player widget for voice notes
 /// 
@@ -137,9 +138,11 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
         print('[VoiceAudioPlayer] Source URL: ${widget.source}');
         
         if (kIsWeb) {
-          // On web, use token as query parameter
-          final authenticatedUrl = UrlUtils.appendToken(widget.source, token);
-          print('[VoiceAudioPlayer] Web loading with token URL');
+          final absolute = UrlUtils.ensureAbsoluteUrl(widget.source);
+          final ticket = await MediaAuthService.ticketForMediaUrl(absolute);
+          final authenticatedUrl = ticket != null
+              ? UrlUtils.appendMediaTicket(absolute, ticket)
+              : absolute;
           await _audioPlayer.setUrl(authenticatedUrl);
         } else {
           // On mobile platforms, try multiple authentication methods
@@ -162,17 +165,16 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
             }
           }
           
-          // Method 2: Try with token as query parameter (fallback)
           if (!loadedSuccessfully) {
             try {
-              final authenticatedUrl = UrlUtils.appendToken(widget.source, token);
-              print('[VoiceAudioPlayer] Mobile loading with token as query parameter');
-              await _audioPlayer.setUrl(authenticatedUrl);
-              loadedSuccessfully = true;
-              print('[VoiceAudioPlayer] Success with query parameter');
-            } catch (e) {
-              print('[VoiceAudioPlayer] Query parameter failed: $e');
-            }
+              final absolute = UrlUtils.ensureAbsoluteUrl(widget.source);
+              final ticket = await MediaAuthService.ticketForMediaUrl(absolute);
+              if (ticket != null) {
+                final authenticatedUrl = UrlUtils.appendMediaTicket(absolute, ticket);
+                await _audioPlayer.setUrl(authenticatedUrl);
+                loadedSuccessfully = true;
+              }
+            } catch (_) {}
           }
           
           // Method 3: Try without token (for public URLs)

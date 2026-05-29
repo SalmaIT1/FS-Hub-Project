@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:dotenv/dotenv.dart' as dotenv;
+import '../../core/config/runtime_config.dart';
 import 'connection.dart';
 import 'seeder.dart';
 
@@ -11,8 +12,9 @@ class Migrations {
       await DBConnection.initialize();
       
       final conn = DBConnection.getConnection();
-      final env = dotenv.DotEnv(includePlatformEnvironment: true)..load(['.env']);
-      final dbName = env['DB_NAME'] ?? 'fs_hub_db';
+      final env = dotenv.DotEnv(includePlatformEnvironment: true)
+        ..load(['test/integration/.env.integration', '.env']);
+      final dbName = RuntimeConfig.get('DB_NAME') ?? env['DB_NAME'] ?? 'fs_hub_db';
 
       print('Checking database schema for $dbName...');
 
@@ -129,7 +131,16 @@ class Migrations {
 
     await _ensureColumn(conn, dbName, 'file_uploads', 'is_completed', 'BOOLEAN DEFAULT FALSE');
 
-    // FB-FIX: user_roles.assigned_at — required by employee creation RBAC insert
+    await _ensureTable(conn, dbName, 'user_roles', '''
+      CREATE TABLE user_roles (
+          user_id VARCHAR(50) NOT NULL,
+          role_id INT NOT NULL,
+          assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (user_id, role_id),
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
+      )
+    ''');
     await _ensureColumn(conn, dbName, 'user_roles', 'assigned_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP');
 
     // FB-FIX2: users.is_active — required by deactivate-employee soft-delete query
@@ -153,12 +164,43 @@ class Migrations {
       CREATE TABLE rate_limit_attempts (
           id INT AUTO_INCREMENT PRIMARY KEY,
           endpoint VARCHAR(100) NOT NULL,
-          ip_address VARCHAR(45) NOT NULL,
+          identifier VARCHAR(255) NOT NULL,
           attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          INDEX idx_endpoint_ip (endpoint, ip_address),
+          INDEX idx_endpoint_identifier (endpoint, identifier),
           INDEX idx_attempted_at (attempted_at)
       )
     ''');
+
+    await _ensureTable(conn, dbName, 'idempotency_keys', '''
+      CREATE TABLE idempotency_keys (
+          id VARCHAR(255) PRIMARY KEY,
+          user_id VARCHAR(50),
+          response_code INT,
+          response_body LONGTEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          expires_at TIMESTAMP NULL,
+          INDEX idx_user_key (user_id, id)
+      )
+    ''');
+
+    // FE-FIX: Rename ip_address -> identifier for existing databases (idempotent).
+    try {
+      final colCheck = await conn.execute(
+        "SELECT COUNT(*) as cnt FROM information_schema.columns "
+        "WHERE table_schema = :db AND table_name = 'rate_limit_attempts' AND column_name = 'ip_address'",
+        {'db': dbName},
+      );
+      final hasOldCol =
+          int.tryParse(colCheck.rows.first.colByName('cnt')?.toString() ?? '0') ?? 0;
+      if (hasOldCol > 0) {
+        await conn.execute(
+          'ALTER TABLE rate_limit_attempts CHANGE ip_address identifier VARCHAR(255) NOT NULL',
+        );
+        print('[MIGRATION] Renamed rate_limit_attempts.ip_address -> identifier');
+      }
+    } catch (e) {
+      print('[MIGRATION] rate_limit_attempts column rename skipped: $e');
+    }
 
     // F. Ensure 'notifications' table exists
     await _ensureTable(conn, dbName, 'notifications', '''
@@ -231,46 +273,6 @@ class Migrations {
           nom VARCHAR(100) NOT NULL UNIQUE,
           description TEXT,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    ''');
-
-    await _ensureTable(conn, dbName, 'depenses_projets', '''
-      CREATE TABLE IF NOT EXISTS depenses_projets (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          montant DECIMAL(15, 2) NOT NULL,
-          date_depense DATE NOT NULL,
-          description TEXT,
-          projet_id INT NOT NULL,
-          category_id INT,
-          created_by VARCHAR(50),
-          status ENUM('pending', 'approved_manager', 'approved_hr', 'approved_finance', 'rejected') DEFAULT 'pending',
-          manager_id VARCHAR(50) NULL,
-          hr_id VARCHAR(50) NULL,
-          finance_id VARCHAR(50) NULL,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-          FOREIGN KEY (projet_id) REFERENCES projets(id) ON DELETE CASCADE,
-          FOREIGN KEY (category_id) REFERENCES expense_categories(id) ON DELETE SET NULL,
-          FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
-      )
-    ''');
-
-    await _ensureTable(conn, dbName, 'depenses_entreprise', '''
-      CREATE TABLE IF NOT EXISTS depenses_entreprise (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          montant DECIMAL(15, 2) NOT NULL,
-          date_depense DATE NOT NULL,
-          description TEXT,
-          category_id INT,
-          created_by VARCHAR(50),
-          status ENUM('pending', 'approved_manager', 'approved_hr', 'approved_finance', 'rejected') DEFAULT 'pending',
-          manager_id VARCHAR(50) NULL,
-          hr_id VARCHAR(50) NULL,
-          finance_id VARCHAR(50) NULL,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-          FOREIGN KEY (category_id) REFERENCES expense_categories(id) ON DELETE SET NULL,
-          FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
       )
     ''');
 
@@ -366,6 +368,46 @@ class Migrations {
     await _ensureColumn(conn, dbName, 'projets', 'contract_filename', "VARCHAR(255) NULL COMMENT 'Original filename of the uploaded contract'");
     await _ensureColumn(conn, dbName, 'projets', 'contract_uploaded_at', "DATETIME NULL COMMENT 'Timestamp when the contract was uploaded'");
 
+    await _ensureTable(conn, dbName, 'depenses_projets', '''
+      CREATE TABLE IF NOT EXISTS depenses_projets (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          montant DECIMAL(15, 2) NOT NULL,
+          date_depense DATE NOT NULL,
+          description TEXT,
+          projet_id INT NOT NULL,
+          category_id INT,
+          created_by VARCHAR(50),
+          status ENUM('pending', 'approved_manager', 'approved_hr', 'approved_finance', 'rejected') DEFAULT 'pending',
+          manager_id VARCHAR(50) NULL,
+          hr_id VARCHAR(50) NULL,
+          finance_id VARCHAR(50) NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          FOREIGN KEY (projet_id) REFERENCES projets(id) ON DELETE CASCADE,
+          FOREIGN KEY (category_id) REFERENCES expense_categories(id) ON DELETE SET NULL,
+          FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+      )
+    ''');
+
+    await _ensureTable(conn, dbName, 'depenses_entreprise', '''
+      CREATE TABLE IF NOT EXISTS depenses_entreprise (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          montant DECIMAL(15, 2) NOT NULL,
+          date_depense DATE NOT NULL,
+          description TEXT,
+          category_id INT,
+          created_by VARCHAR(50),
+          status ENUM('pending', 'approved_manager', 'approved_hr', 'approved_finance', 'rejected') DEFAULT 'pending',
+          manager_id VARCHAR(50) NULL,
+          hr_id VARCHAR(50) NULL,
+          finance_id VARCHAR(50) NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          FOREIGN KEY (category_id) REFERENCES expense_categories(id) ON DELETE SET NULL,
+          FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+      )
+    ''');
+
     // J.1 Devis
     await _ensureTable(conn, dbName, 'devis', '''
       CREATE TABLE devis (
@@ -391,10 +433,12 @@ class Migrations {
       CREATE TABLE factures (
           id INT AUTO_INCREMENT PRIMARY KEY,
           projet_id INT NULL,
-          client_id INT NOT NULL,
+          client_id INT NULL,
           numero_facture VARCHAR(50) NOT NULL UNIQUE,
+          type VARCHAR(30) DEFAULT 'INVOICE',
           montant_ht DECIMAL(15, 2) DEFAULT 0.0,
           tva DECIMAL(5, 2) DEFAULT 0.0,
+          timbre DECIMAL(10, 3) DEFAULT 1.0,
           montant_ttc DECIMAL(15, 2) DEFAULT 0.0,
           date_emission DATE,
           date_echeance DATE,
@@ -402,7 +446,7 @@ class Migrations {
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
           FOREIGN KEY (projet_id) REFERENCES projets(id) ON DELETE SET NULL,
-          FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+          FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL
       )
     ''');
 
@@ -412,6 +456,12 @@ class Migrations {
     } catch (_) {}
 
     await _ensureColumn(conn, dbName, 'factures', 'devis_id', 'INT NULL');
+    await _ensureColumn(conn, dbName, 'factures', 'type', "VARCHAR(30) DEFAULT 'INVOICE'");
+    await _ensureColumn(conn, dbName, 'factures', 'timbre', 'DECIMAL(10, 3) DEFAULT 1.0');
+    // Existing databases may have client_id as NOT NULL — relax constraint for standalone invoices.
+    try {
+      await conn.execute('ALTER TABLE factures MODIFY client_id INT NULL');
+    } catch (_) {}
     await _ensureForeignKey(conn, dbName, 'factures', 'fk_facture_devis', 'devis_id', 'devis', 'id', 'ON DELETE SET NULL');
 
     // Quote Approval Trigger
@@ -908,6 +958,9 @@ class Migrations {
       ''');
     } catch(e) {}
 
+    // ── AI Decision Support System tables ───────────────────────────────────
+    await _ensureAiSchema(conn, dbName);
+
     // ── FIX DOUBLONS ET UNICITÉ (FORCE MODE) ──────────────────────────────
     print('[DB-FIX] Starting emergency cleanup of duplicate roles/permissions...');
     try {
@@ -976,6 +1029,207 @@ class Migrations {
     }
   }
 
+  static Future<void> _ensureAiSchema(DBProxy conn, String dbName) async {
+    print('[AI] Ensuring AI schema tables and views...');
+
+    await _ensureTable(conn, dbName, 'ai_feature_snapshots', '''
+      CREATE TABLE ai_feature_snapshots (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          entity_type ENUM('project','task','invoice','client','employee','expense') NOT NULL,
+          entity_id VARCHAR(64) NOT NULL,
+          feature_version VARCHAR(20) NOT NULL DEFAULT 'v1',
+          features_json JSON NOT NULL,
+          feature_hash CHAR(64) NOT NULL,
+          captured_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_ai_feat_entity (entity_type, entity_id, captured_at)
+      )
+    ''');
+
+    await _ensureTable(conn, dbName, 'ai_predictions', '''
+      CREATE TABLE ai_predictions (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          model_name VARCHAR(64) NOT NULL,
+          model_version VARCHAR(20) NOT NULL,
+          entity_type ENUM('project','task','invoice','client','employee','expense') NOT NULL,
+          entity_id VARCHAR(64) NOT NULL,
+          prediction_type VARCHAR(64) NOT NULL,
+          score DECIMAL(8,6) NULL,
+          label_predicted VARCHAR(32) NULL,
+          confidence DECIMAL(5,4) NULL,
+          explanation_json JSON NULL,
+          requested_by VARCHAR(50) NULL,
+          inference_mode ENUM('realtime','batch') DEFAULT 'realtime',
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_ai_pred_lookup (entity_type, entity_id, prediction_type, created_at)
+      )
+    ''');
+
+    await _ensureTable(conn, dbName, 'ai_model_registry', '''
+      CREATE TABLE ai_model_registry (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          problem_code VARCHAR(64) NOT NULL,
+          version VARCHAR(20) NOT NULL,
+          artifact_path VARCHAR(512) NOT NULL,
+          metrics_json JSON NOT NULL,
+          feature_schema_json JSON NOT NULL,
+          status ENUM('staging','production','retired') DEFAULT 'staging',
+          trained_at DATETIME NOT NULL,
+          promoted_at DATETIME NULL,
+          UNIQUE KEY uk_ai_problem_version (problem_code, version)
+      )
+    ''');
+
+    await _ensureTable(conn, dbName, 'ai_training_runs', '''
+      CREATE TABLE ai_training_runs (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          problem_code VARCHAR(64) NOT NULL,
+          dataset_snapshot_id VARCHAR(64) NULL,
+          row_count INT NULL,
+          metrics_json JSON NULL,
+          status ENUM('running','success','failed') NOT NULL,
+          error_message TEXT NULL,
+          started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          finished_at TIMESTAMP NULL
+      )
+    ''');
+
+    await _ensureTable(conn, dbName, 'ai_kpi_daily', '''
+      CREATE TABLE ai_kpi_daily (
+          kpi_date DATE NOT NULL,
+          kpi_code VARCHAR(64) NOT NULL,
+          dimension_key VARCHAR(128) NOT NULL DEFAULT 'global',
+          value_decimal DECIMAL(18,4) NULL,
+          value_json JSON NULL,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          PRIMARY KEY (kpi_date, kpi_code, dimension_key)
+      )
+    ''');
+
+    await _ensureTable(conn, dbName, 'ai_prediction_feedback', '''
+      CREATE TABLE ai_prediction_feedback (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          prediction_id BIGINT NOT NULL,
+          user_id VARCHAR(50) NOT NULL,
+          is_accurate TINYINT(1) NOT NULL,
+          comment TEXT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (prediction_id) REFERENCES ai_predictions(id) ON DELETE CASCADE
+      )
+    ''');
+
+    // Seed heuristic production models if registry empty
+    try {
+      final regCheck = await conn.execute('SELECT COUNT(*) as cnt FROM ai_model_registry');
+      final cnt = int.tryParse(regCheck.rows.first.assoc()['cnt']?.toString() ?? '0') ?? 0;
+      if (cnt == 0) {
+        final problems = [
+          ('project_delay', 'heuristic-v1'),
+          ('completion_time', 'heuristic-v1'),
+          ('payment_risk', 'heuristic-v1'),
+          ('employee_performance', 'heuristic-v1'),
+          ('expense_anomaly', 'heuristic-v1'),
+        ];
+        for (final p in problems) {
+          await conn.execute('''
+            INSERT INTO ai_model_registry
+              (problem_code, version, artifact_path, metrics_json, feature_schema_json, status, trained_at, promoted_at)
+            VALUES
+              (:code, :ver, :path, :metrics, :schema, 'production', NOW(), NOW())
+          ''', {
+            'code': p.$1,
+            'ver': p.$2,
+            'path': 'builtin://${p.$1}',
+            'metrics': '{"note":"heuristic baseline until ML training"}',
+            'schema': '{"version":"v1"}',
+          });
+        }
+      }
+    } catch (e) {
+      print('[AI] Model registry seed warning: $e');
+    }
+
+    // ML feature view for project delay
+    try {
+      await conn.execute('DROP VIEW IF EXISTS vw_ml_project_delay_features');
+      await conn.execute('''
+        CREATE VIEW vw_ml_project_delay_features AS
+        SELECT
+          p.id AS project_id,
+          p.nom,
+          p.priorite,
+          p.statut,
+          p.budget,
+          p.cout_estime,
+          p.date_debut,
+          p.date_fin_prevue,
+          DATEDIFF(p.date_fin_prevue, CURDATE()) AS days_to_deadline,
+          (SELECT COUNT(*) FROM sprints s WHERE s.projet_id = p.id) AS sprint_count,
+          (SELECT COUNT(*)
+             FROM taches t
+             INNER JOIN sprints s ON t.sprint_id = s.id
+             WHERE s.projet_id = p.id) AS total_tasks,
+          (SELECT COUNT(*)
+             FROM taches t
+             INNER JOIN sprints s ON t.sprint_id = s.id
+             WHERE s.projet_id = p.id AND t.statut = 'Done') AS completed_tasks,
+          (SELECT COUNT(*)
+             FROM taches t
+             INNER JOIN sprints s ON t.sprint_id = s.id
+             WHERE s.projet_id = p.id
+               AND t.statut != 'Done'
+               AND t.updated_at < DATE_SUB(NOW(), INTERVAL 7 DAY)) AS delayed_tasks,
+          (SELECT COUNT(DISTINCT pm.employee_id)
+             FROM projet_membres pm WHERE pm.projet_id = p.id) AS team_size,
+          COALESCE(c.solde_du, 0) AS client_outstanding,
+          CASE
+            WHEN p.statut = 'Terminé' THEN 0
+            WHEN p.date_fin_prevue IS NOT NULL AND CURDATE() > p.date_fin_prevue THEN 1
+            WHEN (
+              SELECT COUNT(*)
+              FROM taches t
+              INNER JOIN sprints s ON t.sprint_id = s.id
+              WHERE s.projet_id = p.id AND t.statut != 'Done'
+                AND t.updated_at < DATE_SUB(NOW(), INTERVAL 7 DAY)
+            ) > GREATEST(1, FLOOR(0.25 * (
+              SELECT COUNT(*)
+              FROM taches t
+              INNER JOIN sprints s ON t.sprint_id = s.id
+              WHERE s.projet_id = p.id
+            ))) THEN 1
+            ELSE 0
+          END AS is_delayed_label
+        FROM projets p
+        LEFT JOIN clients c ON p.client_id = c.id
+      ''');
+    } catch (e) {
+      print('[AI] View vw_ml_project_delay_features warning: $e');
+    }
+
+    print('[AI] AI schema ready.');
+
+    // Normalize legacy Flutter project status labels to MySQL ENUM values
+    try {
+      await conn.execute('''
+        UPDATE projets SET statut = 'A venir'
+        WHERE statut IN ('Planifie', 'Planifié', 'planifie')
+      ''');
+      await conn.execute('''
+        UPDATE projets SET statut = 'Terminé'
+        WHERE statut IN ('Termine', 'termine')
+      ''');
+      await conn.execute('''
+        UPDATE projets SET statut = 'Suspendu'
+        WHERE statut IN ('En retard', 'Annulé')
+      ''');
+      await conn.execute('''
+        UPDATE projets SET priorite = 'Basse'
+        WHERE priorite IN ('Faible', 'faible', 'Low')
+      ''');
+    } catch (e) {
+      print('[DB] Project status normalization warning: $e');
+    }
+  }
+
   static Future<void> _replaceCascadeWithRestrict(DBProxy conn, String dbName, String tableName) async {
     final constraintsReq = await conn.execute(
       '''
@@ -1039,6 +1293,13 @@ class Migrations {
   }
 
   static Future<void> _ensureColumn(DBProxy conn, String dbName, String tableName, String columnName, String definition) async {
+    final tableExists = await conn.execute(
+      "SELECT COUNT(*) as cnt FROM information_schema.tables WHERE table_schema = :db AND table_name = :table",
+      {'db': dbName, 'table': tableName},
+    );
+    if ((int.tryParse(tableExists.rows.first.colByName('cnt').toString()) ?? 0) == 0) {
+      return;
+    }
     final check = await conn.execute(
       "SELECT COUNT(*) as cnt FROM information_schema.columns WHERE table_schema = :db AND table_name = :table AND column_name = :col",
       {'db': dbName, 'table': tableName, 'col': columnName},
@@ -1077,6 +1338,10 @@ class Migrations {
       // Finance split
       {'nom': 'view_finances', 'module': 'Finance', 'description': 'Consulter les données financières'},
       {'nom': 'manage_finance', 'module': 'Finance', 'description': 'Gérer les opérations financières'},
+      // AI module
+      {'nom': 'view_ai_dashboard', 'module': 'AI', 'description': 'Consulter le tableau de bord IA'},
+      {'nom': 'view_ai_financial', 'module': 'AI', 'description': 'Consulter les prédictions financières IA'},
+      {'nom': 'manage_ai_models', 'module': 'AI', 'description': 'Gérer les modèles IA (admin)'},
     ];
 
     for (final perm in newPermissions) {
@@ -1126,7 +1391,28 @@ class Migrations {
       print('RH permission auto-assignment error: $e');
     }
 
+    // AI dashboard permissions
+    try {
+      await conn.execute('''
+        INSERT IGNORE INTO role_permissions (role_id, permission_id)
+        SELECT r.id, p.id FROM roles r, permissions p
+        WHERE r.nom IN ('Manager', 'Admin') AND p.nom = 'view_ai_dashboard'
+      ''');
+      await conn.execute('''
+        INSERT IGNORE INTO role_permissions (role_id, permission_id)
+        SELECT r.id, p.id FROM roles r, permissions p
+        WHERE r.nom IN ('Comptable', 'Admin') AND p.nom = 'view_ai_financial'
+      ''');
+      await conn.execute('''
+        INSERT IGNORE INTO role_permissions (role_id, permission_id)
+        SELECT r.id, p.id FROM roles r, permissions p
+        WHERE r.nom = 'Admin' AND p.nom = 'manage_ai_models'
+      ''');
+    } catch (e) {
+      print('AI permission auto-assignment error: $e');
+    }
+
     print('Permission seeding complete.');
   }
 }
-
+

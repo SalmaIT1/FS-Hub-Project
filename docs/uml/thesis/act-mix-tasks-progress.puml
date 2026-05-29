@@ -1,0 +1,31 @@
+@startuml
+title "Activité — Tâche : création PM puis exécution collaborateur\n(task_routes.dart permissions)"
+
+skinparam shadowing false
+
+|Chef projet (manage_tasks)|
+start
+:Saisir titre, sprint, assigné;
+:POST /v1/tasks;
+if (Permission manage_tasks OK ?) then (non)
+  #Pink:403 middleware;
+  stop
+endif
+|TaskService|
+:Tâche créée en base;
+
+|Exécutant|
+:Prendre en charge / maj statut;
+:PUT /v1/tasks/{id};
+
+|TaskRoutes|
+if (manage_tasks **ou** update_task_progress) then (oui)
+  |TaskService|
+  :Persister progression;
+  #LightGreen:Sprint à jour;
+else (non)
+  #Pink:403;
+endif
+stop
+
+@enduml

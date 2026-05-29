@@ -1,0 +1,38 @@
+@startuml
+title "Séquence — Avoir appliqué à une facture\n(credit_routes.dart + mount requireFinanceAccess)"
+
+skinparam shadowing false
+autonumber
+
+actor "Comptable" as Acc
+actor "Auditeur lecture\n(view_financial_reports)" as Aud
+participant "Shelf" as FE <<boundary>>
+participant "CreditRoutes" as CR <<control>>
+participant "CreditService\n(via handlers)" as CS <<control>>
+database "MySQL" as DB <<database>>
+
+note over CR
+  `/v1/credits` monté avec\nrequireFinanceAccess (server.dart L175)
+end note
+
+Aud -> FE : consulter avoirs
+FE -> CR : GET /v1/credits/{id}\nBearer JWT
+note right of CR
+  requirePermission view_financial_reports
+  credit_routes.dart L20
+end note
+CR -> CS : _getCreditById
+CS -> DB : SELECT
+CS --> Aud : détail lecture seule
+
+Acc -> FE : appliquer avoir sur facture
+FE -> CR : POST /v1/credits/{id}/apply-invoice\nBearer JWT
+note right of CR
+  requirePermission manage_credits
+  credit_routes.dart L42
+end note
+CR -> CS : _applyCreditToInvoice
+CS -> DB : écritures / MAJ soldes
+CS --> Acc : succès ou erreur métier
+
+@enduml

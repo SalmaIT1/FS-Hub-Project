@@ -1,0 +1,53 @@
+@startuml
+title "Diagramme de Déploiement — FS-Hub (3 tiers)"
+
+skinparam shadowing false
+skinparam componentStyle rectangle
+
+node "Tier 1 — Client" as T1 {
+  artifact "Flutter App\n(lib/, main.dart)" as Flutter <<boundary>>
+  note right of Flutter
+    Plateformes : Windows, Android, iOS, Web
+    HTTP REST JSON + Bearer JWT
+    WebSocket ws://host:8080/ws?ticket=
+  end note
+}
+
+node "Tier 2 — Serveur applicatif\n(Docker fshub-network)" as T2 {
+  component "frontend :80" as FE <<boundary>> {
+    [Nginx / Flutter Web build]
+  }
+  component "backend :8080" as BE <<control>> {
+    [bin/server.dart\nShelf Pipeline]
+    [Middlewares\nrequireAuth, requirePermission,\nRateLimit, Idempotency]
+    [Routes REST /v1/*]
+    [WebSocketServer\n/ws]
+  }
+  component "ai-service :8001" as AI <<control>> {
+    [FastAPI\nmain.py]
+  }
+}
+
+cloud "SMTP externe" as SMTP
+
+database "MySQL 8\n:3306" as MySQL <<database>> {
+  frame "fs_hub_db" {
+    storage "users, employes, projets,\ntaches, factures, hr, chat..."
+  }
+}
+
+database "Redis 7\n:6379" as Redis <<database>> {
+  storage "Idempotency keys\nPub/Sub WS backplane\nPresence"
+}
+
+T1 --> FE : HTTP :80\n(API_BASE_URL)
+T1 --> BE : HTTPS/HTTP :8080\nREST /v1/*
+T1 <--> BE : WebSocket\n/ws?ticket={uuid}
+FE --> BE : reverse proxy\n(API)
+BE --> MySQL : mysql1\n(SQL)
+BE --> Redis : redis package\n(cache / broadcast)
+BE --> AI : HTTP\nAI_SERVICE_URL\n(X-API-Key)
+BE --> SMTP : forgot-password\n(EmailService)
+AI --> MySQL : lecture features\n(entraînement)
+
+@enduml

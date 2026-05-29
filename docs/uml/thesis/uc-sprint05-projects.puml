@@ -1,0 +1,37 @@
+@startuml
+title "Cas d'utilisation — Sprint 5 : Projets & Tâches"
+
+left to right direction
+skinparam shadowing false
+
+actor Admin <<actor>>
+actor Manager <<actor>>
+actor TeamLead <<actor>>
+actor Employee <<actor>>
+actor Client <<actor>>
+
+rectangle "FS-Hub — Projets & Tâches" {
+  usecase UC_Proj as "Gérer projets\n(/v1/projects)" <<usecase>>
+  usecase UC_Sprint as "Gérer sprints\n(/v1/sprints)" <<usecase>>
+  usecase UC_Task as "Créer / assigner tâches\n(/v1/tasks)" <<usecase>>
+  usecase UC_MyTasks as "Mettre à jour progression\n(update_task_progress)" <<usecase>>
+  usecase UC_Demand as "Soumettre demande interne\n(/v1/demands)" <<usecase>>
+
+  UC_Proj ..> UC_Login : <<include>>
+  UC_Task ..> UC_Proj : <<include>>
+  UC_Sprint ..> UC_Proj : <<include>>
+  UC_MyTasks ..> UC_Task : <<extend>>
+}
+
+usecase UC_Login as "S'authentifier" <<usecase>>
+
+Admin --> UC_Proj
+Manager --> UC_Proj
+Manager --> UC_Task
+TeamLead --> UC_Task
+TeamLead --> UC_Sprint
+Employee --> UC_MyTasks
+Employee --> UC_Demand
+Client --> UC_Proj : portail lecture
+
+@enduml

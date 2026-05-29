@@ -1,0 +1,32 @@
+@startuml
+title "Activité — Fiche employé : soi-même vs annuaire RH\n(employee_routes.dart)"
+
+skinparam shadowing false
+
+|Employé|
+start
+:Ouvrir profil ;
+
+|API EmployeeRoutes|
+if (GET /employees/{id}) then (id == authUserId)
+  |EmployeeService|
+  :Retour fiche **sans** besoin de view_employees;
+elseif (id != authUserId et pas view_employees)
+  #Pink:403 / refus pipeline;
+  stop
+else (id != authUserId + view_employees ou rôle élevé)
+  |EmployeeService|
+  :Consulter collaborateurs;
+endif
+
+|RH / Manager|
+if (GET /employees liste) then (possède view_employees)
+  |EmployeeService|
+  :Pagination + filtres;
+  #LightGreen:Annuaire métier;
+else (non)
+  #Pink:403;
+endif
+stop
+
+@enduml

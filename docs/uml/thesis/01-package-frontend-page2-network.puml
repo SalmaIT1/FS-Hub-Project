@@ -1,0 +1,111 @@
+@startuml
+title "Architecture Frontend Flutter — Réseau (page 2/2)"
+
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam defaultFontSize 12
+skinparam packageFontSize 13
+skinparam componentFontSize 11
+skinparam ranksep 40
+skinparam nodesep 30
+skinparam padding 8
+skinparam diagramPadding 20
+skinparam linetype ortho
+
+skinparam package {
+  BorderColor #2C5282
+  BackgroundColor #F7FAFC
+}
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor #4A5568
+}
+
+top to bottom direction
+
+legend bottom
+  |= Couleur |= Chemin |
+  | <#E6FFFA> | ApiService (core/services) |
+  | <#EBF8FF> | AuthService (features/auth) |
+  | <#FFF5F5> | package:http direct |
+  | <#FAF5FF> | WebSocket → ChatSocketDS |
+endlegend
+
+package "features/ (services)" {
+  together {
+    component [ClientService] as Svc_Cli #E6FFFA
+    component [DemandService] as Svc_Dem #E6FFFA
+    component [NotificationService] as Svc_Notif #E6FFFA
+  }
+  together {
+    component [HrService] as Svc_HR #EBF8FF
+    component [EmpService] as Svc_Emp #EBF8FF
+    component [DeptService] as Svc_Dept #EBF8FF
+    component [ProjectService] as Svc_Proj #EBF8FF
+    component [TaskService] as Svc_Task #EBF8FF
+    component [FinanceService\n+ Expense + Credit] as Svc_Fin #EBF8FF
+    component [Role/Perm Service] as Svc_Role #EBF8FF
+  }
+  together {
+    component [AuthRemoteDS] as DS_Auth #FFF5F5
+    component [ChatRemoteDS] as DS_REST #FFF5F5
+    component [UploadDS] as DS_Up #FFF5F5
+    component [AiService] as Svc_AI #FFF5F5
+    component [EmailService] as Svc_Email #FFF5F5
+    component [ChatSocketDS] as DS_Sock #FAF5FF
+  }
+}
+
+package "core & auth (réseau)" as CoreNet #E2E8F0 {
+  component [PermissionGuard\ncore/security] as Guard #FFF5F5
+  component [ApiService\ncore/services] as Net_Api #E6FFFA
+  component [AuthService\nfeatures/auth/data] as Net_Auth #EBF8FF
+  component [package:http direct] as Net_Http #FFF5F5
+  component [TokenStorage\ncore/security] as Token
+  component [WebSocketClient\ncore/network — inutilisé] as Net_WS_Core #FAF5FF
+  Guard -down-> Net_Auth : session
+  Net_Api -down-> Token
+  Net_Auth -down-> Token
+}
+
+package "package:http" as HTTP
+cloud "Backend Shelf :8080" as Backend {
+  component "REST API" as REST
+  component "WebSocket" as WS
+}
+
+Svc_Cli -down-> Net_Api
+Svc_Dem -down-> Net_Api
+Svc_Notif -down-> Net_Api
+
+Svc_HR -down-> Net_Auth
+Svc_Emp -down-> Net_Auth
+Svc_Dept -down-> Net_Auth
+Svc_Proj -down-> Net_Auth
+Svc_Task -down-> Net_Auth
+Svc_Fin -down-> Net_Auth
+Svc_Role -down-> Net_Auth
+
+Guard ..> Svc_Role : charge perms
+
+DS_Auth -down-> Net_Http
+DS_REST -down-> Net_Http
+DS_Up -down-> Net_Http
+Svc_AI -down-> Net_Http
+Svc_Email -down-> Net_Http
+Svc_AI ..> Token
+
+DS_Sock -down-> WS : upgrade
+DS_Sock -down-> Net_Http : ws-ticket
+
+Net_Api -down-> HTTP
+Net_Auth -down-> HTTP
+Net_Http -down-> HTTP
+HTTP -down-> REST
+
+note bottom
+  Précédent : **01-package-frontend-page1-structure.puml**
+  ApiService ⊥ AuthService (parallèles, même TokenStorage).
+end note
+
+@enduml

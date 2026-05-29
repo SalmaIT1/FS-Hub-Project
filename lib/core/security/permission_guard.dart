@@ -87,7 +87,7 @@ class PermissionGuard {
     '/hr/remote-work': ['view_employees', 'manage_remote_work', 'submit_remote_work'],
     '/hr/salaries': ['view_employees', 'manage_salaries', 'view_own_salary'],
     '/hr/bonuses': ['view_employees', 'manage_bonuses', 'view_own_bonuses'],
-    '/ai': ['view_statistics', 'manage_system'],
+    '/ai': ['view_ai_dashboard', 'view_statistics', 'manage_system'],
   };
 
   /// Initialize the permission guard with current user permissions
@@ -344,5 +344,25 @@ class PermissionGuard {
   static void dispose() {
     _refreshTimer?.cancel();
     _refreshTimer = null;
+  }
+
+  /// Test-only: seed RBAC context without HTTP (unit / widget tests).
+  static void seedForTest({
+    required String role,
+    required List<String> permissions,
+    Map<String, dynamic>? userInfo,
+  }) {
+    _userRole = role;
+    _userPermissions = List.from(permissions);
+    _userInfo = userInfo ?? {'role': role, 'permissions': permissions};
+  }
+
+  /// Test-only: reset static guard state between tests.
+  static void resetForTest() {
+    _refreshTimer?.cancel();
+    _refreshTimer = null;
+    _userPermissions = [];
+    _userRole = '';
+    _userInfo = {};
   }
 }

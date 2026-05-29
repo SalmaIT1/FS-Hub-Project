@@ -1,0 +1,33 @@
+@startuml
+title "Activité — Avoir : lecture puis application\n(credit_routes.dart + Credits)"
+
+skinparam shadowing false
+
+|Auditeur lecture|
+start
+if (GET /v1/credits/{id}) then (view_financial_reports OK)
+  #LightGreen:Inspection débit / crédit;
+else (non)
+  #Pink:403;
+  stop
+endif
+
+|Comptable|
+:Décider compensation facture ouverte;
+
+|CreditRoutes POST apply-invoice|
+if (manage_credits) then (non)
+  #Pink:403;
+  stop
+endif
+
+|Finance / Credit domains|
+if (Soldes compatibles selon service) then (oui)
+  :Répartir avoir sur lignes concernées;
+  #LightGreen:Facture / avoir cohérents;
+else (non)
+  #Pink:Règle métier refusée;
+endif
+stop
+
+@enduml

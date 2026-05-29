@@ -1,64 +1,40 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:fs_hub/core/config/app_config.dart';
-import 'package:fs_hub/features/auth/data/datasources/auth_remote_datasource.dart';
+import 'package:fs_hub/core/services/api_service.dart';
 
+/// Client for `/v1/ai/*` — uses [ApiService] (ngrok header + auth + response unwrap).
 class AiService {
-  static final String _baseUrl = AppConfig.apiV1BaseUrl;
-
-  static Future<Map<String, String>> _getHeaders() async {
-    final token = await AuthRemoteDatasource.getAccessToken();
+  static Future<Map<String, dynamic>?> _fetch(String endpoint) async {
+    final res = await ApiService.get('/ai/$endpoint');
+    if (res['success'] == true) {
+      final data = res['data'];
+      if (data is Map<String, dynamic>) return data;
+      return <String, dynamic>{'items': data};
+    }
     return {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer $token',
+      '_error': true,
+      'message': res['error']?.toString() ??
+          res['message']?.toString() ??
+          'Erreur IA',
     };
   }
 
-  static Future<Map<String, dynamic>?> getProjectRisks() async {
-    try {
-      final response = await http.get(
-        Uri.parse('$_baseUrl/ai/project-risks'),
-        headers: await _getHeaders(),
-      );
-      if (response.statusCode == 200) {
-        final body = jsonDecode(response.body);
-        return body['data'];
-      }
-    } catch (e) {
-      print('AiService Error: $e');
-    }
-    return null;
-  }
+  static Future<Map<String, dynamic>?> getProjectRisks() =>
+      _fetch('project-risks');
 
-  static Future<Map<String, dynamic>?> getPaymentBehavior() async {
-    try {
-      final response = await http.get(
-        Uri.parse('$_baseUrl/ai/payment-behavior'),
-        headers: await _getHeaders(),
-      );
-      if (response.statusCode == 200) {
-        final body = jsonDecode(response.body);
-        return body['data'];
-      }
-    } catch (e) {
-      print('AiService Error: $e');
-    }
-    return null;
-  }
+  static Future<Map<String, dynamic>?> getPaymentBehavior() =>
+      _fetch('payment-behavior');
 
-  static Future<Map<String, dynamic>?> getStrategicInsights() async {
-    try {
-      final response = await http.get(
-        Uri.parse('$_baseUrl/ai/strategic-insights'),
-        headers: await _getHeaders(),
-      );
-      if (response.statusCode == 200) {
-        final body = jsonDecode(response.body);
-        return body['data'];
-      }
-    } catch (e) {
-      print('AiService Error: $e');
-    }
-    return null;
-  }
+  static Future<Map<String, dynamic>?> getStrategicInsights() =>
+      _fetch('strategic-insights');
+
+  static Future<Map<String, dynamic>?> getDashboardSummary() =>
+      _fetch('dashboard/summary');
+
+  static Future<Map<String, dynamic>?> getCompletionForecasts() =>
+      _fetch('completion-forecasts');
+
+  static Future<Map<String, dynamic>?> getEmployeePerformance() =>
+      _fetch('employee-performance');
+
+  static Future<Map<String, dynamic>?> getExpenseAnomalies() =>
+      _fetch('expense-anomalies');
 }

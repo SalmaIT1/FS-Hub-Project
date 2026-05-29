@@ -1,0 +1,70 @@
+@startuml
+title "Navigation Flutter — Routes, rôles et PermissionGuard"
+
+skinparam shadowing false
+skinparam state {
+  BackgroundColor<<public>> LightYellow
+  BackgroundColor<<guard>> LightBlue
+  BackgroundColor<<role>> Wheat
+}
+
+[*] --> SplashScreen
+
+state SplashScreen <<public>>
+SplashScreen --> GlassLoginPage : non authentifié\n/login
+SplashScreen --> MainLayout : authentifié\n/home
+
+state GlassLoginPage <<public>> {
+  GlassLoginPage : POST AuthService.login
+  GlassLoginPage --> MainLayout : succès
+}
+
+state "ProtectedRoute\n(PermissionGuard.canAccessRoute)" as Guard <<guard>> {
+}
+
+state MainLayout <<role>> {
+  MainLayout : GlassNavBar dynamique\ngetNavigationItems()
+  state HomePage
+  state MyTasksPage : /my-tasks
+  state EmployeesListPage : /employees
+  state DemandsListPage : /demands
+  state ConversationListPage : /chat
+  state MyProfilePage : /profile
+  state ClientPortalPage : rôle Client
+}
+
+MainLayout --> HomePage
+MainLayout --> MyTasksPage
+MainLayout --> EmployeesListPage : view_employees
+MainLayout --> DemandsListPage : view_demands
+MainLayout --> ConversationListPage : publicRoutes /chat
+MainLayout --> MyProfilePage
+
+Guard --> HrDashboardPage : /hr\nmanage_leaves|salaries...
+Guard --> ProjectsListPage : /projects\nview_projects
+Guard --> ClientsListPage : /clients\nview_clients
+Guard --> FinancialDashboardPage : /finance
+Guard --> InvoicesListPage : /invoices
+Guard --> AiDashboardPage : /ai\nview_ai_dashboard
+Guard --> RolesPermissionsPage : /roles\nmanage_roles
+Guard --> AccessDeniedPage : permission refusée
+
+MainLayout --> Guard : pushNamed routes protégées
+
+state ChatThreadPage <<public>> {
+  ChatThreadPage : /chat_thread\n+ conversationId
+}
+ConversationListPage --> ChatThreadPage
+
+state ProjectDetailPage {
+  ProjectDetailPage : /project/detail
+}
+ProjectsListPage --> ProjectDetailPage
+
+note right of Guard
+  PermissionGuard._routePermissions
+  Admin bypass via RoleService
+  Client → ClientPortalPage sur /
+end note
+
+@enduml

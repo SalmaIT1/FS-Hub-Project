@@ -1,0 +1,31 @@
+# Integration test stack — MySQL + Redis for backend HTTP tests.
+# Usage:
+#   docker compose -f docker-compose.test.yml up -d
+#   cd backend && set RUN_INTEGRATION_TESTS=true && dart test --tags integration
+
+name: fs-hub-test
+
+services:
+  mysql-test:
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: test
+      MYSQL_DATABASE: fs_hub_test
+    ports:
+      - "3307:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-ptest"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis-test:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5

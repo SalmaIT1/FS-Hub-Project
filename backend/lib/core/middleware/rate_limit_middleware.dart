@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:shelf/shelf.dart';
+import '../config/runtime_config.dart';
 import '../../shared/database/connection.dart';
 
 /// IP + User rate-limiting middleware.
@@ -24,6 +25,10 @@ Middleware rateLimit({int maxAttempts = 10, int windowSeconds = 60}) {
     return (Request request) async {
       // Skip OPTIONS pre-flight
       if (request.method == 'OPTIONS') return innerHandler(request);
+
+      if (RuntimeConfig.disableRateLimit) {
+        return innerHandler(request);
+      }
 
       final identifier = _resolveIdentifier(request);
       final endpoint = request.requestedUri.path;
@@ -82,10 +87,15 @@ Middleware rateLimit({int maxAttempts = 10, int windowSeconds = 60}) {
           'X-RateLimit-Remaining': (maxAttempts - count - 1).clamp(0, maxAttempts).toString(),
         });
       } catch (e) {
-        // On storage failure, fail OPEN (allow request) to avoid a DB outage
-        // taking down the entire API surface.
-        print('[RATE-LIMIT] Storage error (failing open): $e');
-        return innerHandler(request);
+        print('[RATE-LIMIT] Storage error (failing closed): $e');
+        return Response(
+          503,
+          body: jsonEncode({
+            'success': false,
+            'message': 'Service temporarily unavailable',
+          }),
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
+        );
       }
     };
   };

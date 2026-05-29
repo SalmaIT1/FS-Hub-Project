@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:redis/redis.dart';
 import 'package:dotenv/dotenv.dart';
+import '../config/runtime_config.dart';
 
 class RedisService {
   static final RedisService _instance = RedisService._internal();
@@ -18,10 +19,14 @@ class RedisService {
   Future<void> initialize() async {
     if (_isConnected) return;
     
-    final env = DotEnv()..load(['.env']);
-    final host = env['REDIS_HOST'] ?? 'localhost';
-    final port = int.tryParse(env['REDIS_PORT'] ?? '6379') ?? 6379;
-    final password = env['REDIS_PASSWORD'];
+    final env = DotEnv(includePlatformEnvironment: true)
+      ..load(['test/integration/.env.integration', '.env']);
+    final host = RuntimeConfig.get('REDIS_HOST') ?? env['REDIS_HOST'] ?? 'localhost';
+    final port = int.tryParse(
+          RuntimeConfig.get('REDIS_PORT') ?? env['REDIS_PORT'] ?? '6379',
+        ) ??
+        6379;
+    final password = RuntimeConfig.get('REDIS_PASSWORD') ?? env['REDIS_PASSWORD'];
 
     try {
       final conn = RedisConnection();
@@ -102,17 +107,17 @@ class RedisService {
     return results;
   }
 
-  Future<bool> checkAndSetIdempotencyKey(String key, {int ttlSeconds = 86400}) async {
-    if (!_isConnected) return false;
+  /// Returns true if key was set, false if duplicate, null if Redis unavailable.
+  Future<bool?> checkAndSetIdempotencyKey(String key, {int ttlSeconds = 86400}) async {
+    if (!_isConnected) return null;
     try {
-      // SET key value EX seconds NX
-      // NX: Only set the key if it does not already exist.
-      // Returns 'OK' if successful, null if key exists.
-      final result = await _command!.send_object(['SET', 'idempotency:$key', '1', 'EX', ttlSeconds, 'NX']);
+      final result = await _command!.send_object(
+        ['SET', 'idempotency:$key', '1', 'EX', ttlSeconds, 'NX'],
+      );
       return result == 'OK';
     } catch (e) {
-      print('[REDIS-IDEMPOTENCY] Error: $e');
-      return true; // Fail-open: If Redis is down, we allow the request to proceed (sacrificing idempotency).
+      print('[REDIS-IDEMPOTENCY] Error (failing closed): $e');
+      return null;
     }
   }
 

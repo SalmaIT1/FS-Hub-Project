@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fs_hub/core/state/settings_controller.dart';
 import 'package:fs_hub/shared/widgets/luxury/luxury_app_bar.dart';
+import 'package:fs_hub/features/auth/data/services/auth_service.dart';
 import '../../data/services/hr_service.dart';
 import '../../data/models/salary_model.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:fs_hub/features/auth/data/services/auth_service.dart';
 import 'package:fs_hub/core/config/app_config.dart';
+import 'package:fs_hub/core/services/payslip_auth_service.dart';
 
 class HrSalariesPage extends StatefulWidget {
   const HrSalariesPage({super.key});
@@ -424,11 +425,27 @@ class _SalaryCard extends StatelessWidget {
           ElevatedButton.icon(
             onPressed: () async {
               Navigator.pop(ctx);
-              final token = await AuthService.getToken();
+              final ticket = await PayslipAuthService.ticketForSalary(s.id!);
+              if (ticket == null) {
+                if (ctx.mounted) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        isFr
+                            ? 'Impossible d\'ouvrir le bulletin (session expirée).'
+                            : 'Cannot open payslip (session expired).',
+                      ),
+                    ),
+                  );
+                }
+                return;
+              }
               final baseUrl = AppConfig.apiV1BaseUrl;
-              final Uri url = Uri.parse('$baseUrl/hr/salaries/${s.id}/payslip${token != null ? "?token=$token" : ""}');
+              final uri = Uri.parse(
+                '$baseUrl/hr/salaries/${s.id}/payslip?payslip_ticket=$ticket',
+              );
               try {
-                await launchUrl(url); 
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
               } catch (_) {}
             },
             icon: const Icon(Icons.print),

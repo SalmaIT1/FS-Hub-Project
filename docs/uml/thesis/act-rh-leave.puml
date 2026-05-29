@@ -1,0 +1,41 @@
+@startuml
+title "Activité — Cycle de vie demande de congé (RH)"
+
+skinparam shadowing false
+
+|Employé|
+start
+:Ouvrir HrLeavesPage\n(/hr/leaves);
+:Saisir dates, leave_type, reason;
+:POST /v1/hr/leaves;
+
+|HrService|
+if (paid_leave et quota > 21j ?) then (dépassement)
+  #Pink:Retour erreur 400\nquota exceeded;
+  stop
+else (OK)
+  :status = **pending**;
+  :INSERT leave_requests;
+endif
+
+|RH / manage_leaves|
+:Consulter GET /v1/hr/leaves;
+
+if (Décision?) then (approved)
+  :PUT /v1/hr/leaves/{id}\nstatus = approved;
+  :AuditService.log(LEAVE_STATUS_UPDATED);
+  :NotificationService\n(type HR_LEAVE);
+  #LightGreen:Congé approuvé;
+elseif (rejected)
+  :PUT status = rejected;
+  :Notifier employé;
+  #Pink:Congé refusé;
+else (pending)
+  :Attente décision;
+endif
+
+|Archivage|
+:Historique conservé en base\n(updated_at, approved_by);
+stop
+
+@enduml

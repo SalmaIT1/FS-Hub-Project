@@ -1,0 +1,39 @@
+@startuml
+title "Séquence — Collaboration : Message WebSocket temps réel"
+
+skinparam shadowing false
+autonumber
+
+actor UserA
+actor UserB
+participant "ChatThreadPage" as FE_A <<boundary>>
+participant "ChatThreadPage" as FE_B <<boundary>>
+participant "AuthRoutes" as Auth <<control>>
+participant "ConversationRoutes" as REST <<control>>
+participant "ChatService" as CS <<control>>
+participant "ChatRepository" as Repo <<control>>
+participant "WebSocketServer\n/ws" as WS <<control>>
+participant "RedisService" as Redis <<control>>
+database "MySQL" as DB <<database>>
+
+UserA -> FE_A : ouvrir chat
+FE_A -> Auth : POST /v1/auth/ws-ticket
+Auth -> Auth : AuthService.issueWsTicket()
+Auth --> FE_A : {ticket}
+FE_A -> WS : WebSocket connect\n?ticket={uuid}
+WS -> WS : consumeWsTicket()\n_registerConnection()
+
+UserB -> FE_B : connect WS (même flux)
+
+UserA -> FE_A : envoyer message
+FE_A -> REST : POST /v1/conversations/{id}/messages
+REST -> CS : sendMessage()
+CS -> Repo : sendMessage()
+Repo -> DB : INSERT chat_messages
+CS -> WS : broadcastToConversationMembers()\ntype message:created
+WS -> Redis : publish fshub:broadcast:room\n(multi-instance)
+WS -> FE_A : frame JSON\n(excludeConnectionId)
+WS -> FE_B : frame JSON message:created
+FE_B -> FE_B : ChatController refresh UI
+
+@enduml

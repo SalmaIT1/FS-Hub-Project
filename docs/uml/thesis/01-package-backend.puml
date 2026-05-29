@@ -1,0 +1,116 @@
+@startuml
+title "Diagramme de Paquets — Backend Dart/Shelf (Clean Architecture)"
+
+skinparam packageStyle rectangle
+skinparam shadowing false
+
+package "bin/" {
+  [server.dart] as Server <<control>>
+}
+
+package "core/" {
+  package "middleware" {
+    [auth_middleware.dart\nrequireAuth()] as AuthMW
+    [permission_middleware.dart\nrequirePermission()] as PermMW
+    [rate_limit_middleware.dart] as RateMW
+    [idempotency_middleware.dart] as IdemMW
+  }
+  package "services" {
+    [RedisService] as RedisSvc
+    [DataIntegrityService] as DataIntSvc
+    [CreditScoreService] as CreditSvc
+  }
+}
+
+package "shared/" {
+  [DBConnection] as DB
+  [Migrations] as Migr
+  [AuditService] as Audit
+  [ProjectStatus] as ProjStatus
+}
+
+package "features/*" {
+  package "presentation\n(routes)" {
+    [AuthRoutes] as AuthR
+    [HrRoutes] as HrR
+    [ProjectRoutes] as ProjR
+    [TaskRoutes] as TaskR
+    [FinanceRoutes] as FinR
+    [ConversationRoutes] as ChatR
+    [WebSocketServer] as WSR
+    [AIRoutes] as AIR
+  }
+  package "domain\n(services)" {
+    [AuthService] as AuthS
+    [HrService] as HrS
+    [ProjectService] as ProjS
+    [TaskService] as TaskS
+    [FinanceService] as FinS
+    [ChatService] as ChatS
+    [NotificationService] as NotifS
+    [AIService] as AIS
+  }
+  package "data\n(repositories + models)" {
+    [AuthRepository] as AuthRepo
+    [HrRepository] as HrRepo
+    [ProjectRepository] as ProjRepo
+    [TaskRepository] as TaskRepo
+    [FinanceRepository] as FinRepo
+    [ChatRepository] as ChatRepo
+    [AIPredictionRepository] as AIRepo
+  }
+}
+
+Server --> AuthR
+Server --> HrR
+Server --> ProjR
+Server --> TaskR
+Server --> FinR
+Server --> ChatR
+Server --> WSR
+Server --> AIR
+Server ..> AuthMW : Pipeline secured()
+Server ..> PermMW
+Server ..> RateMW
+Server ..> IdemMW
+Server --> RedisSvc
+Server --> DB
+
+AuthR --> AuthS
+HrR --> HrS
+ProjR --> ProjS
+TaskR --> TaskS
+FinR --> FinS
+ChatR --> ChatS
+WSR --> ChatS
+AIR --> AIS
+
+AuthS --> AuthRepo
+HrS --> HrRepo
+ProjS --> ProjRepo
+TaskS --> TaskRepo
+FinS --> FinRepo
+ChatS --> ChatRepo
+AIS --> AIRepo
+
+AuthRepo --> DB
+HrRepo --> DB
+ProjRepo --> DB
+TaskRepo --> DB
+FinRepo --> DB
+ChatRepo --> DB
+AIRepo --> DB
+
+HrS ..> NotifS
+TaskS ..> NotifS
+ChatS ..> WSR
+ProjS ..> ProjStatus
+ProjS ..> Audit
+HrS ..> Audit
+
+note bottom of Server
+  Dépendance : presentation → domain → data → shared/core
+  Le domaine ne dépend pas des routes Shelf.
+end note
+
+@enduml

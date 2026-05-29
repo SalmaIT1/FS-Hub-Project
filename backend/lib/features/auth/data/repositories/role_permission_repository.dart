@@ -317,6 +317,38 @@ class RolePermissionRepository {
     }
   }
 
+  /// Users who inherit permissions from this role (user_roles + legacy users.role).
+  Future<List<String>> getUserIdsAffectedByRole(int roleId) async {
+    try {
+      final role = await getRoleById(roleId);
+      if (role == null) return [];
+
+      final ids = <String>{};
+      final urRes = await _db.execute(
+        'SELECT user_id FROM user_roles WHERE role_id = :roleId',
+        {'roleId': roleId},
+      );
+      for (final row in urRes.rows) {
+        final id = row.colByName('user_id')?.toString();
+        if (id != null && id.isNotEmpty) ids.add(id);
+      }
+
+      final legacyRes = await _db.execute(
+        'SELECT id FROM users WHERE LOWER(role) = LOWER(:nom)',
+        {'nom': role.nom},
+      );
+      for (final row in legacyRes.rows) {
+        final id = row.colByName('id')?.toString();
+        if (id != null && id.isNotEmpty) ids.add(id);
+      }
+
+      return ids.toList();
+    } catch (e) {
+      print('getUserIdsAffectedByRole error: $e');
+      return [];
+    }
+  }
+
   Future<RoleModel?> getUserRole(int userId) async {
     try {
       final results = await _db.execute('''

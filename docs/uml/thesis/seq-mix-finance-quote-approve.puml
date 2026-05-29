@@ -1,0 +1,40 @@
+@startuml
+title "Séquence — Devis : approbation côté client\n(finance_routes.dart + pipeline requireFinanceAccess)"
+
+skinparam shadowing false
+autonumber
+
+actor "Client utilisateur" as C
+actor "Commercial\nmanage_quotes" as Comm
+participant "Flutter" as FE <<boundary>>
+participant "FinanceRoutes" as FR <<control>>
+participant "FinanceService" as FS <<control>>
+
+note over FE, FR
+  Mount `/v1/finance` : requireFinanceAccess(server.dart L174)\n+rôles ou permissions métier Finance
+end note
+
+Comm -> FE : créer / envoyer devis
+FE -> FR : POST /v1/finance/quotes …\n(manage_quotes)
+FR -> FS : createQuote(…)
+
+C -> FE : consulter devis attribués
+FE -> FR : GET /v1/finance/quotes/mine ou /quotes/{id}\n(view_quotes ou manage_quotes)
+FR -> FS : lecture selon handlers
+FR --> C : détail PDF / lignes
+
+C -> FE : accepter devis (app client)
+FE -> FR : POST /v1/finance/quotes/{id}/approve\nBearer JWT
+note right of FR
+  _approveQuoteFromClient : requirePermission view_quotes
+  finance_routes.dart L37
+end note
+FR -> FS : approveQuoteFromClient(…)
+
+alt validations OK
+  FS --> C : statut mis à jour
+else refus métier / règles
+  FS --> C : erreur métier HTTP
+end
+
+@enduml

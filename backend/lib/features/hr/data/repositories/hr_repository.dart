@@ -1,11 +1,12 @@
 import '../../../../shared/database/connection.dart';
+import '../../domain/repositories/hr_repository_port.dart';
 import '../models/attendance_model.dart';
 import '../models/leave_request_model.dart';
 import '../models/remote_work_model.dart';
 import '../models/salary_model.dart';
 import '../models/bonus_model.dart';
 
-class HrRepository {
+class HrRepository implements HrRepositoryPort {
   final _db = DBConnection.getConnection();
   
   Future<String> _getSetting(String key, String defaultValue) async {

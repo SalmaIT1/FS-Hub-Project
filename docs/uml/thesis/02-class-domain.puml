@@ -1,0 +1,148 @@
+@startuml
+title "Diagramme de Classes — Modèle de domaine unifié (backend)"
+
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+
+package "Auth & Sécurité (Sprint 1-2)" <<Rectangle>> {
+  class UserModel <<entity>> {
+    - id: String
+    - username: String
+    - role: String?
+    - permissions: List<String>?
+    + toJson(): Map
+    + {static} fromMap(map): UserModel
+  }
+  class AuthSessionModel <<entity>> {
+    - accessToken: String
+    - refreshToken: String
+    - user: UserModel
+    + toJson(): Map
+  }
+  class RoleModel <<entity>> {
+    - id: int?
+    - nom: String
+    - description: String?
+    + toJson(): Map
+  }
+  class PermissionModel <<entity>> {
+    - id: int?
+    - nom: String
+    - module: String?
+    + toJson(): Map
+  }
+  class RolePermissionModel <<entity>> {
+    - roleId: int
+    - permissionId: int
+  }
+}
+
+package "RH & Employés (Sprint 3-4)" <<Rectangle>> {
+  class EmployeeModel <<entity>> {
+    - id: String
+    - userId: String
+    - nom: String
+    - prenom: String
+    - email: String
+    - poste: String?
+    - departement: String?
+    - statut: String
+    + toJson(): Map
+  }
+  class LeaveRequestModel <<entity>> {
+    - id: int?
+    - employeeId: String
+    - leaveType: String
+    - startDate: DateTime
+    - endDate: DateTime
+    - status: String
+    - approvedBy: String?
+    + toMap(): Map
+  }
+  class AttendanceModel <<entity>> {
+    - employeeId: String
+    - attendanceDate: String
+    - status: String
+  }
+}
+
+package "Projets & Tâches (Sprint 5)" <<Rectangle>> {
+  class ProjectModel <<entity>> {
+    - id: int?
+    - nom: String
+    - clientId: int?
+    - budget: double
+    - statut: String?
+    + toJson(): Map
+  }
+  class TaskModel <<entity>> {
+    - id: int?
+    - sprintId: int?
+    - employeeId: String?
+    - titre: String
+    - statut: String
+    - priorite: String
+    + toJson(): Map
+  }
+  class ProjectStatus <<utility>> {
+    + {static} aVenir: String
+    + {static} enCours: String
+    + {static} validate(raw): String
+  }
+}
+
+package "Finance & CRM (Sprint 6)" <<Rectangle>> {
+  class ClientModel <<entity>> {
+    - id: String
+    - raisonSociale: String
+    - email: String
+    - scoreCredit: int?
+  }
+  class InvoiceModel <<entity>> {
+    - id: int?
+    - numeroFacture: String
+    - montantTtc: double
+    - statut: String
+    - projectId: int?
+    - clientId: int?
+  }
+  class PaymentModel <<entity>> {
+    - id: int?
+    - invoiceId: int?
+    - montant: double
+    - mode: String?
+  }
+}
+
+package "Collaboration (Sprint 7)" <<Rectangle>> {
+  class ChatMessageModel <<entity>> {
+    - id: String
+    - conversationId: String
+    - senderId: String
+    - content: String
+    - type: String
+    + toJson(): Map
+  }
+  class NotificationModel <<entity>> {
+    - id: String
+    - userId: String
+    - title: String
+    - type: String
+    - isRead: bool
+    + toJson(): Map
+  }
+}
+
+UserModel "1" -- "0..1" EmployeeModel : userId
+RoleModel "1" *-- "*" PermissionModel : RolePermissionModel
+EmployeeModel "1" -- "*" LeaveRequestModel
+EmployeeModel "1" -- "*" AttendanceModel
+ClientModel "1" -- "*" ProjectModel : clientId
+ProjectModel "1" -- "*" TaskModel : via Sprint
+ProjectModel ..> ProjectStatus : statut validé
+ClientModel "1" -- "*" InvoiceModel
+InvoiceModel "1" -- "*" PaymentModel
+UserModel "1" -- "*" ChatMessageModel : senderId
+UserModel "1" -- "*" NotificationModel
+
+@enduml

@@ -1,0 +1,2102 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FS-Hub — UML Visualizer & Architecture Centre (PlantUML)</title>
+  
+  <!-- Typography & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    :root {
+      --base-dark: #0A0A0A;
+      --surface-glass: rgba(26, 26, 26, 0.75);
+      --surface-glass-solid: #161616;
+      --accent-gold: #C9A24D;
+      --accent-gold-glow: rgba(201, 162, 77, 0.2);
+      --text-light: #F5F7FA;
+      --text-secondary: #888888;
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-hover: rgba(201, 162, 77, 0.4);
+      --radius-lg: 20px;
+      --radius-md: 12px;
+      --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: var(--base-dark);
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(201, 162, 77, 0.05) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(201, 162, 77, 0.03) 0px, transparent 50%);
+      background-attachment: fixed;
+      color: var(--text-light);
+      min-height: 100vh;
+      overflow-x: hidden;
+      line-height: 1.6;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: var(--base-dark);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--accent-gold);
+    }
+
+    .container {
+      max-width: 1500px;
+      margin: 0 auto;
+      padding: 2.5rem 1.5rem;
+    }
+
+    /* Header */
+    header {
+      background: var(--surface-glass);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border-color);
+      border-bottom: 2px solid var(--accent-gold);
+      border-radius: var(--radius-lg);
+      padding: 2rem;
+      margin-bottom: 2.5rem;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+    }
+
+    .header-title-area {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+    }
+
+    .logo-glow {
+      position: relative;
+      width: 55px;
+      height: 55px;
+      background: linear-gradient(135deg, var(--accent-gold), #e5ba6b);
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.8rem;
+      color: var(--base-dark);
+      box-shadow: 0 0 25px var(--accent-gold-glow);
+    }
+
+    .header-text h1 {
+      font-size: 1.8rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(to right, #FFFFFF, #D5D8DC);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .header-text p {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      margin-top: 0.25rem;
+      font-weight: 400;
+    }
+
+    .badge {
+      background: rgba(201, 162, 77, 0.1);
+      border: 1px solid var(--accent-gold);
+      color: var(--accent-gold);
+      padding: 0.4rem 0.8rem;
+      border-radius: 50px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    /* Main Tab Navigation (Module categories) */
+    .module-nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 2rem;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 1rem;
+    }
+
+    .module-btn {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+      padding: 0.85rem 1.5rem;
+      border-radius: var(--radius-md);
+      font-family: inherit;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      transition: var(--transition);
+    }
+
+    .module-btn:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-light);
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    .module-btn.active {
+      background: linear-gradient(135deg, rgba(201, 162, 77, 0.15), rgba(201, 162, 77, 0.03));
+      border-color: var(--accent-gold);
+      color: var(--text-light);
+      box-shadow: 0 4px 20px rgba(201, 162, 77, 0.1);
+    }
+
+    /* Dashboard Layout Grid */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 2rem;
+    }
+
+    @media (max-width: 1024px) {
+      .dashboard-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Sidebar containing specific diagram sub-tabs */
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .navigation-card {
+      background: var(--surface-glass);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 1.5rem;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+
+    .navigation-card h3 {
+      font-size: 0.9rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--accent-gold);
+      margin-bottom: 1.2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .nav-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .nav-item {
+      width: 100%;
+    }
+
+    .nav-btn {
+      width: 100%;
+      text-align: left;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+      padding: 0.9rem 1.1rem;
+      border-radius: var(--radius-md);
+      font-family: inherit;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+      transition: var(--transition);
+    }
+
+    .nav-btn:hover {
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-light);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .nav-btn.active {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.3);
+      color: var(--text-light);
+      box-shadow: inset 3px 0 0 var(--accent-gold);
+    }
+
+    .nav-btn-header {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .nav-btn-sub {
+      font-size: 0.72rem;
+      color: rgba(255, 255, 255, 0.35);
+      padding-left: 1.6rem;
+      font-weight: 400;
+    }
+
+    .nav-btn.active .nav-btn-sub {
+      color: rgba(201, 162, 77, 0.75);
+    }
+
+    .info-box {
+      background: rgba(201, 162, 77, 0.04);
+      border: 1px solid rgba(201, 162, 77, 0.12);
+      border-radius: var(--radius-md);
+      padding: 1.2rem;
+    }
+
+    .info-box h4 {
+      color: var(--accent-gold);
+      font-size: 0.85rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .info-box p {
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    /* Main Showcase Area */
+    .showcase {
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+      min-width: 0;
+    }
+
+    .diagram-card {
+      background: var(--surface-glass);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 2.2rem;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+      display: none;
+      flex-direction: column;
+      gap: 2rem;
+      animation: fadeIn 0.4s ease-out;
+    }
+
+    .diagram-card.active {
+      display: flex;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .card-header {
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 1.25rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .card-title h2 {
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: var(--text-light);
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .card-title p {
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+      margin-top: 0.25rem;
+    }
+
+    .card-actions {
+      display: flex;
+      gap: 0.75rem;
+    }
+
+    .btn-action {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-color);
+      color: var(--text-light);
+      padding: 0.6rem 1rem;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      font-size: 0.82rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: var(--transition);
+    }
+
+    .btn-action:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-action.gold {
+      background: rgba(201, 162, 77, 0.1);
+      border-color: var(--accent-gold);
+      color: var(--accent-gold);
+    }
+
+    .btn-action.gold:hover {
+      background: var(--accent-gold);
+      color: var(--base-dark);
+    }
+
+    /* Diagram Viewport Container */
+    .viewport-container {
+      background: #0d0d0d;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 2.2rem;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 500px;
+      overflow: auto;
+      box-shadow: inset 0 10px 30px rgba(0,0,0,0.85);
+    }
+
+    .viewport-container.fullscreen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 9999;
+      border-radius: 0;
+      padding: 4rem;
+      min-height: 100vh;
+      background: #060606;
+    }
+
+    .fullscreen-close {
+      position: absolute;
+      top: 1.5rem;
+      right: 1.5rem;
+      z-index: 10000;
+      display: none;
+    }
+
+    .viewport-container.fullscreen .fullscreen-close {
+      display: block;
+    }
+
+    .plantuml-img-wrapper {
+      max-width: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      transition: opacity 0.3s ease;
+    }
+
+    .plantuml-img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 6px;
+      filter: drop-shadow(0 10px 20px rgba(0,0,0,0.5));
+    }
+
+    .loader {
+      display: none;
+      position: absolute;
+      border: 3px solid rgba(255,255,255,0.05);
+      border-top: 3px solid var(--accent-gold);
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .viewport-container.loading .loader {
+      display: block;
+    }
+
+    .viewport-container.loading .plantuml-img-wrapper {
+      opacity: 0.3;
+    }
+
+    /* Technical Explanations Grid */
+    .details-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      border-top: 1px solid var(--border-color);
+      padding-top: 2rem;
+    }
+
+    @media (max-width: 768px) {
+      .details-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .tech-details h3 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--accent-gold);
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      padding-bottom: 0.5rem;
+    }
+
+    .tech-details p {
+      font-size: 0.88rem;
+      color: #b8b8b8;
+      margin-bottom: 1.2rem;
+      text-align: justify;
+    }
+
+    .tech-list {
+      margin-left: 1.25rem;
+      margin-bottom: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+    }
+
+    .tech-list li {
+      font-size: 0.84rem;
+      color: #b8b8b8;
+    }
+
+    .tech-list strong {
+      color: var(--text-light);
+    }
+
+    /* Code View Area */
+    .code-area {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .code-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+    }
+
+    .code-editor {
+      background: #060606;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 1.25rem;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.78rem;
+      color: #ffd073;
+      overflow-x: auto;
+      max-height: 300px;
+      white-space: pre;
+      line-height: 1.5;
+      box-shadow: inset 0 4px 15px rgba(0,0,0,0.5);
+    }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      margin-top: 5rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--border-color);
+      color: var(--text-secondary);
+      font-size: 0.82rem;
+    }
+
+    footer a {
+      color: var(--accent-gold);
+      text-decoration: none;
+      transition: var(--transition);
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
+
+    /* Toast Notification */
+    .toast {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      background: #111;
+      border: 1px solid var(--accent-gold);
+      color: var(--text-light);
+      padding: 1rem 1.5rem;
+      border-radius: var(--radius-md);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      z-index: 10000;
+      transform: translateY(100px);
+      opacity: 0;
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    .toast i {
+      color: var(--accent-gold);
+      font-size: 1.2rem;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <div class="header-title-area">
+        <div class="logo-glow">
+          <i class="fa-solid fa-diagram-project"></i>
+        </div>
+        <div class="header-text">
+          <h1>Centre d'Architecture & Visualisation UML (PlantUML)</h1>
+          <p>Système FS-Hub — Cartographie des flux applicatifs, des cinématiques de séquence et des interactions d'acteurs</p>
+        </div>
+      </div>
+      <div>
+        <div class="badge">
+          <i class="fa-solid fa-shield-halved"></i>
+          PlantUML Engine
+        </div>
+      </div>
+    </header>
+
+    <!-- 1. Primary Category Navigation -->
+    <nav class="module-nav">
+      <button class="module-btn active" onclick="switchCategory('cat-models', this)">
+        <i class="fa-solid fa-layer-group"></i> Modèles & Déploiement
+      </button>
+      <button class="module-btn" onclick="switchCategory('cat-top10', this)">
+        <i class="fa-solid fa-list-ol"></i> Top 10 — Séquences
+      </button>
+      <button class="module-btn" onclick="switchCategory('cat-arch', this)">
+        <i class="fa-solid fa-circle-nodes"></i> Architecture & Cas d'utilisation
+      </button>
+      <button class="module-btn" onclick="switchCategory('cat-auth', this)">
+        <i class="fa-solid fa-lock"></i> Sécurité & Authentification
+      </button>
+      <button class="module-btn" onclick="switchCategory('cat-project', this)">
+        <i class="fa-solid fa-cubes"></i> Gestion de Projets
+      </button>
+      <button class="module-btn" onclick="switchCategory('cat-hr', this)">
+        <i class="fa-solid fa-users-gear"></i> Ressources Humaines (RH)
+      </button>
+      <button class="module-btn" onclick="switchCategory('cat-collab-ai', this)">
+        <i class="fa-solid fa-comments"></i> Collaboration & IA
+      </button>
+    </nav>
+
+    <!-- Dashboard Content Layout -->
+    <div class="dashboard-grid">
+      <!-- Sidebar / Sub-navigation -->
+      <aside class="sidebar">
+        <div class="navigation-card">
+          <h3 id="sidebar-title"><i class="fa-solid fa-sitemap"></i> Diagrammes</h3>
+          <ul class="nav-list" id="sub-nav-list">
+            <!-- Dynamic Sub-items injected by JS based on selected Category -->
+          </ul>
+        </div>
+
+        <div class="info-box">
+          <h4><i class="fa-solid fa-wand-magic-sparkles"></i> Moteur PlantUML</h4>
+          <p>Le code source des diagrammes est stocké au format PlantUML (standard de l'industrie). Le visualiseur utilise un compresseur de flux de données client pour appeler le serveur de rendu SVG officiel à la volée.</p>
+        </div>
+      </aside>
+
+      <!-- Main Diagram Viewport Showcase -->
+      <main class="showcase">
+        <div id="diagram-container">
+          <!-- Diagrams will be generated and managed dynamically by JS -->
+        </div>
+      </main>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+      <p>&copy; 2026 FS-Hub System. Pair-programming & conception par <a href="#">Antigravity AI (Google DeepMind)</a>.</p>
+    </footer>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="copy-toast" class="toast">
+    <i class="fa-regular fa-circle-check"></i>
+    <span>Code source PlantUML copié avec succès !</span>
+  </div>
+
+  <!-- Compression Library (Pako) for dynamic client-side PlantUML Deflate encoding -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+  
+  <script>
+    // Data definition for all UML diagrams (PlantUML)
+    const DIAGRAMS_DATA = {
+      // --- CATEGORY: MODELS, CLASS, DEPLOYMENT, ACTIVITY ---
+      'cat-models': [
+        {
+          id: 'diag-class',
+          title: 'Figure 3.2 : Diagramme de Classes',
+          subtitle: 'Modèles domaine, couche Service/Repository et relations métier',
+          desc: 'Représentation des entités principales (User, Employee, Project, Task, HR, Chat, Finance) et du pattern en couches utilisé par le backend Dart Shelf.',
+          bullets: [
+            '<strong>Modèles :</strong> POJO Dart dans <code>backend/lib/features/*/data/models/</code>.',
+            '<strong>Services :</strong> Logique métier (<code>*Service</code>) appelée par les routes Shelf.',
+            '<strong>Repositories :</strong> Accès MySQL encapsulé, injecté par les services.'
+          ],
+          code: `@startuml
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+
+package "Domain Models" {
+  class UserModel { +id +username +role }
+  class EmployeeModel { +id +userId +nom +prenom }
+  class ClientModel { +id +raisonSociale }
+  class ProjectModel { +id +clientId +status }
+  class TaskModel { +id +projectId +status }
+  class SprintModel { +id +projectId }
+  class LeaveRequestModel { +userId +status }
+  class AttendanceModel { +clockIn +clockOut }
+  class DemandModel { +type +status }
+  class ChatMessageModel { +conversationId +content }
+  class ExpenseModel { +amount +projectId }
+}
+
+package "Services" {
+  class AuthService
+  class EmployeeService
+  class TaskService
+  class HrService
+  class ChatService
+  class ExpenseService
+  class DemandService
+  class AIService
+}
+
+package "Repositories" {
+  class AuthRepository
+  class EmployeeRepository
+  class TaskRepository
+  class HrRepository
+  class ChatRepository
+  class ExpenseRepository
+  class DemandRepository
+}
+
+UserModel "1" -- "0..1" EmployeeModel
+ClientModel "1" -- "*" ProjectModel
+ProjectModel "1" *-- "*" TaskModel
+ProjectModel "1" *-- "*" SprintModel
+EmployeeModel "1" -- "*" LeaveRequestModel
+EmployeeModel "1" -- "*" AttendanceModel
+class ConversationModel { +id +type }
+ConversationModel "1" *-- "*" ChatMessageModel
+
+AuthService --> AuthRepository
+EmployeeService --> EmployeeRepository
+TaskService --> TaskRepository
+HrService --> HrRepository
+ChatService --> ChatRepository
+ExpenseService --> ExpenseRepository
+DemandService --> DemandRepository
+AuthRepository ..> UserModel
+EmployeeRepository ..> EmployeeModel
+@enduml`
+        },
+        {
+          id: 'diag-deployment',
+          title: 'Figure 3.3 : Diagramme de Déploiement',
+          subtitle: 'Nœuds clients Flutter, API Shelf, microservice IA, MySQL, Redis, CI/CD',
+          desc: 'Architecture physique et logique de déploiement : clients multi-plateformes, serveur Dart, service Python FastAPI, bases de données et pipeline GitHub Actions.',
+          bullets: [
+            '<strong>Clients :</strong> Windows (principal), Android/iOS, Web Flutter.',
+            '<strong>API :</strong> <code>backend/bin/server.dart</code> — REST + WebSocket chat.',
+            '<strong>IA :</strong> <code>ai-service/main.py</code> sur le port 8001 avec clé API.'
+          ],
+          code: `@startuml
+skinparam shadowing false
+
+node "Clients" {
+  artifact "Flutter Desktop\\n(Windows)" as Win
+  artifact "Flutter Mobile" as Mob
+}
+
+node "Serveur" {
+  node "Dart Shelf :8080" as API {
+    component server.dart
+    component WebSocket
+  }
+  node "FastAPI :8001" as AI {
+    component RandomForest
+  }
+}
+
+database "MySQL" as DB
+database "Redis" as Redis
+cloud "SMTP" as SMTP
+
+Win --> API : HTTPS REST
+Mob --> API
+Win <--> WebSocket
+API --> DB
+API --> Redis
+API --> AI : HTTP + X-API-Key
+API --> SMTP
+@enduml`
+        },
+        {
+          id: 'diag-activity-login',
+          title: 'Figure 3.6 : Diagramme d\'Activité — Authentification',
+          subtitle: 'Flux décisionnel de la connexion utilisateur',
+          desc: 'Activité décrivant les branches succès/échec lors du login JWT.',
+          bullets: [
+            '<strong>Validation :</strong> Recherche utilisateur puis BCrypt.',
+            '<strong>Tokens :</strong> Access 24h + Refresh 7 jours en base.',
+            '<strong>Client :</strong> Stockage chiffré et chargement des permissions UI.'
+          ],
+          code: `@startuml
+start
+:Saisie identifiants;
+:POST /v1/auth/login;
+if (Utilisateur trouvé?) then (oui)
+  if (Mot de passe BCrypt OK?) then (oui)
+    :Générer JWT access + refresh;
+    :Persister refresh_token;
+    :Retourner permissions;
+    :Stocker tokens (Secure Storage);
+    :Afficher Dashboard;
+    stop
+  else (non)
+    :401 Invalid credentials;
+    stop
+  endif
+else (non)
+  :401 Invalid credentials;
+  stop
+endif
+@enduml`
+        },
+        {
+          id: 'diag-activity-leave',
+          title: 'Figure 3.7 : Diagramme d\'Activité — Congés',
+          subtitle: 'Workflow demande, validation RH et déduction de solde',
+          desc: 'Processus métier complet d\'une demande de congé de la soumission à l\'approbation ou au refus.',
+          bullets: [
+            '<strong>Contrôle solde :</strong> Vérification avant création Pending.',
+            '<strong>RH :</strong> Approbation avec déduction atomique du solde.',
+            '<strong>Notification :</strong> WebSocket vers employé et RH.'
+          ],
+          code: `@startuml
+|Employé|
+start
+:Soumettre demande congé;
+|Backend|
+if (Solde suffisant?) then (oui)
+  :INSERT status=Pending;
+  :Notifier RH;
+else (non)
+  :Erreur 400;
+  stop
+endif
+|RH|
+if (Décision?) then (Approuver)
+  :Approved + déduction solde;
+  :Notifier employé;
+  stop
+elseif (Refuser)
+  :Rejected;
+  stop
+else (Attente)
+  :Pending;
+  stop
+endif
+@enduml`
+        }
+      ],
+      // --- CATEGORY: TOP 10 FEATURE SEQUENCES ---
+      'cat-top10': [
+        { id: 'top01-login', ref: 'diag-login', title: 'Top 1 — Connexion JWT', subtitle: 'Authentification BCrypt + tokens', feature: 'Auth' },
+        { id: 'top02-employee', title: 'Top 2 — Création Employé', subtitle: 'RH crée compte + profil employé', feature: 'Employees',
+          code: `@startuml
+autonumber
+actor RH
+participant FE as Flutter
+participant Router as EmployeeRoutes
+participant Service as EmployeeService
+participant Repo as EmployeeRepository
+database DB as MySQL
+RH -> FE : Formulaire employé
+FE -> Router : POST /v1/employees
+Router -> Service : createEmployee(data)
+Service -> Service : BCrypt(password)
+Service -> Repo : createEmployee
+Repo -> DB : INSERT users + employees
+Service --> Router : {id}
+Router --> FE : 201
+@enduml` },
+        { id: 'top03-client', title: 'Top 3 — Gestion Client', subtitle: 'CRUD client lié aux projets', feature: 'Clients',
+          code: `@startuml
+autonumber
+actor Mgr as Manager
+participant FE as Flutter
+participant Router as ClientRoutes
+participant Service as ClientService
+database DB as MySQL
+Mgr -> FE : Nouveau client
+FE -> Router : POST /v1/clients
+Router -> Service : createClient
+Service -> DB : INSERT clients
+Router --> FE : 201
+@enduml` },
+        { id: 'top04-task', ref: 'diag-task-create', title: 'Top 4 — Création Tâche', subtitle: 'Assignation + notification WS', feature: 'Projects' },
+        { id: 'top05-expense', title: 'Top 5 — Dépense Projet', subtitle: 'Saisie comptable + audit', feature: 'Finance',
+          code: `@startuml
+autonumber
+actor Comptable
+participant FE as Flutter
+participant Router as ExpenseRoutes
+participant Service as ExpenseService
+database DB as MySQL
+Comptable -> FE : Saisir dépense
+FE -> Router : POST /v1/expenses/project
+Router -> Service : createProjectExpense
+Service -> DB : INSERT project_expenses
+Router --> FE : 201
+@enduml` },
+        { id: 'top06-attendance', ref: 'diag-attendance', title: 'Top 6 — Pointage', subtitle: 'Clock-in / clock-out', feature: 'HR' },
+        { id: 'top07-leave', ref: 'diag-leave', title: 'Top 7 — Demande Congé', subtitle: 'Workflow RH', feature: 'HR' },
+        { id: 'top08-chat', ref: 'diag-chat', title: 'Top 8 — Chat WebSocket', subtitle: 'Messagerie temps réel', feature: 'Chat' },
+        { id: 'top09-demand', title: 'Top 9 — Demande Interne', subtitle: 'Support IT / admin', feature: 'Demands',
+          code: `@startuml
+autonumber
+actor Emp as Employé
+participant FE as Flutter
+participant Service as DemandService
+database DB as MySQL
+Emp -> FE : Nouvelle demande
+FE -> Service : POST /v1/demands
+Service -> DB : INSERT demands
+Service -> Service : notifyAdmins()
+FE --> Emp : En attente
+@enduml` },
+        { id: 'top10-ai', ref: 'diag-ai', title: 'Top 10 — Prédiction IA', subtitle: 'Random Forest via FastAPI', feature: 'AI' }
+      ],
+      // --- CATEGORY: ARCHITECTURE ---
+      'cat-arch': [
+        {
+          id: 'diag-package',
+          title: 'Figure 3.4 : Diagramme de Paquetage',
+          subtitle: 'Cartographie des packages applicatifs, découplage Clean Architecture & Services externes',
+          desc: 'Cette figure structurelle montre comment FS-Hub sépare la présentation (Flutter) de la logique d\'intégration (Dart Shelf), du module prédictif d\'IA (Python FastAPI) et du stockage hybride (MySQL / Redis).',
+          bullets: [
+            '<strong>Frontend Flutter :</strong> Organisé en architecture Feature-First avec un dossier Security central.',
+            '<strong>Backend Dart Shelf :</strong> Pipeline de middlewares structurant le traitement (Authentification, Permissions, Débits).',
+            '<strong>Microservice IA :</strong> API asynchrone Python FastAPI autonome exécutant le modèle prédictif Random Forest.'
+          ],
+          code: `@startuml
+skinparam handwritten false
+skinparam packageStyle rect
+skinparam shadowing false
+skinparam defaultFontName "Plus Jakarta Sans"
+
+skinparam package {
+    BackgroundColor #1E1E24
+    BorderColor #C9A24D
+    FontColor #F5F7FA
+}
+
+skinparam folder {
+    BackgroundColor #16161D
+    BorderColor #888888
+    FontColor #CCCCCC
+}
+
+skinparam artifact {
+    BackgroundColor #111111
+    BorderColor #888888
+    FontColor #CCCCCC
+}
+
+skinparam database {
+    BackgroundColor #111111
+    BorderColor #C9A24D
+    FontColor #F5F7FA
+}
+
+package "📱 Flutter Frontend (Presentation & Logic)" as Client {
+    artifact "main.dart" as Main
+    artifact "navigation/chat_router.dart" as Router
+    artifact "theme/design_tokens.dart" as Theme
+    
+    folder "lib/security & shared/widgets" as Security {
+        artifact "permissions_guard.dart" as Guard
+        artifact "permission_guard.dart" as WGuard
+    }
+    
+    folder "lib/features/ (Screen, Services, Models)" as FeaturesFE {
+        folder "auth/ (login, profile)" as AuthFE
+        folder "hr/ (salaries, leaves)" as HRFE
+        folder "projects/ & tasks/" as ProjFE
+        folder "voice/ & notification/" as ChatFE
+    }
+}
+
+package "📦 Dart Shelf Backend (Business Logic & Middleware)" as Server {
+    artifact "bin/server.dart" as Srv
+    
+    folder "lib/core/ (System Core)" as CoreBE {
+        folder "config/" as ConfigBE
+        folder "utils/" as UtilsBE
+        folder "services/" as ServicesBE
+    }
+    
+    folder "lib/core/middleware/ (Interceptors)" as Middlewares {
+        artifact "auth_middleware.dart" as AuthMid
+        artifact "permission_middleware.dart" as PermMid
+        artifact "rate_limit_middleware.dart" as RateMid
+        artifact "idempotency_middleware.dart" as IdemMid
+    }
+    
+    folder "lib/features/ (Controllers, Services, Repositories)" as FeaturesBE {
+        folder "auth/services/ & /routes/" as AuthF
+        folder "hr/services/ & /routes/" as HRF
+        folder "task/ & project/" as TaskF
+        folder "chat/ (WebSockets)" as ChatF
+    }
+}
+
+package "📦 Storage & Cache Layer" as Storage {
+    database "MySQL Database" as MySQL
+    database "Redis Cache" as Redis
+}
+
+package "📦 Python AI Service (Microservice)" as AI {
+    folder "FastAPI App (8001)" as FastAPI
+    artifact "Random Forest Model" as RFModel
+}
+
+Client ..> Srv : "HTTP / REST (JSON)"
+Client <..> ChatF : "WebSockets (Chat)"
+Srv --> Middlewares
+Middlewares --> FeaturesBE
+FeaturesBE --> Storage
+FeaturesBE --> FastAPI : "HTTP Request"
+FastAPI --> RFModel
+@enduml`
+        },
+        {
+          id: 'diag-usecase',
+          title: 'Figure 3.5 : Diagramme de Cas d\'Utilisation',
+          subtitle: 'Modélisation des acteurs métiers, limites du système et rôles de sécurité (RBAC)',
+          desc: 'Ce diagramme illustre les interactions des différents acteurs (Administrateur, Responsable RH, Manager, Employé) avec les cas d\'utilisation liés à la sécurité et à l\'organisation.',
+          bullets: [
+            '<strong>Hiérarchie des rôles :</strong> L\'Admin dispose des prérogatives RH et Manager. RH et Manager héritent des droits standard de l\'Employé.',
+            '<strong>Garde d\'authentification :</strong> La quasi-totalité des fonctionnalités sensibles inclut explicitement l\'étape préalable de connexion (UC1).',
+            '<strong>Séparation des responsabilités :</strong> Seul l\'administrateur peut assigner des droits et configurer les profils en base.'
+          ],
+          code: `@startuml
+skinparam handwritten false
+skinparam shadowing false
+skinparam defaultFontName "Plus Jakarta Sans"
+
+skinparam actor {
+    BackgroundColor #1A1A1A
+    BorderColor #C9A24D
+    FontColor #F5F7FA
+}
+
+skinparam usecase {
+    BackgroundColor #111111
+    BorderColor #888888
+    FontColor #F5F7FA
+}
+
+actor "Administrateur\n(Tous les accès)" as Admin
+actor "Responsable RH\n(Gestion RH)" as RH
+actor "Manager\n(Gestion Projets)" as Manager
+actor "Employé\n(Utilisateur standard)" as Employee
+
+Admin -up-|> RH
+Admin -up-|> Manager
+RH -up-|> Employee
+Manager -up-|> Employee
+
+rectangle "FS-Hub — Système de gestion intégrée" {
+    usecase "UC1 S'authentifier" as UC_Login
+    usecase "UC2 Reset mot de passe" as UC_ResetPwd
+    usecase "UC3 Rôles & permissions" as UC_ManageRoles
+    usecase "UC4 Gérer employés" as UC_Employees
+    usecase "UC5 Gérer clients" as UC_Clients
+    usecase "UC6 Projets & sprints" as UC_Projects
+    usecase "UC7 Créer tâches" as UC_CreateTask
+    usecase "UC8 Dépenses & finance" as UC_Finance
+    usecase "UC9 Pointer présence" as UC_LogAttendance
+    usecase "UC10 Demander congé" as UC_DemandeConges
+    usecase "UC11 Valider congés" as UC_ApproveConges
+    usecase "UC12 Fiches de paie" as UC_ViewPayslip
+    usecase "UC13 Chat temps réel" as UC_Chat
+    usecase "UC14 Demande interne" as UC_Demand
+    usecase "UC15 Prédictions IA" as UC_AI
+    usecase "UC16 Logs audit" as UC_AuditLogs
+    usecase "UC17 Portail client" as UC_Portal
+    usecase "UC18 Notifications" as UC_Notif
+
+    UC_ManageRoles ..> UC_Login : <<include>>
+    UC_Employees ..> UC_Login : <<include>>
+    UC_Projects ..> UC_Login : <<include>>
+    UC_Finance ..> UC_Login : <<include>>
+    UC_Chat ..> UC_Login : <<include>>
+    UC_AI ..> UC_Login : <<include>>
+}
+
+Employee -- UC_Login
+Employee -- UC_ResetPwd
+Employee -- UC_LogAttendance
+Employee -- UC_DemandeConges
+Employee -- UC_ViewPayslip
+Employee -- UC_Chat
+Employee -- UC_Demand
+Employee -- UC_Notif
+
+RH -- UC_Employees
+RH -- UC_ApproveConges
+RH -- UC_ViewPayslip
+Manager -- UC_Projects
+Manager -- UC_CreateTask
+Manager -- UC_Clients
+Manager -- UC_Finance
+Manager -- UC_AI
+Admin -- UC_ManageRoles
+Admin -- UC_AuditLogs
+@enduml`
+        }
+      ],
+      // --- CATEGORY 2: SECURITY & AUTH ---
+      'cat-auth': [
+        {
+          id: 'diag-login',
+          title: '3.6.1 : Connexion (Login) & Tokens JWT',
+          subtitle: 'Diagramme de séquence — Validation BCrypt et génération du couple Access/Refresh Token',
+          desc: 'Détaille l\'échange initié par la saisie des identifiants jusqu\'à l\'émission des jetons de session JWT persistants et le renvoi des permissions.',
+          bullets: [
+            '<strong>Vérification Cryptographique :</strong> Le backend Dart utilise la bibliothèque BCrypt pour vérifier le mot de passe vis-à-vis du hash stocké en base de données.',
+            '<strong>Jeton de rafraîchissement :</strong> Le Refresh Token (valide 7 jours) est inscrit de manière persistante en DB pour permettre le renouvellement automatique.',
+            '<strong>Permissions IHM :</strong> Les clés d\'autorisations granulaires associées au rôle sont renvoyées au client Flutter pour piloter l\'affichage.'
+          ],
+          code: `@startuml
+autonumber
+skinparam shadowing false
+skinparam defaultFontName "Plus Jakarta Sans"
+
+actor User as "👤 Utilisateur"
+participant FE as "📱 Flutter (Client)"
+participant SecStore as "🔒 Secure Storage"
+participant Router as "🌐 AuthRouter (Shelf)"
+participant Service as "⚙️ AuthService (Dart)"
+participant Repo as "📁 AuthRepository"
+database DB as "🗄️ MySQL Database"
+participant BCrypt as "🔑 BCrypt Engine"
+participant JWTEngine as "🎫 JWT Engine"
+
+User -> FE : Saisit username/email + mot de passe
+FE -> Router : POST /api/auth/login (JSON)
+Router -> Service : login(username, password)
+Service -> Repo : findUserByUsernameOrEmail(username)
+Repo -> DB : SELECT * FROM users WHERE username=? OR email=?
+DB --> Repo : UserRow (id, password_hash, role)
+Repo --> Service : UserRow (ou null)
+
+alt Utilisateur non trouvé
+    Service --> Router : {success: false, message: "Invalid credentials"}
+    Router --> FE : 401 Unauthorized (JSON)
+    FE --> User : ❌ Message d'erreur
+else Utilisateur trouvé
+    Service -> BCrypt : checkpw(password, password_hash)
+    BCrypt --> Service : password_valid (true/false)
+    
+    alt Mot de passe incorrect
+        Service --> Router : {success: false, message: "Invalid credentials"}
+        Router --> FE : 401 Unauthorized
+        FE --> User : ❌ Message d'erreur
+    else Authentification réussie
+        Service -> JWTEngine : generateAccessToken(userId, role)
+        JWTEngine --> Service : accessToken (Valid 24h)
+        
+        Service -> JWTEngine : generateRefreshToken(userId)
+        JWTEngine --> Service : refreshToken (Valid 7 jours)
+        
+        Service -> Repo : saveRefreshToken(userId, token, expiresAt)
+        Repo -> DB : INSERT INTO refresh_tokens (user_id, token, expires_at)
+        
+        Service -> Repo : updateLastLogin(userId)
+        Repo -> DB : UPDATE users SET last_login = NOW() WHERE id=?
+        
+        Service -> Repo : getUserPermissions(userId)
+        Repo -> DB : SELECT permission_key FROM user_permissions WHERE user_id=?
+        DB --> Repo : List of Permissions
+        Repo --> Service : List of Permissions
+        
+        Service --> Router : AuthResult(success: true, user, permissions, accessToken, refreshToken)
+        Router --> FE : 200 OK + Session JSON
+        
+        FE -> SecStore : Stocker accessToken & refreshToken (chiffré)
+        FE --> User : ✅ Affichage du Dashboard
+    end
+end
+@enduml`
+        },
+        {
+          id: 'diag-logout',
+          title: '3.6.2 : Déconnexion (Logout) & Révocation',
+          subtitle: 'Diagramme de séquence — Révocation active des jetons et sécurisation du stockage local',
+          desc: 'Illustre la suppression locale des cookies/tokens et la mise sur liste noire (blacklist) du Refresh Token côté serveur pour interdire les rejeux.',
+          bullets: [
+            '<strong>Révocation active :</strong> L\'appel d\'API force le serveur à invalider le jeton en base de données et à le consigner dans un cache de révocation.',
+            '<strong>Sécurisation locale :</strong> Les jetons stockés de manière chiffrée sur le terminal client sont purgés de façon irréversible.',
+            '<strong>Nettoyage d\'état :</strong> L\'application réinitialise les managers de flux (sprints, chat websockets) et redirige l\'utilisateur vers le portail.'
+          ],
+          code: `@startuml
+autonumber
+skinparam shadowing false
+skinparam defaultFontName "Plus Jakarta Sans"
+
+actor User as "👤 Utilisateur"
+participant FE as "📱 Flutter (Client)"
+participant SecStore as "🔒 Secure Storage"
+participant Router as "🌐 AuthRouter (Shelf)"
+participant Mid as "🛡️ AuthMiddleware"
+participant Service as "⚙️ AuthService (Dart)"
+participant Repo as "📁 AuthRepository"
+database DB as "🗄️ MySQL Database"
+
+User -> FE : Clique sur "Déconnexion"
+FE -> Router : POST /api/auth/logout (Bearer Token)
+Router -> Mid : Intercepte & valide la session
+Mid --> Router : Requête autorisée (userId)
+Router -> Service : logout(accessToken, userId)
+
+Service -> Service : Ajouter accessToken au store des tokens révoqués
+Service -> Repo : revokeRefreshTokens(userId)
+Repo -> DB : UPDATE refresh_tokens SET is_used = true WHERE user_id=?
+DB --> Repo : Confirmé
+Repo --> Service : Succès
+
+Service --> Router : Succès
+Router --> FE : 200 OK (Session close)
+
+FE -> SecStore : Supprimer accessToken & refreshToken
+FE -> FE : Réinitialiser l'état global (User = null)
+FE --> User : 🔒 Redirection vers l'écran de Login
+@enduml`
+        },
+        {
+          id: 'diag-reset',
+          title: '3.6.3 : Réinitialisation de Mot de Passe',
+          subtitle: 'Diagramme de séquence — Flux sécurisé d\'oubli de mot de passe avec envoi de lien SMTP',
+          desc: 'Modélise le parcours asynchrone d\'envoi de lien temporaire par email, sa validation par clé cryptée et la mise à jour finale du mot de passe.',
+          bullets: [
+            '<strong>Protection contre l\'énumération :</strong> Le serveur renvoie un message de succès uniforme, qu\'un email existe en base ou non.',
+            '<strong>Token sécurisé :</strong> Génération d\'un token cryptographique UUID.v4 à usage unique lié à une expiration de 24h.',
+            '<strong>Mise à jour blindée :</strong> La réinitialisation finale applique les validations de complexité de mot de passe côté backend.'
+          ],
+          code: `@startuml
+autonumber
+skinparam shadowing false
+skinparam defaultFontName "Plus Jakarta Sans"
+
+actor User as "👤 Utilisateur"
+participant FE as "📱 Flutter (Client)"
+participant Router as "🌐 AuthRouter"
+participant Service as "⚙️ AuthService"
+participant Repo as "📁 AuthRepository"
+participant Email as "📧 EmailService"
+participant SMTP as "🖥️ SMTP Server"
+database DB as "🗄️ MySQL Database"
+
+User -> FE : Saisit son email ("Mot de passe oublié")
+FE -> Router : POST /api/auth/forgot-password {email}
+Router -> Service : forgotPassword(email)
+Service -> Repo : findUserByUsernameOrEmail(email)
+Repo -> DB : SELECT * FROM users WHERE email=?
+DB --> Repo : UserRow (ou null)
+
+alt Utilisateur non trouvé
+    Repo --> Service : null
+    Service --> Router : {success: true} (Anti-énumération)
+else Utilisateur trouvé
+    Service -> Service : Générer token brut (UUID.v4) + hash SHA-256
+    Service -> Repo : savePasswordResetToken(userId, hash, expiresAt)
+    Repo -> DB : INSERT INTO password_reset_tokens (...)
+    Service -> Email : sendResetLink(email, tokenBrut)
+    Email -> SMTP : Send Email avec lien sécurisé (?token=...)
+    SMTP --> Email : Délivré
+end
+
+Router --> FE : 200 OK + Message informatif
+FE --> User : 📧 "Vérifiez vos emails"
+
+User -> FE : Clique le lien, saisit son nouveau mot de passe
+FE -> Router : POST /api/auth/reset-password {tokenBrut, newPassword}
+Router -> Service : resetPasswordWithToken(tokenBrut, newPassword)
+Service -> Service : Calculer hash SHA-256(tokenBrut)
+Service -> Repo : getResetTokenInfo(hash)
+Repo -> DB : SELECT * FROM password_reset_tokens WHERE hash=?
+DB --> Repo : TokenRecord (userId, expiresAt, isUsed)
+
+alt Token expiré ou déjà utilisé
+    Repo --> Service : Invalide
+    Service --> Router : Erreur (Token non valide)
+    Router --> FE : 400 Bad Request
+else Token valide
+    Service -> Service : Hacher le mot de passe (BCrypt)
+    Service -> Repo : updatePassword(userId, newHashedPassword)
+    Repo -> DB : UPDATE users SET password = ? WHERE id=?
+    Service -> Repo : markTokenUsed(hash)
+    Repo -> DB : UPDATE password_reset_tokens SET is_used=true WHERE hash=?
+    Service --> Router : Succès
+    Router --> FE : 200 OK
+    FE --> User : ✅ Mot de passe modifié !
+end
+@enduml`
+        }
+      ],
+      // --- CATEGORY 3: PROJECT MANAGEMENT ---
+      'cat-project': [
+        {
+          id: 'diag-task-create',
+          title: '3.7.1 : Création de Tâche & Notification',
+          subtitle: 'Diagramme de séquence — Création, traçabilité et émission en temps réel par WebSockets',
+          desc: 'Présente la mécanique interne de création d\'un élément de backlog, sa journalisation d\'audit et sa diffusion instantanée vers l\'employé concerné.',
+          bullets: [
+            '<strong>Pipeline de middlewares :</strong> Exécution séquentielle des filtres de sécurité vérifiant que le créateur dispose de la permission <code>manage_projects</code>.',
+            '<strong>Imputabilité (Audit Service) :</strong> Traçabilité automatique dans le journal d\'audit pour consigner l\'auteur et la nature de la modification.',
+            '<strong>Temps Réel WebSocket :</strong> Notification instantanée au collaborateur ciblé s\'il possède une session active ouverte.'
+          ],
+          code: `@startuml
+autonumber
+skinparam shadowing false
+skinparam defaultFontName "Plus Jakarta Sans"
+
+actor Mgr as "👔 Manager"
+actor Emp as "👤 Employé Assigné"
+participant FE as "📱 Flutter App"
+participant Router as "🌐 TaskRouter"
+participant Mid as "🛡️ Auth/Perm Middleware"
+participant Service as "⚙️ TaskService"
+participant Repo as "📁 TaskRepository"
+participant Audit as "📝 AuditService"
+participant Notif as "🔔 NotificationService"
+database DB as "🗄️ MySQL Database"
+participant WS as "🔌 WebSocket Server"
+
+Mgr -> FE: Remplit la fiche de tâche et clique "Créer"
+FE -> Router: POST /api/tasks (Bearer Token)
+Router -> Mid: requirePermission("manage_projects")
+Mid --> Router: Autorisé (userId, role)
+Router -> Service: createTask(taskData, callerId)
+Service -> Repo: saveTask(taskData)
+Repo -> DB: INSERT INTO tasks (...) RETURNING id
+DB --> Repo: taskId
+Repo --> Service: TaskModel
+
+par Audit Log
+    Service -> Audit: logAction(callerId, "TASK_CREATE", taskId)
+    Audit -> DB: INSERT INTO audit_logs (...)
+else Notification Employé
+    Service -> Notif: createNotification(assignedUserId, "Nouvelle tâche assignée")
+    Notif -> DB: INSERT INTO notifications (...)
+    Notif -> WS: sendToUser(assignedUserId, {type: "notif:new", taskId})
+    WS --> Emp: 🔔 Notification en temps réel reçue !
+end
+
+Service --> Router: TaskModel
+Router --> FE: 201 Created
+FE --> Mgr: ✅ Tâche créée & assignée !
+@enduml`
+        },
+        {
+          id: 'diag-task-update',
+          title: '3.7.2 : Mise à jour & Burndown Chart',
+          subtitle: 'Diagramme de séquence — Transition d\'état Kanban et mise à jour dynamique des métriques de sprint',
+          desc: 'Montre la cinématique réseau lors du glissement d\'une tâche dans le tableau Kanban, le recalcul des heures et la répercussion sur le burndown chart.',
+          bullets: [
+            '<strong>State Management :</strong> Passage sécurisé des états (To Do -> In Progress -> Done) avec validation des contraintes métiers.',
+            '<strong>Recalcul des métriques :</strong> Le BurndownService prend un instantané à chaque fermeture de tâche pour actualiser la tendance.',
+            '<strong>Mise à jour collaborative :</strong> Broadcast instantané aux autres membres du sprint pour rafraîchir leur affichage sans rechargement.'
+          ],
+          code: `@startuml
+autonumber
+skinparam shadowing false
+skinparam defaultFontName "Plus Jakarta Sans"
+
+actor Emp as "👤 Employé"
+actor Mgr as "👔 Manager"
+participant FE as "📱 Flutter App"
+participant Router as "🌐 TaskRouter"
+participant Service as "⚙️ TaskService"
+participant SprintSvc as "⚙️ SprintService"
+participant Repo as "📁 TaskRepository"
+database DB as "🗄️ MySQL Database"
+participant WS as "🔌 WebSocket Server"
+
+Emp -> FE: Glisse une tâche dans "Done" sur le Kanban
+FE -> Router: PATCH /api/tasks/{id}/status {status: "Done"}
+Router -> Service: updateTaskStatus(taskId, "Done", callerId)
+Service -> Repo: getTask(taskId)
+Repo --> Service: TaskModel (sprintId, initialHours)
+Service -> Repo: updateStatus(taskId, "Done")
+Repo -> DB: UPDATE tasks SET status="Done", closed_at=NOW() WHERE id=?
+
+Service -> SprintSvc: updateSprintProgress(sprintId)
+SprintSvc -> Repo: getSprintTasksStats(sprintId)
+Repo --> SprintSvc: {totalHours, completedHours}
+SprintSvc -> Repo: saveSprintDailySnapshot(sprintId, remainingHours)
+Repo -> DB: INSERT INTO sprint_snapshots (sprint_id, date, remaining_hours)
+
+Service -> WS: broadcastToSprint(sprintId, {type: "task:updated", taskId, status: "Done"})
+
+par Propagation Temps Réel
+    WS --> FE: Actualiser la tâche sur le tableau Kanban de l'employé
+else Propagation Manager
+    WS --> FE: Mettre à jour le Burndown Chart du dashboard manager
+end
+
+Service --> Router: Succès
+Router --> FE: 200 OK
+@enduml`
+        }
+      ],
+      // --- CATEGORY 4: HR MODULE ---
+      'cat-hr': [
+        {
+          id: 'diag-attendance',
+          title: '3.8.1 : Pointage de Présence (Attendance)',
+          subtitle: 'Diagramme de séquence — Flux de pointage quotidien avec géolocalisation et calcul de temps',
+          desc: 'Détaille le flux d\'enregistrement des pointages de début et fin de journée pour le calcul automatique des heures de présence.',
+          bullets: [
+            '<strong>Vérification temporelle :</strong> Empêche les pointages doublés pour une même journée ou les chevauchements.',
+            '<strong>Horodatage sécurisé :</strong> Le serveur fait foi pour l\'heure de pointage pour éviter la triche locale.',
+            '<strong>Calcul automatique :</strong> Lors de la sortie (Clock-Out), calcul et stockage de la durée totale en minutes.'
+          ],
+          code: `@startuml
+autonumber
+skinparam shadowing false
+skinparam defaultFontName "Plus Jakarta Sans"
+
+actor Emp as "👤 Employé"
+participant FE as "📱 Flutter App"
+participant Router as "🌐 AttendanceRouter"
+participant Service as "⚙️ AttendanceService"
+participant Repo as "📁 AttendanceRepository"
+database DB as "🗄️ MySQL Database"
+
+Emp -> FE: Ouvre l'écran de présence et clique "Pointer l'entrée"
+FE -> Router: POST /api/hr/attendance/clock-in {latitude, longitude}
+Router -> Service: clockIn(userId, latitude, longitude)
+Service -> Repo: hasAlreadyClockedInToday(userId)
+Repo --> Service: false
+Service -> Repo: saveClockIn(userId, NOW(), lat, lng)
+Repo -> DB: INSERT INTO attendances (user_id, date, clock_in_time, status) VALUES (?, CURDATE(), NOW(), "Present")
+DB --> Repo: Confirmé
+Service --> Router: Succès {clockInTime, status}
+Router --> FE: 201 Created
+FE --> Emp: ✅ Enregistré ! (Chronomètre démarré)
+
+Note over Emp, FE: En fin de journée...
+
+Emp -> FE: Clique sur "Pointer la sortie"
+FE -> Router: PUT /api/hr/attendance/clock-out
+Router -> Service: clockOut(userId)
+Service -> Repo: getActiveAttendanceToday(userId)
+Repo --> Service: AttendanceModel (clockInTime)
+Service -> Service: Calculer la durée d'activité (ex: 8h30)
+Service -> Repo: saveClockOut(userId, NOW(), workingMinutes)
+Repo -> DB: UPDATE attendances SET clock_out_time=NOW(), duration_minutes=? WHERE user_id=? AND date=CURDATE()
+DB --> Repo: Confirmé
+Service --> Router: Succès {clockOutTime, duration}
+Router --> FE: 200 OK
+FE --> Emp: 🔒 Session de travail fermée
+@enduml`
+        },
+        {
+          id: 'diag-leave',
+          title: '3.8.2 : Workflow de Demande de Congés',
+          subtitle: 'Diagramme de séquence — Demande, vérification des soldes et validation collaborative RH',
+          desc: 'Illustre le processus collaboratif de demande de congé payé, le contrôle de solde et l\'envoi de notifications temps réel.',
+          bullets: [
+            '<strong>Vérification des quotas :</strong> Le backend vérifie que le solde de congés restant est supérieur ou égal aux jours demandés.',
+            '<strong>Processus d\'approbation :</strong> La demande reste dans l\'état <code>Pending</code> tant que le gestionnaire RH n\'a pas validé.',
+            '<strong>Déduction automatique :</strong> La soustraction des jours s\'effectue de manière atomique en base lors de l\'approbation.'
+          ],
+          code: `@startuml
+autonumber
+skinparam shadowing false
+skinparam defaultFontName "Plus Jakarta Sans"
+
+actor Emp as "👤 Employé"
+actor RH as "👩‍💼 Responsable RH"
+participant FE as "📱 Flutter App"
+participant Router as "🌐 LeaveRouter"
+participant Service as "⚙️ LeaveService"
+participant Repo as "📁 LeaveRepository"
+participant Notif as "🔔 NotificationService"
+database DB as "🗄️ MySQL Database"
+participant WS as "🔌 WebSocket Server"
+
+Emp -> FE: Renseigne les dates et clique sur "Soumettre la demande"
+FE -> Router: POST /api/hr/leaves {startDate, endDate, leaveType}
+Router -> Service: createLeaveRequest(userId, startDate, endDate, leaveType)
+Service -> Repo: getEmployeeLeaveBalance(userId)
+Repo --> Service: balance (25 jours)
+Service -> Service: Calculer jours demandés (ex: 5 jours)
+
+alt Solde insuffisant
+    Service --> Router: Erreur (Solde insuffisant)
+    Router --> FE: 400 Bad Request
+else Solde suffisant
+    Service -> Repo: saveLeaveRequest(userId, startDate, endDate, "Pending")
+    Repo -> DB: INSERT INTO leave_requests (...) RETURNING id
+    DB --> Repo: leaveId
+    
+    Service -> Notif: notifyHR("Nouvelle demande de congé en attente")
+    Notif -> DB: INSERT INTO notifications (...)
+    Notif -> WS: broadcastToRole("RH", {type: "leave:new", leaveId})
+    WS --> RH: 🔔 Notification "Nouveau congé à valider"
+    
+    Service --> Router: Succès (leaveId)
+    Router --> FE: 201 Created
+    FE --> Emp: ⏳ Demande en cours de validation
+end
+
+Note over RH, FE: Plus tard, le RH examine la demande...
+
+RH -> FE: Clique sur "Approuver"
+FE -> Router: PUT /api/hr/leaves/{id}/approve (Bearer Token RH)
+Router -> Service: respondToLeaveRequest(leaveId, "Approved", hrId)
+Service -> Repo: getLeaveRequest(leaveId)
+Repo --> Service: LeaveModel (userId, durationDays)
+Service -> Repo: updateRequestStatus(leaveId, "Approved")
+Repo -> DB: UPDATE leave_requests SET status="Approved" WHERE id=?
+Service -> Repo: deductLeaveBalance(userId, durationDays)
+Repo -> DB: UPDATE employee_leave_balances SET balance = balance - ? WHERE user_id=?
+
+Service -> Notif: notifyUser(userId, "Votre congé a été approuvé")
+Notif -> WS: sendToUser(userId, {type: "leave:approved"})
+WS --> Emp: 🔔 Notification "Congé Approuvé !"
+
+Service --> Router: Succès
+Router --> FE: 200 OK
+@enduml`
+        },
+        {
+          id: 'diag-remote',
+          title: '3.8.3 : Demande de Télétravail (Remote Work)',
+          subtitle: 'Diagramme de séquence — Processus de validation de télétravail avec tracking de calendrier',
+          desc: 'Décrit le workflow de planification et de validation des sessions de travail à distance.',
+          bullets: [
+            '<strong>Planification flexible :</strong> L\'employé choisit des journées de présence délocalisée.',
+            '<strong>Notification Manager/RH :</strong> Validation collaborative par notification instantanée.',
+            '<strong>Synchronisation du calendrier :</strong> Mise à jour du calendrier de présence globale de l\'équipe.'
+          ],
+          code: `@startuml
+autonumber
+skinparam shadowing false
+skinparam defaultFontName "Plus Jakarta Sans"
+
+actor Emp as "👤 Employé"
+actor RH as "👩‍💼 Responsable RH"
+participant FE as "📱 Flutter App"
+participant Router as "🌐 RemoteRouter"
+participant Service as "⚙️ RemoteWorkService"
+participant Repo as "📁 RemoteWorkRepository"
+participant Notif as "🔔 NotificationService"
+database DB as "🗄️ MySQL Database"
+participant WS as "🔌 WebSocket Server"
+
+Emp -> FE: Sélectionne une date et soumet une demande de télétravail
+FE -> Router: POST /api/hr/remote-work {date, reason}
+Router -> Service: requestRemoteWork(userId, date, reason)
+Service -> Repo: saveRequest(userId, date, reason, "Pending")
+Repo -> DB: INSERT INTO remote_work_requests (...) RETURNING id
+DB --> Repo: requestId
+
+Service -> Notif: notifyHR("Nouvelle demande de télétravail")
+Notif -> WS: broadcastToRole("RH", {type: "remote:new"})
+WS --> RH: 🔔 Notification d'approbation reçue
+
+Service --> Router: Succès
+Router --> FE: 201 Created
+
+Note over RH, FE: Le RH valide la demande...
+
+RH -> FE: Approuve la demande de télétravail
+FE -> Router: PUT /api/hr/remote-work/{id}/approve
+Router -> Service: approveRemoteWork(requestId, hrId)
+Service -> Repo: updateStatus(requestId, "Approved")
+Repo -> DB: UPDATE remote_work_requests SET status="Approved" WHERE id=?
+
+Service -> Notif: notifyUser(userId, "Télétravail approuvé")
+Notif -> WS: sendToUser(userId, {type: "remote:approved"})
+WS --> Emp: 🔔 Votre journée de télétravail est validée !
+@enduml`
+        },
+        {
+          id: 'diag-bonus',
+          title: '3.8.4 : Attribution de Bonus & Habilitations',
+          subtitle: 'Diagramme de séquence — Attribution de bonus exceptionnel et sécurisation RBAC',
+          desc: 'Illustre comment un gestionnaire RH attribue une prime, déclenche la traçabilité et notifie le destinataire.',
+          bullets: [
+            '<strong>Contrôle RBAC :</strong> Le middleware d\'accès bloque l\'exécution si l\'appelant n\'est pas membre du groupe RH/Admin.',
+            '<strong>Ajout en base de données :</strong> Injection asynchrone dans le registre des primes pour le calcul de paie en fin de mois.',
+            '<strong>Visualisation immédiate :</strong> Notification immédiate à l\'employé qui voit son historique actualisé.'
+          ],
+          code: `@startuml
+autonumber
+skinparam shadowing false
+skinparam defaultFontName "Plus Jakarta Sans"
+
+actor RH as "👩‍💼 Responsable RH"
+actor Emp as "👤 Employé"
+participant FE as "📱 Flutter App"
+participant Router as "🌐 PayrollRouter"
+participant Mid as "🛡️ Auth/Perm Middleware"
+participant Service as "⚙️ PayrollService"
+participant Repo as "📁 PayrollRepository"
+participant Notif as "🔔 NotificationService"
+database DB as "🗄️ MySQL Database"
+participant WS as "🔌 WebSocket Server"
+
+RH -> FE: Renseigne le montant de la prime et clique sur "Octroyer"
+FE -> Router: POST /api/hr/bonuses {employeeId, amount, reason, month}
+Router -> Mid: requireRole(["RH", "Admin"])
+Mid --> Router: Autorisé (hrId)
+Router -> Service: grantBonus(employeeId, amount, reason, month, hrId)
+Service -> Repo: saveBonus(employeeId, amount, reason, month)
+Repo -> DB: INSERT INTO bonuses (employee_id, amount, reason, month_date) VALUES (?, ?, ?, ?)
+DB --> Repo: Confirmé
+
+Service -> Notif: notifyUser(employeeId, "Une prime exceptionnelle vous a été attribuée")
+Notif -> DB: INSERT INTO notifications (...)
+Notif -> WS: sendToUser(employeeId, {type: "bonus:received"})
+WS --> Emp: 🔔 Notification "Prime attribuée"
+
+Service --> Router: Succès
+Router --> FE: 201 Created
+FE --> RH: ✅ Prime attribuée avec succès !
+@enduml`
+        },
+        {
+          id: 'diag-payroll',
+          title: '3.8.5 : Génération de Fiche de Paie (Payslip)',
+          subtitle: 'Diagramme de séquence — Calcul des salaires, génération PDF et archivage sur le disque',
+          desc: 'Détaille le processus asynchrone lourd de calcul mensuel des salaires, intégration des primes, génération de fichiers PDF et notification de disponibilité.',
+          bullets: [
+            '<strong>Calcul multi-facteurs :</strong> Calcul du net à partir du salaire de base du contrat, ajout des primes, déduction des absences.',
+            '<strong>Générateur PDF/HTML :</strong> Compilation dynamique d\'un template HTML en document sécurisé non-modifiable sur le disque.',
+            '<strong>Archivage & Notification :</strong> Le chemin d\'accès est lié au profil utilisateur et le jeton de sécurité gère son téléchargement.'
+          ],
+          code: `@startuml
+autonumber
+skinparam shadowing false
+skinparam defaultFontName "Plus Jakarta Sans"
+
+actor RH as "👩‍💼 Responsable RH"
+actor Emp as "👤 Employé"
+participant FE as "📱 Flutter App"
+participant Router as "🌐 PayrollRouter"
+participant Service as "⚙️ PayrollService"
+participant Repo as "📁 PayrollRepository"
+participant PDFGen as "🖨️ PDFGenerator"
+database DB as "🗄️ MySQL Database"
+database Disk as "💾 Local Secure Storage"
+
+RH -> FE: Sélectionne le mois et clique "Générer la Paie globale"
+FE -> Router: POST /api/hr/payroll/generate {month: "2026-05"}
+Router -> Service: generateMonthlyPayroll("2026-05", hrId)
+Service -> Repo: getActiveEmployeesWithContracts()
+Repo --> Service: List(EmployeeContracts)
+
+loop Pour chaque employé contractuel
+    Service -> Repo: getApprovedBonusesForMonth(userId, "2026-05")
+    Repo --> Service: List(Bonuses)
+    Service -> Repo: getUnpaidLeavesForMonth(userId, "2026-05")
+    Repo --> Service: List(UnpaidLeaves)
+    
+    Service -> Service: Calculer Salaire Net = Base + Primes - Déductions - Impôts
+    Service -> Repo: saveSalaryRecord(userId, calculatedPayroll)
+    Repo -> DB: INSERT INTO salaries (user_id, base_salary, net_salary, month) VALUES (?, ?, ?, ?)
+    
+    Service -> PDFGen: generatePayslipHTML(calculatedPayroll)
+    PDFGen --> Service: HTML Content
+    Service -> Disk: Enregistrer le fichier (payslip_userId_2026_5.html)
+    Disk --> Service: filePath (C:/Users/salma/StudioProjects/fs_hub/backend/payroll_outputs/...)
+    Service -> Repo: savePayslipLink(userId, filePath, "2026-05")
+    Repo -> DB: INSERT INTO payslips (user_id, file_path, month) VALUES (?, ?, ?)
+    
+    Service -> Notif: notifyUser(userId, "Votre fiche de paie de Mai 2026 est disponible")
+    Notif --> Emp: 🔔 Notification reçue
+end
+
+Service --> Router: Succès (statistiques générées)
+Router --> FE: 200 OK + Synthèse
+FE --> RH: ✅ Fiches de paie générées et archivées !
+@enduml`
+        }
+      ],
+      // --- CATEGORY 5: COLLABORATION & AI ---
+      'cat-collab-ai': [
+        {
+          id: 'diag-chat',
+          title: '3.9.1 : Chat WebSocket & Validation des Uploads',
+          subtitle: 'Diagramme de séquence — Messagerie bidirectionnelle instantanée et filtre d\'intégrité des uploads',
+          desc: 'Illustre le processus d\'expédition d\'un message avec document joint, validé par le service d\'intégrité avant d\'être diffusé aux membres.',
+          bullets: [
+            '<strong>Upload préalable :</strong> Les fichiers volumineux sont envoyés en amont par HTTP pour obtenir un identifiant d\'upload validé.',
+            '<strong>Filtre d\'intégrité :</strong> Le serveur vérifie que le fichier lié existe en base de données et n\'est ni corrompu ni expiré.',
+            '<strong>Multiplexage WebSocket :</strong> Diffusion temps réel instantanée à tous les membres connectés de la discussion.'
+          ],
+          code: `@startuml
+autonumber
+skinparam shadowing false
+skinparam defaultFontName "Plus Jakarta Sans"
+
+actor Send as "👤 Expéditeur"
+actor Recv as "👥 Destinataires"
+participant FE as "📱 Flutter App"
+participant WS as "🔌 WebSocket Server"
+participant ChatSvc as "⚙️ ChatService"
+participant Integrity as "⚙️ DataIntegrityService"
+participant Repo as "📁 ChatRepository"
+database DB as "🗄️ MySQL Database"
+
+Send -> FE: Tape un message et clique "Envoyer" (avec pièce jointe)
+FE -> WS: WebSocketFrame {type: "msg:send", conversationId, content, uploadIds}
+WS -> ChatSvc: handleIncomingMessage(senderId, frameData)
+
+opt Si pièces jointes associées (uploadIds)
+    ChatSvc -> Integrity: validateUploads(uploadIds)
+    Integrity -> DB: SELECT * FROM media_uploads WHERE id IN (...)
+    DB --> Integrity: UploadRecords
+    Integrity --> ChatSvc: is_valid (true/false)
+    
+    alt Upload invalide ou suspect
+        ChatSvc --> WS: sendError(senderId, "Fichiers joints invalides")
+        WS --> FE: Afficher message d'erreur
+    end
+end
+
+ChatSvc -> Repo: persistMessage(senderId, conversationId, content, uploadIds)
+Repo -> DB: INSERT INTO messages (...); INSERT INTO message_recipients (...)
+DB --> Repo: messageId
+Repo --> ChatSvc: MessageModel
+
+ChatSvc -> WS: broadcastToConversation(conversationId, {type: "msg:new", message})
+
+par Multi-device Sync Expéditeur
+    WS --> FE: Synchroniser le message sur les autres écrans de l'expéditeur
+else Réception Destinataires
+    WS --> Recv: 📥 Message affiché instantanément dans le chat !
+end
+
+FE --> Send: ✅ Encoche de confirmation affichée
+@enduml`
+        },
+        {
+          id: 'diag-ai',
+          title: '3.10.1 : Prédiction IA (ML Microservice)',
+          subtitle: 'Diagramme de séquence — Calcul des probabilités de retard projet via API asynchrone Python FastAPI',
+          desc: 'Illustre le pipeline analytique interrogeant la base MySQL pour assembler les features et interroger le modèle prédictif Random Forest.',
+          bullets: [
+            '<strong>Agrégation asynchrone :</strong> Le backend Dart rassemble les informations des tâches de projet (sprints, taux de complétion, ressources).',
+            '<strong>Microservice Python :</strong> Une requête REST asynchrone est envoyée sur le port 8001 au service d\'IA (FastAPI).',
+            '<strong>Timeout de protection :</strong> Une limite stricte de 3 secondes est appliquée pour éviter les blocages de l\'API d\'intégration.'
+          ],
+          code: `@startuml
+autonumber
+skinparam shadowing false
+skinparam defaultFontName "Plus Jakarta Sans"
+
+actor Mgr as "👔 Manager"
+participant FE as "📱 Flutter App (Dashboard)"
+participant Router as "🌐 AIRouter (Dart)"
+participant Service as "⚙️ AIService"
+participant Repo as "📁 AIRepository"
+database DB as "🗄️ MySQL Database"
+participant PyML as "🐍 Python IA (FastAPI)"
+participant Model as "🤖 Random Forest Model"
+
+Mgr -> FE: Ouvre le Dashboard IA
+FE -> Router: GET /api/ai/project-risks
+Router -> Service: predictProjectDelays(callerId)
+Service -> Repo: getProjectsForPrediction()
+Repo -> DB: SELECT * FROM projects WHERE status = "Active"
+DB --> Repo: List(ActiveProjects)
+Repo --> Service: List(ActiveProjects)
+
+loop Pour chaque projet actif (Future.wait asynchrone)
+    Service -> Repo: getProjectFeatureStats(projectId)
+    Repo -> DB: SELECT tasks_count, completed_tasks, remaining_days FROM tasks...
+    DB --> Repo: FeatureStats
+    Repo --> Service: FeatureStats
+    
+    Service -> PyML: POST http://localhost:8001/ai/predict-delay {features}
+    PyML -> Model: predict_proba([[total_tasks, completed_ratio, days_remaining]])
+    Model --> PyML: risk_score (ex: 0.74)
+    PyML --> Service: Response {status: "success", risk_probability: 0.74}
+    
+    Note over Service: Timeout géré (3s) par Future.timeout()
+end
+
+Service --> Router: PredictionsResult (project_risks)
+Router --> FE: 200 OK + Predictions JSON
+FE --> Mgr: 📊 Affichage des jauges de risques sur l'IHM
+@enduml`
+        }
+      ]
+    };
+
+    let currentCategoryId = 'cat-models';
+    let currentDiagramId = 'diag-class';
+
+    function findDiagramById(id) {
+      for (const cat of Object.values(DIAGRAMS_DATA)) {
+        const found = cat.find(d => d.id === id);
+        if (found) return found;
+      }
+      return null;
+    }
+
+    function resolveDiagram(diag) {
+      if (!diag) return null;
+      if (diag.ref) {
+        const source = findDiagramById(diag.ref);
+        if (!source) return diag;
+        return {
+          ...source,
+          title: diag.title,
+          subtitle: diag.subtitle || source.subtitle,
+          desc: diag.desc || source.desc,
+          bullets: diag.bullets || source.bullets,
+          code: source.code
+        };
+      }
+      if (!diag.desc) {
+        diag.desc = 'Séquence métier extraite du code source FS-Hub (' + (diag.feature || 'module') + ').';
+      }
+      if (!diag.bullets) {
+        diag.bullets = [
+          '<strong>Frontend :</strong> Flutter — écrans dans <code>lib/features/</code>.',
+          '<strong>Backend :</strong> Routes Shelf + Service + Repository MySQL.',
+          '<strong>API :</strong> Préfixe REST <code>/v1/</code> avec JWT Bearer.'
+        ];
+      }
+      return diag;
+    }
+
+    // Renders the sub-tabs based on the selected primary Category
+    function renderSubTabs(categoryId) {
+      const subNav = document.getElementById('sub-nav-list');
+      subNav.innerHTML = '';
+      
+      const diagrams = DIAGRAMS_DATA[categoryId];
+      diagrams.forEach((diag, index) => {
+        const isActive = diag.id === currentDiagramId;
+        const li = document.createElement('li');
+        li.className = 'nav-item';
+        
+        // Find suitable icon
+        let icon = 'fa-arrow-right-to-bracket';
+        if (diag.id === 'diag-package') icon = 'fa-box-archive';
+        else if (diag.id === 'diag-usecase') icon = 'fa-user-gear';
+        else if (diag.id === 'diag-logout') icon = 'fa-power-off';
+        else if (diag.id === 'diag-reset') icon = 'fa-key';
+        else if (diag.id === 'diag-task-create') icon = 'fa-circle-plus';
+        else if (diag.id === 'diag-task-update') icon = 'fa-chart-line';
+        else if (diag.id === 'diag-attendance') icon = 'fa-clock';
+        else if (diag.id === 'diag-leave') icon = 'fa-calendar-day';
+        else if (diag.id === 'diag-remote') icon = 'fa-laptop-house';
+        else if (diag.id === 'diag-bonus') icon = 'fa-hand-holding-dollar';
+        else if (diag.id === 'diag-payroll') icon = 'fa-file-invoice-dollar';
+        else if (diag.id === 'diag-chat') icon = 'fa-comments';
+        else if (diag.id === 'diag-ai') icon = 'fa-brain';
+        else if (diag.id.startsWith('diag-class')) icon = 'fa-diagram-project';
+        else if (diag.id === 'diag-deployment') icon = 'fa-server';
+        else if (diag.id.startsWith('diag-activity')) icon = 'fa-shoe-prints';
+        else if (diag.id.startsWith('top')) icon = 'fa-hashtag';
+
+        const navTitle = diag.title.includes(' : ') ? diag.title.split(' : ')[0] : diag.title;
+        const navSub = diag.subtitle || (diag.title.includes(' : ') ? diag.title.split(' : ')[1] : '');
+
+        li.innerHTML = `
+          <button class="nav-btn ${isActive ? 'active' : ''}" onclick="selectDiagram('${diag.id}')">
+            <div class="nav-btn-header">
+              <i class="fa-solid ${icon}"></i>
+              <span>${navTitle}</span>
+            </div>
+            <div class="nav-btn-sub">${navSub}</div>
+          </button>
+        `;
+        subNav.appendChild(li);
+      });
+    }
+
+    // Switches the main category
+    function switchCategory(categoryId, btnElement) {
+      document.querySelectorAll('.module-btn').forEach(btn => btn.classList.remove('active'));
+      btnElement.classList.add('active');
+
+      currentCategoryId = categoryId;
+      currentDiagramId = DIAGRAMS_DATA[categoryId][0].id;
+      
+      renderSubTabs(categoryId);
+      renderActiveDiagram();
+    }
+
+    // Selects a specific diagram and loads it
+    function selectDiagram(diagramId) {
+      currentDiagramId = diagramId;
+      
+      document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.getAttribute('onclick').includes(diagramId)) {
+          btn.classList.add('active');
+        }
+      });
+
+      renderActiveDiagram();
+    }
+
+    // Dynamic PlantUML Deflate encoding logic
+    function encodePlantUML(text) {
+      // UTF-8 encode
+      const encoder = new TextEncoder();
+      const data = encoder.encode(text);
+      
+      // Raw Deflate (using pako)
+      const compressed = pako.deflateRaw(data, { level: 9 });
+      
+      // Encode using custom 6-bit PlantUML base64 format
+      return encode64(compressed);
+    }
+
+    function encode64(data) {
+      let r = "";
+      for (let i = 0; i < data.length; i += 3) {
+        if (i + 2 < data.length) {
+          r += append3bytes(data[i], data[i + 1], data[i + 2]);
+        } else if (i + 1 < data.length) {
+          r += append3bytes(data[i], data[i + 1], 0);
+        } else {
+          r += append3bytes(data[i], 0, 0);
+        }
+      }
+      return r;
+    }
+
+    function append3bytes(b1, b2, b3) {
+      let c1 = b1 >> 2;
+      let c2 = ((b1 & 0x3) << 4) | (b2 >> 4);
+      let c3 = ((b2 & 0xF) << 2) | (b3 >> 6);
+      let c4 = b3 & 0x3F;
+      
+      let r = "";
+      r += encode6bit(c1 & 0x3F);
+      r += encode6bit(c2 & 0x3F);
+      r += encode6bit(c3 & 0x3F);
+      r += encode6bit(c4 & 0x3F);
+      return r;
+    }
+
+    function encode6bit(b) {
+      if (b < 10) return String.fromCharCode(48 + b); // '0'-'9'
+      b -= 10;
+      if (b < 26) return String.fromCharCode(65 + b); // 'A'-'Z'
+      b -= 26;
+      if (b < 26) return String.fromCharCode(97 + b); // 'a'-'z'
+      b -= 26;
+      if (b === 0) return '-';
+      if (b === 1) return '_';
+      return '?';
+    }
+
+    // Renders active diagram by generating the PlantUML dynamic SVG URL
+    function renderActiveDiagram() {
+      const activeCategory = DIAGRAMS_DATA[currentCategoryId];
+      const raw = activeCategory.find(d => d.id === currentDiagramId);
+      const diag = resolveDiagram(raw);
+      
+      if (!diag || !diag.code) return;
+
+      const container = document.getElementById('diagram-container');
+      container.innerHTML = `
+        <section class="diagram-card active">
+          <div class="card-header">
+            <div class="card-title">
+              <h2>${diag.title}</h2>
+              <p>${diag.subtitle}</p>
+            </div>
+            <div class="card-actions">
+              <button class="btn-action" onclick="toggleFullscreen()">
+                <i class="fa-solid fa-expand"></i> Plein Écran
+              </button>
+            </div>
+          </div>
+
+          <div class="viewport-container loading" id="viewport">
+            <div class="loader"></div>
+            <button class="btn-action fullscreen-close" onclick="exitFullscreen()">
+              <i class="fa-solid fa-xmark"></i> Quitter
+            </button>
+            <div class="plantuml-img-wrapper" id="img-wrapper">
+              <!-- Dynamically loaded SVG image will be injected here -->
+            </div>
+          </div>
+
+          <div class="details-grid">
+            <div class="tech-details">
+              <h3><i class="fa-solid fa-circle-nodes"></i> Analyse Architecturelle</h3>
+              <p>${diag.desc}</p>
+              <ul class="tech-list">
+                ${diag.bullets.map(b => `<li>${b}</li>`).join('')}
+              </ul>
+            </div>
+            <div class="code-area">
+              <div class="code-header">
+                <span>Code Source PlantUML</span>
+                <button class="btn-action gold" onclick="copyCode()">
+                  <i class="fa-regular fa-copy"></i> Copier
+                </button>
+              </div>
+              <textarea id="raw-code-box" class="code-editor" readonly>${diag.code}</textarea>
+            </div>
+          </div>
+        </section>
+      `;
+
+      // Deflate the code block, generate the PlantUML official SVG URL, and inject it as image
+      setTimeout(() => {
+        try {
+          const viewport = document.getElementById('viewport');
+          const wrapper = document.getElementById('img-wrapper');
+          
+          const encoded = encodePlantUML(diag.code);
+          const svgUrl = `https://www.plantuml.com/plantuml/svg/${encoded}`;
+          
+          const img = document.createElement('img');
+          img.className = 'plantuml-img';
+          img.src = svgUrl;
+          img.alt = diag.title;
+          
+          img.onload = () => {
+            viewport.classList.remove('loading');
+          };
+          
+          wrapper.appendChild(img);
+        } catch (err) {
+          console.error("PlantUML compile error: ", err);
+          document.getElementById('viewport').classList.remove('loading');
+        }
+      }, 50);
+    }
+
+    // Fullscreen managers
+    function toggleFullscreen() {
+      const container = document.getElementById('viewport');
+      container.classList.add('fullscreen');
+      document.body.style.overflow = 'hidden';
+    }
+
+    // Exit fullscreen
+    function exitFullscreen() {
+      const container = document.getElementById('viewport');
+      container.classList.remove('fullscreen');
+      document.body.style.overflow = 'auto';
+    }
+
+    // Copy PlantUML code to clipboard
+    function copyCode() {
+      const copyText = document.getElementById('raw-code-box');
+      copyText.select();
+      copyText.setSelectionRange(0, 99999);
+      
+      navigator.clipboard.writeText(copyText.value).then(() => {
+        const toast = document.getElementById('copy-toast');
+        toast.classList.add('show');
+        
+        setTimeout(() => {
+          toast.classList.remove('show');
+        }, 3000);
+      }).catch(err => {
+        console.error('Failed to copy PlantUML code: ', err);
+      });
+    }
+
+    // Initialize application on load
+    window.addEventListener('DOMContentLoaded', () => {
+      renderSubTabs(currentCategoryId);
+      renderActiveDiagram();
+    });
+  </script>
+</body>
+</html>

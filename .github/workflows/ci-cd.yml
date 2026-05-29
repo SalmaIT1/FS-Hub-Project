@@ -37,18 +37,167 @@ jobs:
           flutter analyze
           cd backend && dart analyze
       
-      # Tests backend
-      - name: Run backend tests
+      # AI service
+      - name: Install AI service dependencies
+        working-directory: ./ai-service
+        run: pip install -r requirements-dev.txt
+
+      - name: AI service tests
+        working-directory: ./ai-service
+        env:
+          AI_ALLOW_DEV_KEY: true
+          AI_API_KEY: ci-test-key
+        run: python -m pytest tests/ -q
+
+      # Tests backend (unit only — no MySQL required)
+      - name: Run backend unit tests
         working-directory: ./backend
-        run: dart test || echo "No backend tests found"
-      
+        run: dart test test/unit
+
       # Tests frontend
-      - name: Run frontend tests
-        run: flutter test || echo "No frontend tests found"
+      - name: Run Flutter unit and widget tests
+        run: flutter test
+
+  backend_integration:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: test
+          MYSQL_DATABASE: fs_hub_test
+        ports:
+          - 3306:3306
+        options: >-
+          --default-authentication-plugin=mysql_native_password
+          --health-cmd="mysqladmin ping -h localhost -ptest"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+      - name: Install backend dependencies
+        working-directory: ./backend
+        run: dart pub get
+      - name: Run backend integration tests
+        working-directory: ./backend
+        env:
+          RUN_INTEGRATION_TESTS: true
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: root
+          DB_PASSWORD: test
+          DB_NAME: fs_hub_test
+          DB_SECURE: false
+          JWT_SECRET: ci-integration-jwt-secret-min-32-chars
+          REDIS_HOST: 127.0.0.1
+          REDIS_PORT: 6379
+          DISABLE_RATE_LIMIT: true
+        run: dart test --tags integration --concurrency=1
+
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.19.0'
+          channel: 'stable'
+          cache: true
+      - uses: dart-lang/setup-dart@v1
+      - name: Install dependencies
+        run: |
+          cd backend && dart pub get
+          flutter pub get
+          pip install -r ai-service/requirements-dev.txt
+      - name: Backend unit coverage
+        working-directory: ./backend
+        run: |
+          dart test --coverage=coverage test/unit
+          dart run coverage:format_coverage --lcov --in=coverage --out=coverage/lcov.info --report-on=lib
+      - name: Flutter coverage
+        run: flutter test --coverage
+      - name: AI service coverage
+        working-directory: ./ai-service
+        env:
+          AI_ALLOW_DEV_KEY: true
+          AI_API_KEY: ci-test-key
+        run: python -m pytest tests/ --cov=app --cov-report=xml
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: backend/coverage/lcov.info,coverage/lcov.info,ai-service/coverage.xml
+          flags: backend,flutter,ai-service
+          fail_ci_if_error: false
+
+  flutter_e2e:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: test
+          MYSQL_DATABASE: fs_hub_test
+        ports:
+          - 3306:3306
+        options: >-
+          --default-authentication-plugin=mysql_native_password
+          --health-cmd="mysqladmin ping -h localhost -ptest"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.19.0'
+          channel: 'stable'
+          cache: true
+      - uses: dart-lang/setup-dart@v1
+      - name: Install dependencies
+        run: |
+          cd backend && dart pub get
+          flutter pub get
+      - name: Start backend for E2E
+        run: |
+          chmod +x scripts/start-backend-for-e2e.sh
+          ./scripts/start-backend-for-e2e.sh
+      - name: Flutter integration / E2E tests
+        run: |
+          flutter test integration_test -d linux \
+            --dart-define=RUN_E2E_TESTS=true \
+            --dart-define=API_BASE_URL=http://127.0.0.1:8080 \
+            --concurrency=1
+      - name: Stop backend
+        if: always()
+        run: |
+          if [ -f /tmp/fs_hub_e2e_server.pid ]; then
+            kill "$(cat /tmp/fs_hub_e2e_server.pid)" 2>/dev/null || true
+          fi
 
   # Job de build et push Docker
   build_and_push:
-    needs: test_and_lint
+    needs: [test_and_lint, backend_integration, coverage, flutter_e2e]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     
@@ -120,4 +269,4 @@ jobs:
       
       - name: Notification Discord/Slack (Optionnel)
         if: success()
-        run: echo "Deployment successful!"
+        run: echo "Deployment successful!"

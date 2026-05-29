@@ -1,0 +1,45 @@
+@startuml
+title "Cas d'utilisation — Sprint 1-2 : Auth & Sécurité"
+
+left to right direction
+skinparam shadowing false
+
+actor Admin <<actor>>
+actor RH <<actor>>
+actor Manager <<actor>>
+actor TeamLead <<actor>>
+actor Employee <<actor>>
+actor Comptable <<actor>>
+actor Client <<actor>>
+
+rectangle "FS-Hub — Auth & Sécurité" {
+  usecase UC_Login as "S'authentifier\n(POST /v1/auth/login)" <<usecase>>
+  usecase UC_Logout as "Se déconnecter" <<usecase>>
+  usecase UC_Refresh as "Rafraîchir jeton\n(POST /v1/auth/refresh)" <<usecase>>
+  usecase UC_Reset as "Réinitialiser mot de passe" <<usecase>>
+  usecase UC_Roles as "Gérer rôles & permissions\n(/v1/roles)" <<usecase>>
+  usecase UC_WSTicket as "Obtenir ticket WebSocket\n(POST /v1/auth/ws-ticket)" <<usecase>>
+  usecase UC_MediaTicket as "Obtenir ticket média" <<usecase>>
+
+  UC_Logout ..> UC_Login : <<include>>
+  UC_Refresh ..> UC_Login : <<include>>
+  UC_Roles ..> UC_Login : <<include>>
+  UC_WSTicket ..> UC_Login : <<include>>
+  UC_MediaTicket ..> UC_Login : <<include>>
+  UC_Reset ..> UC_Login : <<extend>>
+}
+
+Admin --> UC_Login
+Admin --> UC_Roles
+Admin --> UC_Logout
+RH --> UC_Login
+Manager --> UC_Login
+TeamLead --> UC_Login
+Employee --> UC_Login
+Employee --> UC_Reset
+Comptable --> UC_Login
+Client --> UC_Login
+Employee --> UC_WSTicket
+Manager --> UC_WSTicket
+
+@enduml

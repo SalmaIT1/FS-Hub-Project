@@ -120,7 +120,13 @@ class FinanceRoutes {
       await FinanceService.createInvoice(data);
       return Response(201, body: jsonEncode({'success': true, 'message': 'Invoice created'}));
     } catch (e) {
-      return Response.internalServerError(body: jsonEncode({'error': 'Internal server error'}));
+      final message = e.toString().replaceFirst('Exception: ', '');
+      final status = e is Exception ? 400 : 500;
+      return Response(
+        status,
+        body: jsonEncode({'success': false, 'message': message}),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
+      );
     }
   }
 

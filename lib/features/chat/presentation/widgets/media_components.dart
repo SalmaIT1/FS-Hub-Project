@@ -10,6 +10,7 @@ import 'package:fs_hub/features/chat/domain/entities/chat_entities.dart';
 import 'package:fs_hub/features/voice/widgets/adaptive_voice_note.dart';
 import 'package:fs_hub/features/voice/widgets/whatsapp_voice_note.dart';
 import 'package:fs_hub/core/utils/url_utils.dart';
+import 'package:fs_hub/core/services/media_auth_service.dart';
 import 'package:fs_hub/shared/widgets/authenticated_image.dart';
 import 'package:fs_hub/features/auth/data/datasources/auth_remote_datasource.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -84,8 +85,13 @@ class FileAttachmentBubble extends StatelessWidget {
     try {
       // Try web download helper first (on web this will perform a browser download).
       try {
-        final token = await AuthRemoteDatasource.getAccessToken();
-        final authenticatedUrl = kIsWeb ? UrlUtils.appendToken(url, token) : url;
+        String authenticatedUrl = url;
+        if (kIsWeb && url.contains('/media/')) {
+          final ticket = await MediaAuthService.ticketForMediaUrl(url);
+          if (ticket != null) {
+            authenticatedUrl = UrlUtils.appendMediaTicket(url, ticket);
+          }
+        }
         
         await webTriggerDownload(authenticatedUrl, attachment.filename);
         if (context.mounted) {
@@ -96,7 +102,20 @@ class FileAttachmentBubble extends StatelessWidget {
         // If web helper is not supported on this platform, continue with native download flow.
       }
 
-      final req = http.Request('GET', Uri.parse(url));
+      var downloadUrl = UrlUtils.ensureAbsoluteUrl(url);
+      final token = await AuthRemoteDatasource.getAccessToken();
+      final headers = <String, String>{
+        if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+      };
+      if (downloadUrl.contains('/media/')) {
+        final ticket = await MediaAuthService.ticketForMediaUrl(downloadUrl);
+        if (ticket != null) {
+          downloadUrl = UrlUtils.appendMediaTicket(downloadUrl, ticket);
+        }
+      }
+
+      final req = http.Request('GET', Uri.parse(downloadUrl));
+      req.headers.addAll(headers);
       final streamed = await req.send();
       if (streamed.statusCode != 200) {
         throw Exception('Failed to download file: HTTP ${streamed.statusCode}');

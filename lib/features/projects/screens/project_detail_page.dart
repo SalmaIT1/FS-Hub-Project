@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'dart:ui';
 import 'package:provider/provider.dart';
 import 'package:fs_hub/shared/models/project_model.dart';
+import 'package:fs_hub/shared/models/project_status.dart';
 import 'package:fs_hub/shared/models/sprint_model.dart';
 import 'package:fs_hub/features/projects/services/sprint_service.dart';
 import 'package:fs_hub/features/projects/services/project_service.dart';
@@ -425,12 +426,17 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> with SingleTicker
   }
 
   Color _getStatusColor(String status) {
-    switch (status) {
-      case 'Planifie': case 'Planifié': return Colors.blue;
-      case 'En cours': return Colors.orange;
-      case 'Termine': case 'Terminé': return Colors.green;
-      case 'En retard': return Colors.red;
-      default: return Colors.grey;
+    switch (ProjectStatus.normalize(status)) {
+      case ProjectStatus.aVenir:
+        return Colors.blue;
+      case ProjectStatus.enCours:
+        return Colors.orange;
+      case ProjectStatus.termine:
+        return Colors.green;
+      case ProjectStatus.suspendu:
+        return Colors.red;
+      default:
+        return Colors.grey;
     }
   }
 

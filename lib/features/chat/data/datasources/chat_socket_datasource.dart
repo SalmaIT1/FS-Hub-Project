@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:fs_hub/features/chat/data/datasources/chat_ws_event_parser.dart';
 import 'package:fs_hub/shared/models/chat_models.dart';
 
 class ChatSocketDatasource {
@@ -128,74 +129,20 @@ class ChatSocketDatasource {
   }
 
   void _handleMessage(Map<String, dynamic> json) {
-    final type = json['type'] as String?;
-    
-    switch (type) {
-      case 'connection_ack':
-        _connectionId = json['connectionId']?.toString();
-        print('[WS] Received connection_ack. ID: $_connectionId');
-        _onlineController.add(true);
-        break;
-      case 'connected':
-        _onlineController.add(true);
-        break;
-      case 'error':
-        // Map WS error to UI, primarily for optimistic message failure
-        final clientMsgId = json['clientMessageId'] as String?;
-        if (clientMsgId != null) {
+    for (final event in ChatWsEventParser.parse(json)) {
+      switch (event) {
+        case ChatWsConnectionAck(:final connectionId):
+          _connectionId = connectionId;
+          print('[WS] Received connection_ack. ID: $_connectionId');
+          _onlineController.add(true);
+        case ChatWsOnlineChanged(:final isOnline):
+          _onlineController.add(isOnline);
+        case ChatWsIncomingMessage(:final message):
+          _messageController.add(message);
+        case ChatWsMessageAck(:final clientMessageId):
           _messageController.add(ChatMessage(
-             id: clientMsgId,
-             clientMessageId: clientMsgId,
-             conversationId: '',
-             senderId: '',
-             senderName: '',
-             type: 'text',
-             createdAt: DateTime.now(),
-             isFromMe: true,
-             state: MessageState.failed,
-             content: json['message'] as String? ?? 'Message failed to send'
-          ));
-        } else {
-           print('[WS] Error from server: ${json['message']}');
-        }
-        break;
-      case 'message':
-      case 'new_message':
-      case 'message:created':
-        dynamic msgData = json['message'] ?? json['data'];
-        if (msgData == null && json['payload'] != null) {
-          msgData = json['payload']['message'] ?? json['payload'];
-        }
-        if (msgData != null) {
-          final msg = Map<String, dynamic>.from(msgData as Map);
-          msg['isFromMe'] = msg['isFromMe'] ?? false;
-          _messageController.add(ChatMessage.fromJson(msg));
-        }
-        break;
-      case 'online':
-        _onlineController.add(true);
-        break;
-      case 'offline':
-        _onlineController.add(false);
-        break;
-      case 'presence':
-        final payload = json['payload'] ?? json['data'];
-        if (payload != null) {
-          _presenceController.add(Map<String, dynamic>.from(payload as Map));
-        }
-        break;
-      case 'typing':
-        final payload = json['payload'] ?? json['data'];
-        if (payload != null) {
-          _typingController.add(Map<String, dynamic>.from(payload as Map));
-        }
-        break;
-      case 'message:ack':
-        final clientMsgId = json['clientMessageId'] as String?;
-        if (clientMsgId != null) {
-          _messageController.add(ChatMessage(
-            id: clientMsgId,
-            clientMessageId: clientMsgId,
+            id: clientMessageId,
+            clientMessageId: clientMessageId,
             conversationId: '',
             senderId: '',
             senderName: '',
@@ -203,20 +150,36 @@ class ChatSocketDatasource {
             createdAt: DateTime.now(),
             isFromMe: true,
             state: MessageState.sent,
-            content: '', // Content is already present in UI state
+            content: '',
           ));
-          print('[WS] Message ACK received: $clientMsgId');
-        }
-        break;
-      case 'conversation:deleted':
-        final payload = json['payload'];
-        if (payload != null) {
+          print('[WS] Message ACK received: $clientMessageId');
+        case ChatWsMessageFailed(:final clientMessageId, :final errorMessage):
+          _messageController.add(ChatMessage(
+            id: clientMessageId,
+            clientMessageId: clientMessageId,
+            conversationId: '',
+            senderId: '',
+            senderName: '',
+            type: 'text',
+            createdAt: DateTime.now(),
+            isFromMe: true,
+            state: MessageState.failed,
+            content: errorMessage,
+          ));
+        case ChatWsPresence(:final payload):
+          _presenceController.add(payload);
+        case ChatWsTyping(:final payload):
+          _typingController.add(payload);
+        case ChatWsConversationDeleted(:final conversationId):
           _conversationEventController.add({
             'type': 'deleted',
-            ...Map<String, dynamic>.from(payload as Map),
+            'conversationId': conversationId,
           });
-        }
-        break;
+        case ChatWsServerError(:final message):
+          print('[WS] Error from server: $message');
+        case ChatWsUnknown(:final type):
+          if (type != null) print('[WS] Unhandled event type: $type');
+      }
     }
   }
 

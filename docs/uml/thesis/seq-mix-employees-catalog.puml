@@ -1,0 +1,41 @@
+@startuml
+title "Séquence — Employés : consultation soi vs annuaire RH\n(employee_routes.dart)"
+
+skinparam shadowing false
+autonumber
+
+actor "Employé (soi)" as E
+actor "RH (annuaire)" as RH
+participant "Shelf API" as FE <<boundary>>
+participant "EmployeeRoutes" as ER <<control>>
+participant "EmployeeService" as Svc <<control>>
+database "MySQL" as DB <<database>>
+
+== Profil sans permission annuaire ==
+
+note over ER
+  GET /employees/<id> :
+  si id == authUserId → accès sans view_employees
+  (employee_routes.dart L15–20)
+end note
+
+E -> FE : GET /v1/employees/{monId}\nBearer JWT
+FE -> ER : handler
+ER -> Svc : getEmployeeById(monId)
+Svc -> DB : SELECT...
+DB --> E : fiche personnelle OK
+
+== Liste / autre collaborateur — RH ==
+
+RH -> FE : GET /v1/employees/\nBearer JWT (rôle RH)
+FE -> ER : liste + filtres pagination
+note right of ER : requirePermission('view_employees') sur /\n employee_routes.dart L14
+ER -> Svc : getAllEmployees(...)
+Svc -> DB : SELECT liste
+DB --> RH : tableau employés
+
+alt Employé sans view_employees tente GET /employees/{autreId}
+  ER --> E : **403 / pipeline** selon handlers
+end
+
+@enduml

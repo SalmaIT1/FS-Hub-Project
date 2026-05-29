@@ -1,0 +1,28 @@
+@startuml
+title "Activité — Encaissement idempotent\n(finance payment + middleware idempotency)"
+
+skinparam shadowing false
+
+|Comptable|
+start
+:Renseigner montant / facture ;
+:Générer **Idempotency-Key** côté client;
+
+|Shelf pipeline|
+if (Idempotency-Key vue récemment ?) then (oui)
+  #LightBlue:Réponse mise en cache (retry sûr);
+  stop
+endif
+
+|FinanceRoutes|
+if (manage_payments présent JWT) then (non)
+  #Pink:403 middleware;
+  stop
+endif
+
+|FinanceService|
+:Persister paiement + MAJ facture;
+#LightGreen:Encaissement tracé;
+stop
+
+@enduml

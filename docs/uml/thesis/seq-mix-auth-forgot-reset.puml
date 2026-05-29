@@ -1,0 +1,34 @@
+@startuml
+title "Séquence — Réinitialisation mot de passe\n(auth_routes.dart : forgot-password → reset-password + Email)"
+
+skinparam shadowing false
+autonumber
+
+actor Utilisateur as U
+participant "Flutter / Web" as FE <<boundary>>
+participant "AuthRoutes\nPOST /v1/auth/forgot-password" as Forgot <<control>>
+participant "AuthRoutes\nPOST /v1/auth/reset-password" as Reset <<control>>
+participant "AuthService" as AS <<control>>
+participant "EmailService\n(SMTP)" as MAIL <<boundary>>
+
+note over Forgot
+  Pipeline rateLimit middleware
+  (auth_routes.dart L21–26)
+end note
+
+U -> FE : « Mot de passe oublié »
+FE -> Forgot : POST /v1/auth/forgot-password\n{ email }
+Forgot -> AS : demander jeton réinitialisation
+AS -> MAIL : envoyer email avec lien/token
+MAIL --> U : messagerie (lien sécurisé)
+
+U -> FE : saisir nouveau mot de passe
+FE -> Reset : POST /v1/auth/reset-password\n{ token, new_password }
+Reset -> AS : resetPasswordWithToken(...)
+alt jeton valide
+  AS --> FE : 200 success
+else jeton invalide / expiré
+  AS --> FE : 400 erreur
+end
+
+@enduml

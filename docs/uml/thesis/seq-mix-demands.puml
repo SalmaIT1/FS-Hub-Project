@@ -1,0 +1,39 @@
+@startuml
+title "Séquence — Demandes métier\n(demand_routes.dart + DemandService filtres par rôle)"
+
+skinparam shadowing false
+autonumber
+
+actor "Demandeur\n(Employé)" as D
+actor "Superviseur\n(Admin/RH…)" as S
+participant "Flutter" as FE <<boundary>>
+participant "DemandRoutes" as DR <<control>>
+participant "DemandService" as DS <<control>>
+database "MySQL" as DB <<database>>
+
+note over DR
+  Toutes routes sous mount
+  `/v1/demands` + requireAuth globale\n(server.dart L159)
+end note
+
+D -> FE : créer une demande
+FE -> DR : POST /v1/demands\nBearer JWT\n{ ..., type }
+DR -> DS : createDemand(data + requesterId)
+DS -> DB : INSERT demand
+DS --> FE : 200 success
+
+S -> FE : tableau des demandes
+FE -> DR : GET /v1/demands?status=&type=\nBearer JWT
+DR -> DS : getAllDemands(userRole, callerId, …)
+note right of DS : filtrage côté service\nselon authUserRole\n(demand_routes.dart L31–33)
+DS -> DB : SELECT selon périmètre
+DB --> S : liste autorisée
+
+D -> FE : détail MA demande
+FE -> DR : GET /v1/demands/{id}
+note right of DR
+  Contrôle propriétaire si non Admin\n(L58–61)
+end note
+DR --> D : JSON ou 403
+
+@enduml

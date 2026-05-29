@@ -1,0 +1,36 @@
+@startuml
+title "Cas d'utilisation — Sprint 6 : Finance & CRM"
+
+left to right direction
+skinparam shadowing false
+
+actor Admin <<actor>>
+actor Manager <<actor>>
+actor Comptable <<actor>>
+actor Client <<actor>>
+
+rectangle "FS-Hub — Finance & CRM" {
+  usecase UC_Client as "Gérer clients\n(/v1/clients)" <<usecase>>
+  usecase UC_Invoice as "Gérer factures & devis\n(/v1/finance)" <<usecase>>
+  usecase UC_Pay as "Enregistrer paiement" <<usecase>>
+  usecase UC_Credit as "Gérer crédits\n(/v1/credits)" <<usecase>>
+  usecase UC_Expense as "Saisir dépenses\n(project/company-expenses)" <<usecase>>
+  usecase UC_Report as "Rapports financiers" <<usecase>>
+
+  UC_Invoice ..> UC_Login : <<include>>
+  UC_Pay ..> UC_Invoice : <<extend>>
+  UC_Client ..> UC_Login : <<include>>
+}
+
+usecase UC_Login as "S'authentifier" <<usecase>>
+
+Admin --> UC_Client
+Admin --> UC_Invoice
+Comptable --> UC_Invoice
+Comptable --> UC_Pay
+Comptable --> UC_Expense
+Comptable --> UC_Credit
+Manager --> UC_Report
+Client --> UC_Invoice : factures propres
+
+@enduml

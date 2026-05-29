@@ -66,7 +66,35 @@ Permet de lancer localement toute la stack (Backend, Frontend, DB, Redis, AI Ser
 
 ## 📝 Commandes Utiles
 
-### Lancer l'environnement complet localement
+### Développement local — une seule commande (Windows)
+
+Lance **ai-service**, **backend**, **ngrok** (tunnel HTTPS vers le port 8080) et **Flutter** sur l’appareil connecté :
+
+```powershell
+# Depuis la racine du projet
+.\dev.ps1 -StopFirst
+
+# Téléphone précis + libération des ports
+.\dev.ps1 -Device D6NRSGV4IVAMIJTC -StopFirst
+
+# Émulateur Android (sans ngrok, API = 10.0.2.2)
+.\dev.ps1 -Emulator
+
+# Services seulement (pas Flutter) — utile si l’app tourne déjà
+.\dev.ps1 -ServicesOnly
+```
+
+Arrêter backend / IA / ngrok :
+
+```powershell
+.\scripts\stop-dev.ps1
+```
+
+Prérequis : `dart`, `flutter`, `ngrok`, `python` (+ `pip install -r ai-service/requirements.txt` une fois). MySQL local doit tourner (voir `backend/.env`).
+
+Logs : dossier `.dev/logs/`. URL ngrok enregistrée dans `.dev/ngrok-url.txt`.
+
+### Lancer l'environnement complet en Docker
 ```bash
 docker-compose up --build
 ```

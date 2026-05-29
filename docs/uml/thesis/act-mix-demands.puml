@@ -1,0 +1,29 @@
+@startuml
+title "Activité — Cycle demande métier\n(demand_service filtres rôle + contrôle propriété)"
+
+skinparam shadowing false
+
+|Demandeur|
+start
+:Remplir formulaire local;
+:POST /v1/demands\nrequesterId = authUserId;
+|DemandService|
+:Persister demande;
+|Superviseur Admin/RH|
+:GET /v1/demands (...);
+|DemandService|
+:Filtrer selon **role** + **callerId**;
+|Superviseur Admin/RH|
+:Voir sous-ensemble autorisé;
+
+|Demandeur|
+:GET /v1/demands/{id};
+|DemandRoutes|
+if (Admin **ou** propriétaire) then (oui)
+  #LightGreen:Détail renvoyé;
+else (non)
+  #Pink:403 Permission denied;
+endif
+stop
+
+@enduml

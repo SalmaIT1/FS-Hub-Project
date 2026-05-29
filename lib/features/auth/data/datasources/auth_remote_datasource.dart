@@ -2,19 +2,14 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:fs_hub/core/config/app_config.dart';
+import 'package:fs_hub/core/security/token_storage.dart';
 
 class AuthRemoteDatasource {
   static final String _baseUrl = AppConfig.apiV1BaseUrl;
 
-  static Future<String?> getAccessToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('access_token');
-  }
+  static Future<String?> getAccessToken() => TokenStorage.getAccessToken();
 
-  static Future<String?> getRefreshToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('refresh_token');
-  }
+  static Future<String?> getRefreshToken() => TokenStorage.getRefreshToken();
 
   static Future<Map<String, dynamic>?> login({
     required String email,
@@ -29,27 +24,25 @@ class AuthRemoteDatasource {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
-        final prefs = await SharedPreferences.getInstance();
-        
-        // Backend returns { success, message, data: { accessToken, refreshToken, user } }
         final sessionData = data['data'] as Map<String, dynamic>?;
         if (sessionData != null) {
-          if (sessionData['accessToken'] != null) {
-            await prefs.setString('access_token', sessionData['accessToken'] as String);
-          }
-          if (sessionData['refreshToken'] != null) {
-            await prefs.setString('refresh_token', sessionData['refreshToken'] as String);
+          final access = sessionData['accessToken']?.toString();
+          final refresh = sessionData['refreshToken']?.toString();
+          if (access != null && access.isNotEmpty) {
+            await TokenStorage.saveTokens(
+              accessToken: access,
+              refreshToken: refresh,
+            );
           }
           if (sessionData['user'] != null) {
+            final prefs = await SharedPreferences.getInstance();
             await prefs.setString('user_data', jsonEncode(sessionData['user']));
           }
         }
-        
         return data;
       }
       return null;
     } catch (e) {
-      print('Login error: $e');
       return null;
     }
   }
@@ -66,15 +59,11 @@ class AuthRemoteDatasource {
           },
         );
       }
-      
+      await TokenStorage.clearTokens();
       final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('access_token');
-      await prefs.remove('refresh_token');
       await prefs.remove('user_data');
-      
       return true;
     } catch (e) {
-      print('Logout error: $e');
       return false;
     }
   }
@@ -95,28 +84,30 @@ class AuthRemoteDatasource {
 
   static Future<Map<String, dynamic>?> refreshToken() async {
     try {
-      final refreshToken = await getRefreshToken();
-      if (refreshToken == null) return null;
+      final refresh = await getRefreshToken();
+      if (refresh == null) return null;
 
       final response = await http.post(
         Uri.parse('$_baseUrl/auth/refresh'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'refreshToken': refreshToken}),
+        body: jsonEncode({'refreshToken': refresh}),
       );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
-        final prefs = await SharedPreferences.getInstance();
-        
-        if (data['token'] != null) {
-          await prefs.setString('access_token', data['token'] as String);
+        final sessionData = data['data'] as Map<String, dynamic>? ?? data;
+        final access = sessionData['accessToken']?.toString() ?? data['token']?.toString();
+        final newRefresh = sessionData['refreshToken']?.toString();
+        if (access != null && access.isNotEmpty) {
+          await TokenStorage.saveTokens(
+            accessToken: access,
+            refreshToken: newRefresh,
+          );
         }
-        
         return data;
       }
       return null;
     } catch (e) {
-      print('Token refresh error: $e');
       return null;
     }
   }

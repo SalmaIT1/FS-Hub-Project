@@ -1,0 +1,46 @@
+@startuml
+title "Cas d'utilisation — Sprint 3-4 : RH & Employés"
+
+left to right direction
+skinparam shadowing false
+
+actor Admin <<actor>>
+actor RH <<actor>>
+actor Manager <<actor>>
+actor TeamLead <<actor>>
+actor Employee <<actor>>
+
+rectangle "FS-Hub — RH & Employés" {
+  usecase UC_Emp as "Gérer employés\n(/v1/employees)" <<usecase>>
+  usecase UC_Poste as "Gérer postes\n(/v1/postes)" <<usecase>>
+  usecase UC_Att as "Pointer présence\n(/v1/hr/attendance)" <<usecase>>
+  usecase UC_Leave as "Soumettre congé\n(submit_leave)" <<usecase>>
+  usecase UC_ApproveLeave as "Valider congés\n(manage_leaves)" <<usecase>>
+  usecase UC_Salary as "Consulter fiches de paie\n(/v1/hr/salaries)" <<usecase>>
+  usecase UC_Bonus as "Gérer primes" <<usecase>>
+  usecase UC_Audit as "Consulter logs audit\n(/v1/audit)" <<usecase>>
+  usecase UC_Dept as "Gérer départements\n(/v1/departments)" <<usecase>>
+
+  UC_Emp ..> UC_Login : <<include>>
+  UC_Leave ..> UC_Login : <<include>>
+  UC_ApproveLeave ..> UC_Leave : <<extend>>
+  UC_Audit ..> UC_Login : <<include>>
+}
+
+usecase UC_Login as "S'authentifier" <<usecase>>
+
+Admin --> UC_Emp
+Admin --> UC_Dept
+Admin --> UC_Audit
+RH --> UC_Emp
+RH --> UC_ApproveLeave
+RH --> UC_Salary
+RH --> UC_Bonus
+RH --> UC_Att
+Manager --> UC_Att
+TeamLead --> UC_Att
+Employee --> UC_Leave
+Employee --> UC_Att
+Employee --> UC_Salary
+
+@enduml

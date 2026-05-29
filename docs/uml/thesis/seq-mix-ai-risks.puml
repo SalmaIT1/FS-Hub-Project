@@ -1,0 +1,29 @@
+@startuml
+title "Séquence — Risques projet : Shelf → service Python IA\n(ai_routes.dart + AIService.analyzeProjectRisks)"
+
+skinparam shadowing false
+autonumber
+
+actor "Manager BI\n(view_ai_dashboard)" as M
+participant "Flutter" as FE <<boundary>>
+participant "AIRoutes" as AR <<control>>
+participant "permission_middleware\nrequireAnyPermission" as RBAC <<control>>
+participant "AIService" as AS <<control>>
+participant "Service Python\n(AI_SERVICE_URL :8001)" as PY <<boundary>>
+database "MySQL" as DB <<database>>
+
+M -> FE : ouvrir tableau risques IA
+FE -> AR : GET /v1/ai/project-risks\nBearer JWT
+AR -> RBAC : requireAnyPermission(\nview_ai_dashboard,\nview_statistics,\nmanage_system)
+RBAC -> AR : OK
+AR -> AS : analyzeProjectRisks(userId)
+AS -> DB : getProjectsForPrediction() via AIRepository
+AS -> PY : POST /predict… (HTTP + X-API-Key)
+note right of AS
+  Si AI_API_KEY vide : message
+  service non configuré (ai_service.dart L55-62)
+end note
+PY --> AS : scores / features
+AS --> M : JSON agrégé (bandes CRITICAL…LOW)
+
+@enduml

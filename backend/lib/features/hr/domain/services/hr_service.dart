@@ -1,20 +1,40 @@
+import 'package:meta/meta.dart';
+
 import '../../data/repositories/hr_repository.dart';
+import '../../domain/repositories/hr_repository_port.dart';
 import '../../../notification/domain/services/notification_service.dart';
 import '../../../../shared/services/audit_service.dart';
 import '../../../../shared/database/connection.dart';
+import '../../../../shared/domain/leave_business_rules.dart';
 import 'dart:io';
 import 'dart:convert';
 import 'package:path/path.dart' as p;
 
 class HrService {
-  static final HrRepository _repository = HrRepository();
+  static HrRepository? _repository;
+  static HrRepositoryPort? _leavePortOverride;
   static final _db = DBConnection.getConnection();
+
+  static const int annualPaidLeaveQuota = 21;
+
+  static HrRepository get _repo => _repository ??= HrRepository();
+  static HrRepositoryPort get _leavePort => _leavePortOverride ?? _repo;
+
+  @visibleForTesting
+  static void bindForTest({HrRepositoryPort? hr}) {
+    _leavePortOverride = hr;
+  }
+
+  @visibleForTesting
+  static void resetBindings() {
+    _leavePortOverride = null;
+  }
 
   // --- Attendance ---
 
   static Future<Map<String, dynamic>> getAllAttendance(String date) async {
     try {
-      final records = await _repository.getAllAttendance(date);
+      final records = await _repo.getAllAttendance(date);
       return {'success': true, 'data': records.map((r) => r.toMap()).toList()};
     } catch (e) {
       print('getAllAttendance error: $e');
@@ -24,7 +44,7 @@ class HrService {
 
   static Future<Map<String, dynamic>> getAttendance(String employeeId, {String? startDate, String? endDate}) async {
     try {
-      final records = await _repository.getAttendance(employeeId, startDate: startDate, endDate: endDate);
+      final records = await _repo.getAttendance(employeeId, startDate: startDate, endDate: endDate);
       return {'success': true, 'data': records.map((r) => r.toMap()).toList()};
     } catch (e) {
       print('getAttendance error: $e');
@@ -43,7 +63,7 @@ class HrService {
         return {'success': false, 'message': 'Cannot log attendance for future dates.'};
       }
 
-      await _repository.logAttendance(data);
+      await _repo.logAttendance(data);
       
       await AuditService.log(callerId ?? 'SYSTEM', 'ATTENDANCE_LOGGED', {
         'employee_id': data['employee_id'],
@@ -63,10 +83,10 @@ class HrService {
   static Future<Map<String, dynamic>> getLeaveRequests(String? callerRole, String callerId) async {
     try {
       if (callerRole == 'Admin' || callerRole == 'RH') {
-        final records = await _repository.getAllLeaveRequests();
+        final records = await _repo.getAllLeaveRequests();
         return {'success': true, 'data': records};
       }
-      final records = await _repository.getLeaveRequests(callerId);
+      final records = await _repo.getLeaveRequests(callerId);
       return {'success': true, 'data': records.map((r) => r.toMap()).toList()};
     } catch (e) {
       print('getLeaveRequests error: $e');
@@ -82,29 +102,45 @@ class HrService {
       
       if (data['leave_type'] == 'paid_leave') {
         final startDate = DateTime.parse(data['start_date'].toString());
-        final usedDays = await _repository.getUsedPaidLeaveDaysInYear(employeeId, startDate.year);
-        
-        int requestingDays = 0;
+        final usedDays =
+            await _leavePort.getUsedPaidLeaveDaysInYear(employeeId, startDate.year);
+
+        var requestingDays = 0;
         if (data['total_days'] != null) {
           requestingDays = int.tryParse(data['total_days'].toString()) ?? 0;
         } else {
           final endDate = DateTime.parse(data['end_date'].toString());
           requestingDays = endDate.difference(startDate).inDays + 1;
         }
-        
-        final remainingBalance = 21 - usedDays;
-        
-        if (remainingBalance <= 0) {
-           return {'success': false, 'message': 'Paid leave quota exceeded. You have 0 days remaining for this year.'};
-        } else if (requestingDays > remainingBalance) {
-           return {'success': false, 'message': 'Paid leave quota exceeded. You only have $remainingBalance day(s) left.'};
+
+        if (LeaveBusinessRules.exceedsPaidQuota(
+          requestedDays: requestingDays,
+          usedDaysThisYear: usedDays,
+          annualQuota: annualPaidLeaveQuota,
+        )) {
+          final remaining = LeaveBusinessRules.remainingPaidQuota(
+            usedDaysThisYear: usedDays,
+            annualQuota: annualPaidLeaveQuota,
+          );
+          if (remaining <= 0) {
+            return {
+              'success': false,
+              'message':
+                  'Paid leave quota exceeded. You have 0 days remaining for this year.',
+            };
+          }
+          return {
+            'success': false,
+            'message':
+                'Paid leave quota exceeded. You only have $remaining day(s) left.',
+          };
         }
       }
 
       data['employee_id'] = employeeId;
       data['status'] = 'pending';
       
-      await _repository.submitLeaveRequest(data);
+      await _leavePort.submitLeaveRequest(data);
       return {'success': true, 'message': 'Leave request submitted'};
     } catch (e) {
       print('submitLeaveRequest error: $e');
@@ -114,19 +150,26 @@ class HrService {
 
   static Future<Map<String, dynamic>> updateLeaveStatus(int id, String status, String approvedBy) async {
     try {
-      final requester = await _repository.getLeaveRequestEmployeeId(id);
-      if (requester == approvedBy) {
-        return {'success': false, 'message': 'You cannot approve your own leave request.'};
+      final requester = await _leavePort.getLeaveRequestEmployeeId(id);
+      if (requester != null &&
+          LeaveBusinessRules.isSelfApproval(
+            requesterId: requester,
+            approverId: approvedBy,
+          )) {
+        return {
+          'success': false,
+          'message': 'You cannot approve your own leave request.',
+        };
       }
       
-      await _repository.updateLeaveStatus(id, status, approvedBy);
+      await _leavePort.updateLeaveStatus(id, status, approvedBy);
       
       await AuditService.log(approvedBy, 'LEAVE_STATUS_UPDATED', {
         'requestId': id,
         'newStatus': status,
       });
       
-      final targetEmployee = await _repository.getLeaveRequestEmployeeId(id);
+      final targetEmployee = await _leavePort.getLeaveRequestEmployeeId(id);
       if (targetEmployee != null) {
         await NotificationService.createNotification(
           userId: targetEmployee,
@@ -148,10 +191,10 @@ class HrService {
   static Future<Map<String, dynamic>> getRemoteWorkRequests(String? callerRole, String callerId) async {
     try {
       if (callerRole == 'Admin' || callerRole == 'RH') {
-        final records = await _repository.getAllRemoteWorkRequests();
+        final records = await _repo.getAllRemoteWorkRequests();
         return {'success': true, 'data': records};
       }
-      final records = await _repository.getRemoteWorkRequests(callerId);
+      final records = await _repo.getRemoteWorkRequests(callerId);
       return {'success': true, 'data': records.map((r) => r.toMap()).toList()};
     } catch (e) {
       print('getRemoteWorkRequests error: $e');
@@ -168,7 +211,7 @@ class HrService {
       final remoteDate = DateTime.parse(data['remote_date'].toString());
       
       // Validation : Quota de 3 jours par semaine
-      final count = await _repository.countRemoteWorkDaysInWeek(employeeId, remoteDate);
+      final count = await _repo.countRemoteWorkDaysInWeek(employeeId, remoteDate);
       if (count >= 3) {
         return {
           'success': false, 
@@ -179,7 +222,7 @@ class HrService {
       data['employee_id'] = employeeId;
       data['status'] = 'pending';
       
-       await _repository.submitRemoteWorkRequest(data);
+       await _repo.submitRemoteWorkRequest(data);
       return {
         'success': true, 
         'message': 'Demande de télétravail soumise. (Reste : ${2 - count} jour(s) pour cette semaine)'
@@ -192,19 +235,19 @@ class HrService {
 
   static Future<Map<String, dynamic>> updateRemoteWorkStatus(int id, String status, String approvedBy) async {
     try {
-      final requester = await _repository.getRemoteWorkEmployeeId(id);
+      final requester = await _repo.getRemoteWorkEmployeeId(id);
       if (requester == approvedBy) {
         return {'success': false, 'message': 'You cannot approve your own remote work request.'};
       }
       
-      await _repository.updateRemoteWorkStatus(id, status, approvedBy);
+      await _repo.updateRemoteWorkStatus(id, status, approvedBy);
       
       await AuditService.log(approvedBy, 'REMOTE_WORK_STATUS_UPDATED', {
         'requestId': id,
         'newStatus': status,
       });
       
-      final targetEmployee = await _repository.getRemoteWorkEmployeeId(id);
+      final targetEmployee = await _repo.getRemoteWorkEmployeeId(id);
       if (targetEmployee != null) {
         await NotificationService.createNotification(
           userId: targetEmployee,
@@ -227,11 +270,11 @@ class HrService {
     try {
       if (callerRole == 'Admin' || callerRole == 'Comptable' || callerRole == 'RH') {
         final records = targetEmployeeId != null 
-            ? await _repository.getSalaries(targetEmployeeId)
-            : await _repository.getAllSalaries();
+            ? await _repo.getSalaries(targetEmployeeId)
+            : await _repo.getAllSalaries();
          return {'success': true, 'data': records.map((r) => r.toMap()).toList()};
       }
-      final records = await _repository.getSalaries(callerId);
+      final records = await _repo.getSalaries(callerId);
       return {'success': true, 'data': records.map((r) => r.toMap()).toList()};
     } catch (e) {
       print('getSalaries error: $e');
@@ -245,7 +288,7 @@ class HrService {
          return {'success': false, 'message': 'Missing required fields for salary'};
       }
 
-      await _repository.createSalary(data);
+      await _repo.createSalary(data);
       await AuditService.log(callerId ?? 'SYSTEM', 'SALARY_CREATED', {
         'employee_id': data['employee_id'],
         'base_salary': data['base_salary'],
@@ -260,12 +303,12 @@ class HrService {
   
   static Future<Map<String, dynamic>> updateSalaryStatus(int id, String status, {String? callerId}) async {
     try {
-      final targetEmployee = await _repository.getSalaryEmployeeId(id);
+      final targetEmployee = await _repo.getSalaryEmployeeId(id);
       if (callerId != null && targetEmployee == callerId) {
         return {'success': false, 'message': 'You cannot update your own salary status for audit integrity.'};
       }
       
-      await _repository.updateSalaryStatus(id, status);
+      await _repo.updateSalaryStatus(id, status);
       await AuditService.log(callerId ?? 'SYSTEM', 'SALARY_STATUS_UPDATED', {
         'salaryId': id,
         'newStatus': status,
@@ -431,7 +474,7 @@ class HrService {
   
   static Future<Map<String, dynamic>> bulkGenerateSalaries(String month, {bool fullResync = false, String? callerId}) async {
     try {
-      final count = await _repository.bulkGenerateSalaries(month, fullResync: fullResync);
+      final count = await _repo.bulkGenerateSalaries(month, fullResync: fullResync);
       await AuditService.log(callerId ?? 'SYSTEM', 'BULK_SALARY_GENERATION', {
         'month': month,
         'recordCount': count,
@@ -448,11 +491,11 @@ class HrService {
     try {
        if (callerRole == 'Admin' || callerRole == 'RH' || callerRole == 'Comptable') {
          final records = targetEmployeeId != null 
-             ? await _repository.getBonuses(targetEmployeeId)
-             : await _repository.getAllBonuses();
+             ? await _repo.getBonuses(targetEmployeeId)
+             : await _repo.getAllBonuses();
          return {'success': true, 'data': records};
        }
-       final records = await _repository.getBonuses(callerId);
+       final records = await _repo.getBonuses(callerId);
        return {'success': true, 'data': records};
     } catch(e) {
        print('getBonuses error: $e');
@@ -512,11 +555,11 @@ class HrService {
     } catch (e) {
       print('Warning: Could not load logo for payslip: $e');
     }
-    return await _repository.generatePayslipHtmlForSalary(salaryId, logoBase64: logoBase64);
+    return await _repo.generatePayslipHtmlForSalary(salaryId, logoBase64: logoBase64);
   }
 
   static Future<String?> getSalaryEmployeeId(int salaryId) async {
-    return await _repository.getSalaryEmployeeId(salaryId);
+    return await _repo.getSalaryEmployeeId(salaryId);
   }
 
   // --- Helpers ---

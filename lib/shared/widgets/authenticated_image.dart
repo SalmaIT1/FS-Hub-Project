@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:fs_hub/features/auth/data/datasources/auth_remote_datasource.dart';
 import 'package:fs_hub/core/utils/url_utils.dart';
+import 'package:fs_hub/core/services/media_auth_service.dart';
 
 /// An image widget that automatically includes the authentication token in headers.
 ///
@@ -36,6 +37,7 @@ class AuthenticatedImage extends StatefulWidget {
 
 class _AuthenticatedImageState extends State<AuthenticatedImage> {
   String? _token;
+  String? _mediaTicket;
   bool _tokenLoaded = false;
 
   @override
@@ -55,9 +57,15 @@ class _AuthenticatedImageState extends State<AuthenticatedImage> {
 
   Future<void> _loadToken() async {
     final token = await AuthRemoteDatasource.getAccessToken();
+    String? mediaTicket;
+    final absolute = UrlUtils.ensureAbsoluteUrl(widget.url);
+    if (absolute.contains('/media/')) {
+      mediaTicket = await MediaAuthService.ticketForMediaUrl(absolute);
+    }
     if (mounted) {
       setState(() {
         _token = token;
+        _mediaTicket = mediaTicket;
         _tokenLoaded = true;
       });
     }
@@ -134,9 +142,10 @@ class _AuthenticatedImageState extends State<AuthenticatedImage> {
           );
     }
 
-    // On Web, append token to URL (browser <img> tags ignore custom headers).
-    final authenticatedUrl =
-        kIsWeb ? UrlUtils.appendToken(url, _token) : url;
+    final absolute = UrlUtils.ensureAbsoluteUrl(url);
+    final authenticatedUrl = kIsWeb && _mediaTicket != null
+        ? UrlUtils.appendMediaTicket(absolute, _mediaTicket)
+        : absolute;
 
     final headers = <String, String>{
       'ngrok-skip-browser-warning': 'true',

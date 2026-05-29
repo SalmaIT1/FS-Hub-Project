@@ -1,8 +1,10 @@
 import 'package:bcrypt/bcrypt.dart';
 import 'package:dart_jsonwebtoken/dart_jsonwebtoken.dart';
 import 'package:dotenv/dotenv.dart' as dotenv;
+import 'package:meta/meta.dart';
 import 'package:uuid/uuid.dart';
 import '../../data/repositories/auth_repository.dart';
+import '../../domain/repositories/auth_repository_port.dart';
 import '../../data/models/user_model.dart';
 import '../../data/models/auth_session_model.dart';
 import 'dart:io';
@@ -12,13 +14,27 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 
 class AuthService {
-  static final _repository = AuthRepository();
+  static AuthRepository? _repository;
+  static AuthRepositoryPort? _loginPortOverride;
   static String _secret = '';
+
+  static AuthRepository get _repo => _repository ??= AuthRepository();
+  static AuthRepositoryPort get _loginPort => _loginPortOverride ?? _repo;
+
+  @visibleForTesting
+  static void bindForTest({AuthRepositoryPort? auth}) {
+    _loginPortOverride = auth;
+  }
+
+  @visibleForTesting
+  static void resetBindings() {
+    _loginPortOverride = null;
+  }
 
   static void initSecret() {
     // Priority: Platform Environment > .env file
     String? s = Platform.environment['JWT_SECRET'];
-    
+
     if (s == null || s.trim().isEmpty) {
       final d = dotenv.DotEnv(includePlatformEnvironment: true)..load(['.env']);
       s = d['JWT_SECRET'];
@@ -32,7 +48,12 @@ class AuthService {
     _secret = s.trim();
   }
 
-  static const Duration _tokenExpiry = Duration(hours: 24);
+  /// Test-only: inject JWT secret without reading .env (unit tests).
+  static void initSecretForTests(String secret) {
+    _secret = secret;
+  }
+
+  static const Duration _tokenExpiry = Duration(hours: 12);
   static const Duration _refreshTokenExpiry = Duration(days: 7);
 
   // ── Access-token revocation (in-memory blocklist) ────────────────────────
@@ -44,7 +65,7 @@ class AuthService {
 
   static void revokeAccessToken(String token) async {
     try {
-      await _repository.addToTokenBlocklist(token);
+      await _repo.addToTokenBlocklist(token);
     } catch (e) {
       print('Failed to persist token revocation: $e');
     }
@@ -52,7 +73,7 @@ class AuthService {
 
   static Future<bool> isTokenRevoked(String token) async {
     try {
-      return await _repository.isTokenInBlocklist(token);
+      return await _repo.isTokenInBlocklist(token);
     } catch (e) {
       // P2-1 SECURITY FIX: Fail-closed posture.
       // If the DB is unavailable we cannot verify the token blocklist,
@@ -82,11 +103,68 @@ class AuthService {
     return {'userId': t.userId, 'role': t.role};
   }
 
+  // ── Media tickets (short-lived, scoped to one file — no JWT in URLs) ─────
+  static final Map<String, _MediaTicket> _mediaTickets = {};
+
+  static String issueMediaTicket({
+    required String userId,
+    required String role,
+    required String storedFilename,
+  }) {
+    _mediaTickets.removeWhere((_, t) => t.isExpired);
+    final ticket = const Uuid().v4();
+    _mediaTickets[ticket] = _MediaTicket(
+      userId: userId,
+      role: role,
+      storedFilename: storedFilename,
+    );
+    return ticket;
+  }
+
+  /// Validates one-time media ticket for GET /media/{filename}.
+  static Map<String, String>? consumeMediaTicket(
+    String ticket,
+    String requestedFilename,
+  ) {
+    final t = _mediaTickets.remove(ticket);
+    if (t == null || t.isExpired) return null;
+    if (t.storedFilename != requestedFilename) return null;
+    return {'userId': t.userId, 'role': t.role};
+  }
+
+  // ── Payslip tickets (browser print — no JWT in URL) ─────────────────────
+  static final Map<String, _PayslipTicket> _payslipTickets = {};
+
+  static String issuePayslipTicket({
+    required String userId,
+    required String role,
+    required int salaryId,
+  }) {
+    _payslipTickets.removeWhere((_, t) => t.isExpired);
+    final ticket = const Uuid().v4();
+    _payslipTickets[ticket] = _PayslipTicket(
+      userId: userId,
+      role: role,
+      salaryId: salaryId,
+    );
+    return ticket;
+  }
+
+  static Map<String, String>? consumePayslipTicket(
+    String ticket,
+    int requestedSalaryId,
+  ) {
+    final t = _payslipTickets.remove(ticket);
+    if (t == null || t.isExpired) return null;
+    if (t.salaryId != requestedSalaryId) return null;
+    return {'userId': t.userId, 'role': t.role};
+  }
+
   // ── Login ────────────────────────────────────────────────────────────────
   static Future<Map<String, dynamic>> login(
       String username, String password) async {
     try {
-      final userRow = await _repository.findUserByUsernameOrEmail(username);
+      final userRow = await _loginPort.findUserByUsernameOrEmail(username);
 
       if (userRow == null) {
         return {'success': false, 'message': 'Invalid credentials'};
@@ -111,12 +189,12 @@ class AuthService {
         return {'success': false, 'message': 'Invalid credentials'};
       }
 
-      await _repository.updateLastLogin(userId);
+      await _loginPort.updateLastLogin(userId);
 
       final accessToken = _generateAccessToken(userId, userRole ?? 'Employé');
       final refreshToken = _generateRefreshToken(userId);
       try {
-        await _repository.saveRefreshToken(
+        await _loginPort.saveRefreshToken(
           userId: userId,
           token: refreshToken,
           expiresAt: DateTime.now().add(_refreshTokenExpiry),
@@ -159,7 +237,7 @@ class AuthService {
 
       final userId = payload['userId']?.toString();
       if (userId != null) {
-        await _repository.revokeAllUserRefreshTokens(userId);
+        await _repo.revokeAllUserRefreshTokens(userId);
       }
 
       return {'success': true, 'message': 'Logged out successfully'};
@@ -187,7 +265,7 @@ class AuthService {
         return {'success': false, 'message': 'Invalid refresh token payload'};
       }
 
-      final info = await _repository.getRefreshTokenInfo(refreshToken, userId);
+      final info = await _repo.getRefreshTokenInfo(refreshToken, userId);
 
       if (info == null) {
         return {'success': false, 'message': 'Refresh token not recognized'};
@@ -208,7 +286,7 @@ class AuthService {
         return {'success': false, 'message': 'Refresh token revoked'};
       }
 
-      final userRole = await _repository.getUserRole(userId);
+      final userRole = await _repo.getUserRole(userId);
       if (userRole == null) {
         return {'success': false, 'message': 'User not found'};
       }
@@ -216,8 +294,8 @@ class AuthService {
       final newAccessToken = _generateAccessToken(userId, userRole);
       final newRefreshToken = _generateRefreshToken(userId);
 
-      await _repository.revokeRefreshToken(refreshToken);
-      await _repository.saveRefreshToken(
+      await _repo.revokeRefreshToken(refreshToken);
+      await _repo.saveRefreshToken(
         userId: userId,
         token: newRefreshToken,
         expiresAt: DateTime.now().add(_refreshTokenExpiry),
@@ -255,7 +333,7 @@ class AuthService {
         return {'success': false, 'message': 'Invalid token payload'};
       }
 
-      final profile = await _repository.getProfile(userId);
+      final profile = await _repo.getProfile(userId);
 
       if (profile == null) {
         return {'success': false, 'message': 'User not found'};
@@ -274,7 +352,7 @@ class AuthService {
   // ── Change Password ───────────────────────────────────────────────────────
   static Future<Map<String, dynamic>> changePassword(String userId, String oldPassword, String newPassword) async {
     try {
-      final storedHash = await _repository.getPasswordHash(userId);
+      final storedHash = await _repo.getPasswordHash(userId);
       if (storedHash == null) {
         return {'success': false, 'message': 'User not found'};
       }
@@ -289,7 +367,7 @@ class AuthService {
       }
 
       final newHash = BCrypt.hashpw(newPassword, BCrypt.gensalt());
-      await _repository.updatePassword(userId, newHash);
+      await _repo.updatePassword(userId, newHash);
       return {'success': true, 'message': 'Password updated successfully'};
     } catch (e) {
       print('Change password error: $e');
@@ -319,7 +397,7 @@ class AuthService {
       'message': 'If an account exists for this email, you will receive a reset link shortly.'
     };
     try {
-      final userRow = await _repository.findUserByUsernameOrEmail(email);
+      final userRow = await _repo.findUserByUsernameOrEmail(email);
       if (userRow == null) return uniformResponse;
 
       final userId = userRow['id'].toString();
@@ -332,7 +410,7 @@ class AuthService {
       final expiresAt = DateTime.now().add(const Duration(hours: 24));
 
       // 2. Save Token Hash
-      await _repository.savePasswordResetToken(
+      await _repo.savePasswordResetToken(
         userId: userId, 
         tokenHash: hash, 
         expiresAt: expiresAt
@@ -360,7 +438,7 @@ class AuthService {
       }
 
       final hash = sha256.convert(utf8.encode(token)).toString();
-      final info = await _repository.getResetTokenInfo(hash);
+      final info = await _repo.getResetTokenInfo(hash);
 
       if (info == null || info['is_used'] == true) {
         return {'success': false, 'message': 'Invalid or already used token.'};
@@ -374,8 +452,8 @@ class AuthService {
       final userId = info['user_id'].toString();
       final hashedPassword = BCrypt.hashpw(newPassword, BCrypt.gensalt());
       
-      await _repository.updatePassword(userId, hashedPassword);
-      await _repository.markResetTokenUsed(hash);
+      await _repo.updatePassword(userId, hashedPassword);
+      await _repo.markResetTokenUsed(hash);
 
       return {'success': true, 'message': 'Password has been reset.'};
     } catch (e) {
@@ -387,7 +465,7 @@ class AuthService {
   /// Admin-initiated password reset for another user.
   static Future<Map<String, dynamic>> adminResetUserPassword(String targetUserId) async {
     try {
-      final profile = await _repository.getProfile(targetUserId);
+      final profile = await _repo.getProfile(targetUserId);
       if (profile == null) return {'success': false, 'message': 'User not found'};
 
       final userEmail = profile.email;
@@ -397,7 +475,7 @@ class AuthService {
       final hash = sha256.convert(utf8.encode(token)).toString();
       final expiresAt = DateTime.now().add(const Duration(hours: 24));
 
-      await _repository.savePasswordResetToken(
+      await _repo.savePasswordResetToken(
         userId: targetUserId, 
         tokenHash: hash, 
         expiresAt: expiresAt
@@ -428,7 +506,7 @@ class AuthService {
   // ── User Settings ────────────────────────────────────────────────────────
   static Future<Map<String, dynamic>> getUserSettings(String userId) async {
     try {
-      final settings = await _repository.getUserSettings(userId);
+      final settings = await _repo.getUserSettings(userId);
       if (settings == null) {
         return {'success': false, 'message': 'Settings not found'};
       }
@@ -441,7 +519,7 @@ class AuthService {
 
   static Future<Map<String, dynamic>> updateUserSettings(String userId, Map<String, dynamic> settings) async {
     try {
-      await _repository.updateUserSettings(userId, settings);
+      await _repo.updateUserSettings(userId, settings);
       return {'success': true, 'message': 'Settings updated successfully'};
     } catch (e) {
       print('Update settings error: $e');
@@ -482,7 +560,7 @@ class AuthService {
 
   static Future<List<String>> getUserPermissions(String userId) async {
     try {
-      final perms = await _repository.getUserPermissions(userId);
+      final perms = await _repo.getUserPermissions(userId);
       return List<String>.from(perms);
     } catch (e) {
       print('Error getting user permissions: $e');
@@ -492,7 +570,7 @@ class AuthService {
   }
   static Future<String> registerClientAccount(String email, String phone) async {
     // Client account setup: Username = Email, Password = Phone Number
-    final userId = await _repository.createUser(
+    final userId = await _repo.createUser(
       username: email,
       password: phone,
       role: 'Client',
@@ -520,6 +598,36 @@ class _WsTicket {
 
   _WsTicket({required this.userId, required this.role})
       : _expiresAt = DateTime.now().add(const Duration(seconds: 90));
+
+  bool get isExpired => DateTime.now().isAfter(_expiresAt);
+}
+
+class _MediaTicket {
+  final String userId;
+  final String role;
+  final String storedFilename;
+  final DateTime _expiresAt;
+
+  _MediaTicket({
+    required this.userId,
+    required this.role,
+    required this.storedFilename,
+  }) : _expiresAt = DateTime.now().add(const Duration(minutes: 5));
+
+  bool get isExpired => DateTime.now().isAfter(_expiresAt);
+}
+
+class _PayslipTicket {
+  final String userId;
+  final String role;
+  final int salaryId;
+  final DateTime _expiresAt;
+
+  _PayslipTicket({
+    required this.userId,
+    required this.role,
+    required this.salaryId,
+  }) : _expiresAt = DateTime.now().add(const Duration(minutes: 5));
 
   bool get isExpired => DateTime.now().isAfter(_expiresAt);
 }

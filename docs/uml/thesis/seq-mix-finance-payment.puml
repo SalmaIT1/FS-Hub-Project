@@ -1,0 +1,26 @@
+@startuml
+title "Séquence — Paiement créé avec idempotency\n(finance_routes.dart : POST /payments)"
+
+skinparam shadowing false
+autonumber
+
+actor "Comptable" as Acc
+participant "Flutter" as FE <<boundary>>
+participant "FinanceRoutes" as FR <<control>>
+participant "idempotency()\nmiddleware" as ID <<control>>
+participant "FinanceService" as FS <<control>>
+database "MySQL" as DB <<database>>
+
+Acc -> FE : enregistrer paiement facture
+FE -> FR : POST /v1/finance/payments\nIdempotency-Key: {uuid}\nBearer JWT
+FR -> ID : idempotency() avant handler
+note right of FR
+  requirePermission manage_payments
+  finance_routes.dart L27
+end note
+ID -> FR : ou réponse cache si clé déjà vue
+FR -> FS : createPayment(…)
+FS -> DB : INSERT payment / MAJ facture
+FS --> Acc : 200 + payload idempotent
+
+@enduml

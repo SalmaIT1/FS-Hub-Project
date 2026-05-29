@@ -1,5 +1,14 @@
 import '../../data/models/role_permission_model.dart';
 import '../../data/repositories/role_permission_repository.dart';
+import '../../../../core/middleware/auth_middleware.dart';
+
+void _invalidateUsersForRole(RolePermissionRepository repo, int roleId) {
+  repo.getUserIdsAffectedByRole(roleId).then((ids) {
+    for (final id in ids) {
+      invalidatePermissionCache(id);
+    }
+  });
+}
 
 class RoleService {
   final RolePermissionRepository _repository = RolePermissionRepository();
@@ -61,6 +70,7 @@ class RoleService {
             .toList();
         
         await _repository.assignPermissionsToRole(createdRole.id!, permissionIds);
+        _invalidateUsersForRole(_repository, createdRole.id!);
       }
       
       return {
@@ -94,6 +104,7 @@ class RoleService {
             .toList();
         
         await _repository.assignPermissionsToRole(id, permissionIds);
+        _invalidateUsersForRole(_repository, id);
       }
       
       return {
@@ -128,6 +139,7 @@ class RoleService {
   Future<Map<String, dynamic>> assignPermissionsToRole(int roleId, List<int> permissionIds) async {
     try {
       final success = await _repository.assignPermissionsToRole(roleId, permissionIds);
+      if (success) _invalidateUsersForRole(_repository, roleId);
       return {
         'success': success,
         'message': success ? 'Permissions assigned successfully' : 'Failed to assign permissions',
@@ -203,7 +215,8 @@ class PermissionService {
       );
 
       final createdPermission = await createPermission(permission);
-      
+      invalidateAllPermissionCaches();
+
       return {
         'success': true,
         'message': 'Permission created successfully',
@@ -228,7 +241,8 @@ class PermissionService {
       );
 
       final updatedPermission = await updatePermission(permission);
-      
+      invalidateAllPermissionCaches();
+
       return {
         'success': true,
         'message': 'Permission updated successfully',
@@ -246,6 +260,7 @@ class PermissionService {
   Future<Map<String, dynamic>> deletePermissionWithResponse(int id) async {
     try {
       final success = await deletePermission(id);
+      if (success) invalidateAllPermissionCaches();
       return {
         'success': success,
         'message': success ? 'Permission deleted successfully' : 'Permission not found',
@@ -307,5 +322,17 @@ class UserPermissionService {
   Future<bool> hasAllPermissions(int userId, List<String> permissions) async {
     final userPermissions = await getUserPermissions(userId);
     return permissions.every((permission) => userPermissions.contains(permission));
+  }
+
+  Future<bool> assignRoleToUser(int userId, int roleId) async {
+    final ok = await _repository.assignRoleToUser(userId, roleId);
+    if (ok) invalidatePermissionCache(userId.toString());
+    return ok;
+  }
+
+  Future<bool> removeRoleFromUser(int userId, int roleId) async {
+    final ok = await _repository.removeRoleFromUser(userId, roleId);
+    if (ok) invalidatePermissionCache(userId.toString());
+    return ok;
   }
 }

@@ -1,0 +1,38 @@
+@startuml
+title "Activité — Parcours devis : commercial → client\n(requireFinanceAccess + approve client)"
+
+skinparam shadowing false
+
+|Commercial / interne|
+start
+:POST /v1/finance/quotes\n(manage_quotes);
+|FinanceService|
+:Devis persistant;
+
+|Client connecté|
+if (GET quotes/mine ou quotes/{id}) then (view_quotes OK)
+  #LightGreen:Aperçu conditions;
+else (non)
+  #Pink:403;
+  stop
+endif
+
+:Décision commerciale dans l''app client;
+if (Approbation) then (oui)
+  :POST /v1/finance/quotes/{id}/approve;
+  note right
+    Permission **view_quotes**\nfinance_routes.dart approve handler
+  end note
+  |FinanceService|
+  if (Validation métier projet client) then (OK)
+    #LightGreen:Statut devis MAJ;
+  else (échec)
+    #Pink:Erreur HTTP / message;
+    stop
+  endif
+else (report / abandon)
+  :Pas d''approve;
+endif
+stop
+
+@enduml

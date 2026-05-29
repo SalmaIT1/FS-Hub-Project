@@ -21,6 +21,9 @@ backend/payroll_outputs/
 backend/bin/server.exe
 backend/uploads/
 
+# Local dev launcher (logs, ngrok url, pids)
+.dev/
+
 # Python
 __pycache__/
 *.pyc

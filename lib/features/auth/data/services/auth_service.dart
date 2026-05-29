@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:fs_hub/core/config/app_config.dart';
+import 'package:fs_hub/core/security/token_storage.dart';
 import 'package:fs_hub/features/employees/services/employee_service.dart';
 
 class AuthService {
@@ -21,19 +22,15 @@ class AuthService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final prefs = await SharedPreferences.getInstance();
-        
-        // Backend returns { success, message, data: { accessToken, refreshToken, user } }
         final sessionData = data['data'] as Map<String, dynamic>?;
         if (sessionData != null) {
-          // Robust mapping: check for 'accessToken' or 'token'
           final accessToken = sessionData['accessToken'] ?? sessionData['token'];
-          final refreshToken = sessionData['refreshToken'];
-
+          final refreshToken = sessionData['refreshToken']?.toString();
           if (accessToken != null) {
-            await prefs.setString('access_token', accessToken as String);
-          }
-          if (refreshToken != null) {
-            await prefs.setString('refresh_token', refreshToken as String);
+            await TokenStorage.saveTokens(
+              accessToken: accessToken.toString(),
+              refreshToken: refreshToken,
+            );
           }
           if (sessionData['user'] != null) {
             await prefs.setString('user_data', jsonEncode(sessionData['user']));
@@ -51,15 +48,11 @@ class AuthService {
   }
 
   static Future<bool> isLoggedIn() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('access_token');
+    final token = await TokenStorage.getAccessToken();
     return token != null && token.isNotEmpty;
   }
 
-  static Future<String?> getToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('access_token');
-  }
+  static Future<String?> getToken() => TokenStorage.getAccessToken();
 
   static Future<Map<String, dynamic>?> getProfile() async {
     try {
@@ -113,9 +106,8 @@ class AuthService {
   }
 
   static Future<void> logout() async {
+    await TokenStorage.clearTokens();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('access_token');
-    await prefs.remove('refresh_token');
     await prefs.remove('user_data');
   }
 
@@ -216,39 +208,34 @@ class AuthService {
 
   static Future<Map<String, dynamic>> refreshToken() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final refreshToken = prefs.getString('refresh_token');
-      
-      if (refreshToken == null) {
+      final storedRefresh = await TokenStorage.getRefreshToken();
+      if (storedRefresh == null) {
         return {'success': false, 'error': 'No refresh token'};
       }
 
       final response = await http.post(
         Uri.parse('$_baseUrl/auth/refresh'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'refreshToken': refreshToken}),
+        body: jsonEncode({'refreshToken': storedRefresh}),
       );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final sessionData = data['data'] as Map<String, dynamic>?;
-        
         if (sessionData != null) {
           final accessToken = sessionData['accessToken'] ?? sessionData['token'];
-          final refreshToken = sessionData['refreshToken'];
-
+          final newRefresh = sessionData['refreshToken']?.toString();
           if (accessToken != null) {
-            await prefs.setString('access_token', accessToken as String);
-          }
-          if (refreshToken != null) {
-            await prefs.setString('refresh_token', refreshToken as String);
+            await TokenStorage.saveTokens(
+              accessToken: accessToken.toString(),
+              refreshToken: newRefresh,
+            );
           }
           return {'success': true, 'data': sessionData};
         }
         return {'success': false, 'error': 'Invalid session data'};
-      } else {
-        return {'success': false, 'error': 'Token refresh failed'};
       }
+      return {'success': false, 'error': 'Token refresh failed'};
     } catch (e) {
       return {'success': false, 'error': e.toString()};
     }

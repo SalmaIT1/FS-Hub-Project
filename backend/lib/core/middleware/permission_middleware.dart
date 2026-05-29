@@ -45,6 +45,44 @@ Middleware requirePermission(String permission) {
   };
 }
 
+/// Middleware: user must hold at least one of the listed permissions (or be Admin).
+Middleware requireAnyPermission(List<String> permissions) {
+  return (innerHandler) {
+    return (Request request) async {
+      final userId = request.authUserId;
+      if (userId.isEmpty) {
+        return Response(
+          401,
+          body: jsonEncode({'success': false, 'message': 'User not authenticated'}),
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
+        );
+      }
+
+      if (userRoleIsAdmin(request)) {
+        return innerHandler(request);
+      }
+
+      final userPerms = request.authUserPermissions;
+      final allowed = permissions.any(userPerms.contains);
+      if (!allowed) {
+        return Response(
+          403,
+          body: jsonEncode({
+            'success': false,
+            'message':
+                'Insufficient permissions. Required one of: ${permissions.join(', ')}',
+          }),
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
+        );
+      }
+      return innerHandler(request);
+    };
+  };
+}
+
+bool userRoleIsAdmin(Request request) =>
+    request.authUserRole.toLowerCase() == 'admin' || request.isAdmin;
+
 /// Middleware to enforce admin-level access.
 Middleware requireAdmin() {
   return (innerHandler) {

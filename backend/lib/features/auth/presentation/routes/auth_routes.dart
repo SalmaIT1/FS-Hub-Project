@@ -39,6 +39,8 @@ class AuthRoutes {
     router.get('/settings', secured(_getUserSettings));
     router.post('/settings', _updateUserSettings); // _updateUserSettings is already a handler
     router.post('/ws-ticket', secured(_getWsTicket));
+    router.post('/media-ticket', secured(_getMediaTicket));
+    router.post('/payslip-ticket', secured(_getPayslipTicket));
     
     // Admin-guarded route
     router.post('/admin/reset-user-password', (Request req) => 
@@ -283,6 +285,66 @@ class AuthRoutes {
       jsonEncode({'success': true, 'ticket': ticket}),
       headers: {'Content-Type': 'application/json; charset=utf-8'},
     );
+  }
+
+  /// Issues a one-time ticket for payslip HTML print (no JWT in URL).
+  Future<Response> _getPayslipTicket(Request request) async {
+    try {
+      final body = await request.readAsString();
+      final data = jsonDecode(body) as Map<String, dynamic>;
+      final salaryId = int.tryParse(data['salary_id']?.toString() ?? '');
+      if (salaryId == null) {
+        return Response(
+          400,
+          body: jsonEncode({'success': false, 'message': 'salary_id is required'}),
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
+        );
+      }
+      final ticket = AuthService.issuePayslipTicket(
+        userId: request.authUserId,
+        role: request.authUserRole,
+        salaryId: salaryId,
+      );
+      return Response.ok(
+        jsonEncode({'success': true, 'ticket': ticket, 'expires_in_seconds': 300}),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
+      );
+    } catch (e) {
+      return Response.internalServerError(
+        body: jsonEncode({'success': false, 'message': 'Failed to issue payslip ticket'}),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
+      );
+    }
+  }
+
+  /// Issues a one-time ticket for browser media playback (no JWT in URL).
+  Future<Response> _getMediaTicket(Request request) async {
+    try {
+      final body = await request.readAsString();
+      final data = jsonDecode(body) as Map<String, dynamic>;
+      final filename = data['filename']?.toString().trim() ?? '';
+      if (filename.isEmpty) {
+        return Response(
+          400,
+          body: jsonEncode({'success': false, 'message': 'filename is required'}),
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
+        );
+      }
+      final ticket = AuthService.issueMediaTicket(
+        userId: request.authUserId,
+        role: request.authUserRole,
+        storedFilename: filename,
+      );
+      return Response.ok(
+        jsonEncode({'success': true, 'ticket': ticket, 'expires_in_seconds': 300}),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
+      );
+    } catch (e) {
+      return Response.internalServerError(
+        body: jsonEncode({'success': false, 'message': 'Failed to issue media ticket'}),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
+      );
+    }
   }
   Future<Response> _forgotPassword(Request request) async {
     try {

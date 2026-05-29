@@ -1,0 +1,29 @@
+@startuml
+title "Séquence — Projet : affecter un membre\n(project_routes.dart)"
+
+skinparam shadowing false
+autonumber
+
+actor "Chef de projet" as Chef
+actor "Collaborateur ajouté" as Collab
+participant "Flutter" as FE <<boundary>>
+participant "ProjectRoutes" as PR <<control>>
+participant "ProjectService" as PS <<control>>
+
+Chef -> FE : équipe projet
+FE -> PR : POST /v1/projects/{projectId}/members\nBearer JWT\n{ employee_id, … }
+note right of PR
+  requirePermission('manage_projects')
+  server mount secured + project_routes.dart L24
+end note
+PR -> PS : addMember(…)
+PS --> FE : succès / erreur
+
+Collab --> Collab : reçoit accès projet\n(côté app / listes suivantes GET members)
+
+Chef -> FE : vérifier composition
+FE -> PR : GET /v1/projects/{id}/members\n(view_projects)
+PR -> PS : getMembers
+PS --> Chef : liste membres
+
+@enduml

@@ -1,0 +1,36 @@
+@startuml
+title "Séquence — Pièce jointe chat : signed-url → PUT binaire → complete\n(upload_routes.dart + mount requireAuth)"
+
+skinparam shadowing false
+autonumber
+
+actor "Expéditeur" as U1
+actor "Destinataire\n(reçoit message)" as U2
+participant "Flutter Chat" as FE <<boundary>>
+participant "UploadRoutes\n/v1/uploads" as UR <<control>>
+participant "MediaService" as MS <<control>>
+participant "ConversationRoutes\nPOST message" as CR <<control>>
+
+note over UR
+  Mount `/v1/uploads` : secured(requireAuth)\nserver.dart L178
+end note
+
+U1 -> FE : choisir fichier pièce jointe
+FE -> UR : POST /v1/uploads/signed-url\nBearer JWT { filename, mime, … }
+UR -> MS : réserver enregistrement média
+MS --> FE : uploadId + URL PUT interne
+
+FE -> UR : PUT /v1/uploads/{uploadId}/put\nflux binaire
+note right of UR
+  Vérif uploadedBy == authUserId
+  upload_routes.dart L31-34
+end note
+UR -> MS : updateMedia(…)
+UR --> FE : 200
+
+FE -> UR : POST /v1/uploads/complete
+UR -> MS : finaliser
+FE -> CR : POST /v1/conversations/{id}/messages\n{ attachment ref / texte }
+CR --> U2 : message + lien sécurisé côté client
+
+@enduml

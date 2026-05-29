@@ -1,0 +1,36 @@
+@startuml
+title "Activité — Demande d''intelligence risques projet\n(AIService + HTTP service Python)"
+
+skinparam shadowing false
+
+|Manager / analyste BI|
+start
+:Déclencher vue risques IA;
+|AIRoutes|
+if (view_ai_dashboard / view_statistics /\nmanage_system) then (non)
+  #Pink:403 requireAnyPermission;
+  stop
+endif
+
+|AIService|
+:Charger projets actifs depuis MySQL ;
+if (**AI_API_KEY** backend vide ?) then (oui)
+  #Orange:Réponse configurée :\nservice IA non configuré;
+  stop
+endif
+
+|Système|
+fork
+  :Appels HTTP concurrents projet par projet;
+fork again
+  :timeouts / erreurs agrégées;
+end fork
+
+|AIService|
+:Normaliser résumé +\nsegments CRITICAL…LOW ;
+
+|Manager / analyste BI|
+:Exploration dashboard;
+stop
+
+@enduml

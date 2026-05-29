@@ -1,0 +1,107 @@
+@startuml
+title Diagramme de Paquets - Frontend Flutter
+
+scale max 680 width
+top to bottom direction
+
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam dpi 220
+skinparam defaultFontSize 10
+skinparam packageFontSize 11
+skinparam nodesep 16
+skinparam ranksep 22
+skinparam padding 6
+skinparam ArrowColor #444444
+
+' Une seule colonne — ordre = flux de dependance
+
+package "lib/" {
+  [main.dart] as Main <<control>>
+}
+
+[shared/ · widgets · models] as Shared
+
+package "features/*" #F7FAFC {
+  [Pages UI] as Pages
+  [AiService] as AIS
+  [Services AuthService\nHr · Emp · Proj · Task · Fin] as SvcAuth
+  [Services ApiService\nClient · Demand · Notif] as SvcApi
+  [AuthService] as AuthS
+  [api_service.dart] as ApiSvc
+  [ChatController] as ChatCtrl
+  [ChatRepository] as ChatRepo
+  [Chat datasources] as ChatDS
+  [AuthRemoteDS] as AuthDS
+}
+
+package "core/security" #EDF2F7 {
+  [token_storage.dart] as Token
+  [permission_guard.dart] as Guard
+}
+
+[REST Client] as HTTP
+
+cloud "Backend 8080" {
+  [REST API] as BREST
+  [WebSocket] as BWS
+}
+
+' Alignement vertical (hidden uniquement)
+Main -[hidden]down-> Shared
+Shared -[hidden]down-> Pages
+Pages -[hidden]down-> AIS
+AIS -[hidden]down-> SvcAuth
+SvcAuth -[hidden]down-> SvcApi
+SvcApi -[hidden]down-> AuthS
+AuthS -[hidden]down-> ApiSvc
+ApiSvc -[hidden]down-> ChatCtrl
+ChatCtrl -[hidden]down-> ChatRepo
+ChatRepo -[hidden]down-> ChatDS
+ChatDS -[hidden]down-> AuthDS
+AuthDS -[hidden]down-> HTTP
+HTTP -[hidden]down-> BREST
+AuthS -[hidden]right-> Token
+Token -[hidden]right-> Guard
+
+' Fleches visibles (segment court, pas de diagonale longue)
+Main -down-> Pages
+Main -down-> Shared
+Main -right-> Guard : init
+Main -right-> ChatCtrl : DI
+Main -right-> AuthDS : token
+
+Pages -down-> AIS
+Pages -down-> SvcAuth
+Pages -down-> SvcApi
+
+SvcAuth -down-> AuthS
+SvcApi -down-> ApiSvc
+ChatCtrl -down-> ChatRepo
+ChatRepo -down-> ChatDS
+
+AuthS -down-> HTTP
+ApiSvc -down-> HTTP
+AIS -down-> HTTP
+ChatDS -down-> HTTP
+AuthDS -down-> HTTP
+HTTP -down-> BREST
+ChatDS -down-> BWS : upgrade
+
+AuthS -right-> Token
+ApiSvc -right-> Token
+AuthDS -right-> Token
+Guard -left-> AuthS
+
+note right of SvcAuth
+  + Dept, Sprint, Expense,
+  Credit, Role (hors figure)
+end note
+
+note bottom of AIS
+  http direct · pas ApiService
+  AuthService : login interne
+  (pas via AuthRemoteDS)
+end note
+
+@enduml

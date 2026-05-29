@@ -1,46 +1,78 @@
+import 'package:meta/meta.dart';
+
 import '../../data/repositories/finance_repository.dart';
+import '../../domain/repositories/finance_repository_port.dart';
 import '../../../project/data/repositories/project_repository.dart';
+import '../../../project/domain/repositories/project_repository_port.dart';
 import '../../../client/domain/services/client_service.dart';
 import '../../../../shared/database/connection.dart';
+import '../../../../shared/domain/invoice_business_rules.dart';
+import '../../../../shared/domain/payment_business_rules.dart';
 
 class FinanceService {
-  static final _repository = FinanceRepository();
-  static final _projectRepo = ProjectRepository();
+  static FinanceRepository? _repository;
+  static ProjectRepository? _projectRepo;
+  static FinanceRepositoryPort? _financePortOverride;
+  static ProjectRepositoryPort? _projectPortOverride;
+
+  static FinanceRepository get _repo => _repository ??= FinanceRepository();
+  static ProjectRepository get _projectRepoInstance =>
+      _projectRepo ??= ProjectRepository();
+
+  static FinanceRepositoryPort get _financePort =>
+      _financePortOverride ?? _repo;
+  static ProjectRepositoryPort get _projectPort =>
+      _projectPortOverride ?? _projectRepoInstance;
+
+  @visibleForTesting
+  static void bindForTest({
+    FinanceRepositoryPort? finance,
+    ProjectRepositoryPort? project,
+  }) {
+    _financePortOverride = finance;
+    _projectPortOverride = project;
+  }
+
+  @visibleForTesting
+  static void resetBindings() {
+    _financePortOverride = null;
+    _projectPortOverride = null;
+  }
 
   static Future<Map<String, dynamic>> getFinanceSummary() async {
-    return await _repository.getFinanceSummary();
+    return await _repo.getFinanceSummary();
   }
 
   static Future<Map<String, dynamic>> getClientSummary(int clientId) async {
-    return await _repository.getClientFinanceSummary(clientId);
+    return await _repo.getClientFinanceSummary(clientId);
   }
 
   static Future<List<Map<String, dynamic>>> getAllInvoices() async {
-    final invoices = await _repository.getAllInvoices();
+    final invoices = await _repo.getAllInvoices();
     return invoices.map((i) => i.toJson()).toList();
   }
 
   static Future<List<Map<String, dynamic>>> getInvoicesByProject(int projectId, {String? callerRole, String? callerId}) async {
     // RBAC: Check if user belongs to project or is admin/finance role
     if (callerRole != 'Admin' && callerRole != 'Comptable' && callerRole != 'Manager' && callerId != null) {
-      final isMember = await _projectRepo.isMember(projectId, callerId);
+      final isMember = await _projectRepoInstance.isMember(projectId, callerId);
       if (!isMember) return [];
     }
-    final invoices = await _repository.getInvoicesByProject(projectId);
+    final invoices = await _repo.getInvoicesByProject(projectId);
     return invoices.map((i) => i.toJson()).toList();
   }
 
   static Future<List<Map<String, dynamic>>> getInvoicesByClient(int clientId) async {
-    final invoices = await _repository.getInvoicesByClient(clientId);
+    final invoices = await _repo.getInvoicesByClient(clientId);
     return invoices.map((i) => i.toJson()).toList();
   }
 
   static Future<Map<String, dynamic>?> getInvoiceById(int id, {String? callerRole, String? callerId}) async {
-    final invoice = await _repository.getInvoiceById(id);
+    final invoice = await _repo.getInvoiceById(id);
     if (invoice == null) return null;
 
     if (callerRole != 'Admin' && callerRole != 'Comptable' && callerRole != 'Manager' && callerId != null && invoice.projectId != null) {
-      final isMember = await _projectRepo.isMember(invoice.projectId!, callerId);
+      final isMember = await _projectRepoInstance.isMember(invoice.projectId!, callerId);
       if (!isMember) return null;
     }
     
@@ -69,40 +101,31 @@ class FinanceService {
     final projectId = data['projet_id'];
     final quoteId = data['quote_id'];
 
-    if (type == 'INVOICE') {
-      if (timbre != 1.0) {
-        throw Exception("Invoice blocked: Timbre (1 TND) is mandatory.");
+    InvoiceBusinessRules.validateTimbreForType(type.toString(), timbre);
+
+    if (type == 'INVOICE' && quoteId != null) {
+      final quote = await _financePort.getQuoteById(int.parse(quoteId.toString()));
+      if (quote == null) {
+        throw InvoiceRuleException(
+          "Invoice blocked: Associated quote must be 'Accepté' (Approved).",
+        );
       }
-      if (quoteId != null) {
-        final quote = await _repository.getQuoteById(int.parse(quoteId.toString()));
-        if (quote == null || (quote.statut != 'Accepté' && quote.statut != 'Approved')) {
-           throw Exception("Invoice blocked: Associated quote must be 'Accepté' (Approved).");
-        }
-        
-        // Enforce quote totals and client mapping directly from backend (Source of Truth)
-        data['client_id'] = quote.clientId;
-        data['projet_id'] = quote.projectId;
-        data['montant_ht'] = quote.montantHt;
-        data['tva'] = quote.tva;
-        data['montant_ttc'] = quote.montantTtc;
-      }
-    } else if (type == 'DELIVERY_NOTE') {
-      if (timbre != 0.0) {
-        throw Exception("Delivery note blocked: Timbre must be 0.");
-      }
-      if (projectId != null) {
-        final pid = int.tryParse(projectId.toString());
-        if (pid != null) {
-           final project = await _projectRepo.getProjectById(pid);
-           if (project?.statut != 'Completed') {
-             throw Exception("Delivery note blocked: Project must be completed.");
-           }
-        }
+      InvoiceBusinessRules.validateQuoteApproved(quote.statut);
+      data['client_id'] = quote.clientId;
+      data['projet_id'] = quote.projectId;
+      data['montant_ht'] = quote.montantHt;
+      data['tva'] = quote.tva;
+      data['montant_ttc'] = quote.montantTtc;
+    } else if (type == 'DELIVERY_NOTE' && projectId != null) {
+      final pid = int.tryParse(projectId.toString());
+      if (pid != null) {
+        final project = await _projectPort.getProjectById(pid);
+        InvoiceBusinessRules.validateProjectForDeliveryNote(project?.statut);
       }
     }
     
     data['timbre'] = timbre;
-    await _repository.createInvoice(data);
+    await _financePort.createInvoice(data);
   }
 
   static Future<void> updateInvoice(int id, Map<String, dynamic> rawData) async {
@@ -118,31 +141,31 @@ class FinanceService {
     };
 
     // P0 FIX: Re-verify quote status even on update if it's linked
-    final existing = await _repository.getInvoiceById(id);
+    final existing = await _repo.getInvoiceById(id);
     if (existing != null && existing.devisId != null) {
-       final quote = await _repository.getQuoteById(existing.devisId!);
+       final quote = await _repo.getQuoteById(existing.devisId!);
        if (quote == null || (quote.statut != 'Accepté' && quote.statut != 'Approved')) {
           throw Exception("Invoice update blocked: Associated quote is no longer in approved state.");
        }
     }
 
-    await _repository.updateInvoice(id, data);
+    await _repo.updateInvoice(id, data);
   }
 
   static Future<void> deleteInvoice(int id) async {
-    await _repository.deleteInvoice(id);
+    await _repo.deleteInvoice(id);
   }
 
   static Future<List<Map<String, dynamic>>> getPaymentsByInvoice(int invoiceId, {String? callerRole, String? callerId}) async {
-    final invoice = await _repository.getInvoiceById(invoiceId);
+    final invoice = await _repo.getInvoiceById(invoiceId);
     if (invoice == null) return [];
 
     if (callerRole != 'Admin' && callerRole != 'Comptable' && callerRole != 'Manager' && callerId != null && invoice.projectId != null) {
-      final isMember = await _projectRepo.isMember(invoice.projectId!, callerId);
+      final isMember = await _projectRepoInstance.isMember(invoice.projectId!, callerId);
       if (!isMember) return [];
     }
 
-    final payments = await _repository.getPaymentsByInvoice(invoiceId);
+    final payments = await _repo.getPaymentsByInvoice(invoiceId);
     return payments.map((p) => p.toJson()).toList();
   }
 
@@ -174,22 +197,17 @@ class FinanceService {
       final invoiceTtc = double.tryParse(invoiceRow.colByName('montant_ttc')?.toString() ?? '0') ?? 0.0;
       final paymentAmount = double.tryParse(data['montant']?.toString() ?? '0') ?? 0.0;
 
-      if (paymentAmount <= 0) throw Exception('Payment amount must be positive');
-
-      // Sum all prior payments
       final paidRes = await ctx.execute(
         'SELECT COALESCE(SUM(montant), 0) as total_paid FROM paiements WHERE facture_id = :id',
         {'id': invoiceId},
       );
       final alreadyPaid = double.tryParse(paidRes.rows.first.colByName('total_paid')?.toString() ?? '0') ?? 0.0;
-      final remainingBalance = invoiceTtc - alreadyPaid;
 
-      if (paymentAmount > remainingBalance + 0.001) {
-        throw Exception(
-          'Overpayment Error: Payment ($paymentAmount) exceeds balance ($remainingBalance). '
-          'Invoice total: $invoiceTtc, paid: $alreadyPaid.',
-        );
-      }
+      PaymentBusinessRules.validatePaymentAmount(
+        paymentAmount: paymentAmount,
+        invoiceTtc: invoiceTtc,
+        alreadyPaid: alreadyPaid,
+      );
 
       await ctx.execute('''
         INSERT INTO paiements (facture_id, montant, mode, date_paiement, reference_transaction, client_request_id)
@@ -264,30 +282,30 @@ class FinanceService {
 
   // ---- Quotes (Devis) Methods ----
   static Future<List<Map<String, dynamic>>> getAllQuotes() async {
-    final quotes = await _repository.getAllQuotes();
+    final quotes = await _repo.getAllQuotes();
     return quotes.map((q) => q.toJson()).toList();
   }
 
   static Future<List<Map<String, dynamic>>> getQuotesByClient(int clientId) async {
-    final quotes = await _repository.getQuotesByClient(clientId);
+    final quotes = await _repo.getQuotesByClient(clientId);
     return quotes.map((q) => q.toJson()).toList();
   }
 
   static Future<Map<String, dynamic>?> getQuoteById(int id) async {
-    final quote = await _repository.getQuoteById(id);
+    final quote = await _repo.getQuoteById(id);
     return quote?.toJson();
   }
 
   static Future<void> createQuote(Map<String, dynamic> data) async {
-    await _repository.createQuote(data);
+    await _repo.createQuote(data);
   }
 
   static Future<void> updateQuote(int id, Map<String, dynamic> data) async {
-    await _repository.updateQuote(id, data);
+    await _repo.updateQuote(id, data);
   }
 
   static Future<void> approveQuote(int id, {String? callerId, String? callerRole}) async {
-    final quote = await _repository.getQuoteById(id);
+    final quote = await _repo.getQuoteById(id);
     if (quote == null) throw Exception('Quote not found.');
     
     // P0 FIX: Prevent re-approving or illegal state transitions
@@ -307,14 +325,14 @@ class FinanceService {
       }
     }
 
-    await _repository.updateQuoteStatus(id, 'Accepté');
+    await _repo.updateQuoteStatus(id, 'Accepté');
   }
 
   static Future<void> rejectQuote(int id) async {
-    await _repository.updateQuoteStatus(id, 'Refusé');
+    await _repo.updateQuoteStatus(id, 'Refusé');
   }
 
   static Future<void> deleteQuote(int id) async {
-    await _repository.deleteQuote(id);
+    await _repo.deleteQuote(id);
   }
 }

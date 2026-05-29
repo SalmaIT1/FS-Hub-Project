@@ -1,0 +1,44 @@
+@startuml
+title "Séquence — RH : Demande de congé → validation → solde"
+
+skinparam shadowing false
+autonumber
+
+actor Employee
+actor "RH / Manager" as RH
+participant "HrLeavesPage" as FE <<boundary>>
+participant "HrRoutes" as Routes <<control>>
+participant "HrService" as Svc <<control>>
+participant "HrRepository" as Repo <<control>>
+participant "NotificationService" as Notif <<control>>
+database "MySQL" as DB <<database>>
+
+Employee -> FE : formulaire congé
+FE -> Routes : POST /v1/hr/leaves\n(submit_leave)
+Routes -> Svc : submitLeaveRequest(employeeId, data)
+alt leave_type == paid_leave
+  Svc -> Repo : getUsedPaidLeaveDaysInYear()
+  Repo -> DB : SELECT SUM(total_days)...
+  Svc -> Svc : vérifier quota 21 jours
+end
+Svc -> Repo : submitLeaveRequest(data)\nstatus = pending
+Repo -> DB : INSERT leave_requests
+Svc --> FE : success
+
+RH -> FE : consulter file
+FE -> Routes : GET /v1/hr/leaves
+Routes -> Svc : getLeaveRequests(role, callerId)
+Svc -> Repo : getAllLeaveRequests()
+Repo --> FE : liste pending
+
+RH -> FE : approuver / refuser
+FE -> Routes : PUT /v1/hr/leaves/{id}\n(manage_leaves)
+Routes -> Svc : updateLeaveStatus(id, status, approvedBy)
+Svc -> Svc : interdire auto-approbation
+Svc -> Repo : updateLeaveStatus()
+Repo -> DB : UPDATE status, approved_by
+Svc -> Notif : createNotification()\ntype HR_LEAVE
+Notif -> DB : INSERT notifications
+Svc --> FE : Leave status updated
+
+@enduml

@@ -1,0 +1,40 @@
+@startuml
+title "Séquence — Tâches : assignation Chef → avancement Employé\n(task_routes.dart)"
+
+skinparam shadowing false
+autonumber
+
+actor "Chef / PM\nmanage_tasks" as PM
+actor "Exécutant\n(update_task_progress)" as EX
+participant "Flutter" as FE <<boundary>>
+participant "TaskRoutes" as TR <<control>>
+participant "TaskService" as TS <<control>>
+
+== Création (Chef) ==
+
+PM -> FE : nouvelle tâche sprint
+FE -> TR : POST /v1/tasks\nBearer JWT
+note right of TR
+  requirePermission('manage_tasks')
+  task_routes.dart L19
+end note
+TR -> TS : createTask(...)
+TS --> FE : tâche créée
+
+== Mise à jour statut / progression (Employé avec droit progression) ==
+
+EX -> FE : glisser colonne Kanban / % complété
+FE -> TR : PUT /v1/tasks/{id}\nBearer JWT\n{ … }
+note right of TR
+  PUT : requireRoleOrPermission ([],
+  ['manage_tasks','update_task_progress'])
+  task_routes.dart L21
+end note
+TR -> TS : updateTask(...)
+TS --> FE : 200
+
+alt Employé sans **update_task_progress** ni **manage_tasks**
+  TR --> EX : **403**
+end
+
+@enduml

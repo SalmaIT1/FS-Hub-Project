@@ -1,6 +1,7 @@
 import '../../data/repositories/project_repository.dart';
 import '../../../../shared/services/audit_service.dart';
 import '../../../../core/services/data_integrity_service.dart';
+import '../../../../shared/domain/project_status.dart';
 import '../../../finance/data/repositories/finance_repository.dart';
 
 class ProjectService {
@@ -47,9 +48,13 @@ class ProjectService {
   }
 
   static Future<int> createProject(Map<String, dynamic> data, {String? callerId}) async {
+    if (data.containsKey('statut')) {
+      data['statut'] = ProjectStatus.validate(data['statut']?.toString());
+    }
+
     // A project cannot start 'En cours' without members, and new projects 
     // haven't had members assigned yet.
-    if (data['statut'] == 'En cours') {
+    if (data['statut'] == ProjectStatus.enCours) {
       throw Exception('Un nouveau projet doit d’abord être planifié pour y ajouter des membres avant de passer "En cours".');
     }
 
@@ -62,7 +67,11 @@ class ProjectService {
   }
 
   static Future<void> updateProject(int id, Map<String, dynamic> data, {String? callerId}) async {
-    if (data['statut'] == 'En cours' || data['statut'] == 'Active') {
+    if (data.containsKey('statut')) {
+      data['statut'] = ProjectStatus.validate(data['statut']?.toString());
+    }
+
+    if (data['statut'] == ProjectStatus.enCours || data['statut'] == 'Active') {
       final members = await _repository.getProjectMembers(id);
       if (members.isEmpty) {
         throw Exception('Impossible de démarrer le projet : aucun membre assigné.');

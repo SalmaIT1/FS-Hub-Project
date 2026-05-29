@@ -22,8 +22,11 @@ dependencies:
   google_generative_ai: ^0.4.7
   path: ^1.9.0
   redis: ^4.1.0
+  meta: ^1.11.0
 
 dev_dependencies:
   lints: ^2.1.0
   test: ^1.24.0
+  mocktail: ^1.0.4
+  coverage: ^1.15.0
   mysql1: any

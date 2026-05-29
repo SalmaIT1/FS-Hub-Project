@@ -63,8 +63,15 @@ Middleware idempotency() {
 
         return response;
       } catch (e) {
-        print('[IDEMPOTENCY] Error: $e');
-        return innerHandler(request);
+        print('[IDEMPOTENCY] Error (failing closed): $e');
+        return Response(
+          503,
+          body: jsonEncode({
+            'success': false,
+            'message': 'Service temporarily unavailable',
+          }),
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
+        );
       }
     };
   };

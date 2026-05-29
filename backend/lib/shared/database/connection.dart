@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:mysql_client/mysql_client.dart';
 import 'package:dotenv/dotenv.dart';
+import '../../core/config/runtime_config.dart';
 
 extension ResultSetRowExtension on ResultSetRow {
   dynamic operator [](String name) => colByName(name);
@@ -138,14 +139,18 @@ class Connection {
   static Future<void> initialize() async {
     if (_initialized) return;
 
-    _env = DotEnv(includePlatformEnvironment: true)..load(['.env']);
+    _env = DotEnv(includePlatformEnvironment: true)
+      ..load(['test/integration/.env.integration', '.env']);
 
-    final host = _env['DB_HOST'] ?? 'localhost';
-    final port = int.tryParse(_env['DB_PORT'] ?? '3306') ?? 3306;
-    final user = _env['DB_USER'] ?? 'root';
-    final password = _env['DB_PASSWORD'] ?? '';
-    final dbName = _env['DB_NAME'] ?? 'fs_hub_db';
-    final secure = _env['DB_SECURE']?.toLowerCase() != 'false';
+    String cfg(String key, String fallback) =>
+        RuntimeConfig.get(key) ?? _env[key] ?? fallback;
+
+    final host = cfg('DB_HOST', 'localhost');
+    final port = int.tryParse(cfg('DB_PORT', '3306')) ?? 3306;
+    final user = cfg('DB_USER', 'root');
+    final password = cfg('DB_PASSWORD', '');
+    final dbName = cfg('DB_NAME', 'fs_hub_db');
+    final secure = cfg('DB_SECURE', 'true').toLowerCase() != 'false';
     const poolSize = 20; // Sufficient for moderate concurrency.
 
     final pool = List.generate(

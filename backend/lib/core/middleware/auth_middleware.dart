@@ -25,16 +25,67 @@ Middleware requireAuth() {
       final authHeader =
           request.headers['authorization'] ?? request.headers['Authorization'];
 
+      final path = request.requestedUri.path;
+
+      // Payslip HTML: one-time ticket (launchUrl cannot send Bearer header)
+      if (request.method == 'GET' && path.contains('/payslip')) {
+        final payslipTicket =
+            request.requestedUri.queryParameters['payslip_ticket'];
+        if (payslipTicket != null && payslipTicket.isNotEmpty) {
+          final segments = path.split('/');
+          final idIdx = segments.indexOf('salaries');
+          if (idIdx >= 0 && idIdx + 1 < segments.length) {
+            final salaryId = int.tryParse(segments[idIdx + 1]);
+            if (salaryId != null) {
+              final consumed = AuthService.consumePayslipTicket(
+                payslipTicket,
+                salaryId,
+              );
+              if (consumed != null) {
+                final userId = consumed['userId'] ?? '';
+                final userRole = consumed['role'] ?? 'Employé';
+                if (userId.isNotEmpty) {
+                  return _forwardAuthenticated(
+                    request,
+                    innerHandler,
+                    userId,
+                    userRole,
+                  );
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Media: one-time ticket only (never accept JWT in query string)
+      if (request.method == 'GET' && path.startsWith('/media/')) {
+        final raw = path.length > 7 ? path.substring(7) : '';
+        final filename = Uri.decodeComponent(raw);
+        final mediaTicket = request.requestedUri.queryParameters['media_ticket'];
+        if (mediaTicket != null && filename.isNotEmpty) {
+          final consumed = AuthService.consumeMediaTicket(mediaTicket, filename);
+          if (consumed != null) {
+            final userId = consumed['userId'] ?? '';
+            final userRole = consumed['role'] ?? 'Employé';
+            if (userId.isNotEmpty) {
+              return _forwardAuthenticated(
+                request,
+                innerHandler,
+                userId,
+                userRole,
+              );
+            }
+          }
+        }
+      }
+
       String? token;
       if (authHeader != null && authHeader.startsWith('Bearer ')) {
         token = authHeader.split(' ').last;
-      } else {
-        // P3 FIX: Support 'token' query parameter for browser-level access (media/downloads)
-        token = request.requestedUri.queryParameters['token'];
       }
 
       if (token == null) {
-        print('[AUTH] 401 missing/invalid Authorization header for ${request.method} ${request.requestedUri.path}');
         return Response(
           401,
           body: jsonEncode(
@@ -43,7 +94,6 @@ Middleware requireAuth() {
         );
       }
 
-      // Check if token has been invalidated (logged out).
       if (await AuthService.isTokenRevoked(token)) {
         return Response(
           401,
@@ -73,40 +123,55 @@ Middleware requireAuth() {
         );
       }
 
-      // P2 FIX: Cache lookup
-      List<String> permissions;
-      final cached = _permissionCache[userId];
-      if (cached != null && !cached.isExpired) {
-        permissions = cached.permissions;
-      } else {
-        permissions = await AuthService.getUserPermissions(userId);
-        
-        // P0 FIX: Prevent map from growing unbounded.
-        if (_permissionCache.length >= _maxCacheSize) {
-          // Prune expired entries
-          _permissionCache.removeWhere((key, value) => value.isExpired);
-          // If still too large, clear all to reset
-          if (_permissionCache.length >= _maxCacheSize) {
-            _permissionCache.clear();
-          }
-        }
-        
-        _permissionCache[userId] = _PermissionCacheEntry(
-          permissions: permissions,
-          expiresAt: DateTime.now().add(const Duration(minutes: 5)),
-        );
-      }
-
-      final updatedRequest = request.change(context: {
-        ...request.context,
-        'userId': userId,
-        'userRole': userRole,
-        'userPermissions': permissions,
-      });
-
-      return innerHandler(updatedRequest);
+      return _forwardAuthenticated(request, innerHandler, userId, userRole);
     };
   };
+}
+
+Future<Response> _forwardAuthenticated(
+  Request request,
+  Handler innerHandler,
+  String userId,
+  String userRole,
+) async {
+  List<String> permissions;
+  final cached = _permissionCache[userId];
+  if (cached != null && !cached.isExpired) {
+    permissions = cached.permissions;
+  } else {
+    permissions = await AuthService.getUserPermissions(userId);
+
+    if (_permissionCache.length >= _maxCacheSize) {
+      _permissionCache.removeWhere((key, value) => value.isExpired);
+      if (_permissionCache.length >= _maxCacheSize) {
+        _permissionCache.clear();
+      }
+    }
+
+    _permissionCache[userId] = _PermissionCacheEntry(
+      permissions: permissions,
+      expiresAt: DateTime.now().add(const Duration(minutes: 2)),
+    );
+  }
+
+  final updatedRequest = request.change(context: {
+    ...request.context,
+    'userId': userId,
+    'userRole': userRole,
+    'userPermissions': permissions,
+  });
+
+  return innerHandler(updatedRequest);
+}
+
+/// Call after role/permission changes for a user.
+void invalidatePermissionCache(String userId) {
+  _permissionCache.remove(userId);
+}
+
+/// Call when permission definitions change globally.
+void invalidateAllPermissionCaches() {
+  _permissionCache.clear();
 }
 
 class _PermissionCacheEntry {

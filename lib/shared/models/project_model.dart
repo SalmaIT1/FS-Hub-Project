@@ -1,3 +1,5 @@
+import 'project_status.dart';
+
 class Project {
   final int? id;
   final String nom;
@@ -27,7 +29,7 @@ class Project {
     this.dateDebut,
     this.dateFinPrevue,
     this.priorite = 'Moyenne',
-    this.statut = 'Planifie',
+    this.statut = ProjectStatus.aVenir,
     this.contractUrl,
     this.contractFilename,
     this.contractUploadedAt,
@@ -49,7 +51,7 @@ class Project {
       dateDebut: json['date_debut'] != null ? DateTime.tryParse(json['date_debut'].toString()) : null,
       dateFinPrevue: json['date_fin_prevue'] != null ? DateTime.tryParse(json['date_fin_prevue'].toString()) : null,
       priorite: json['priorite'] as String? ?? 'Moyenne',
-      statut: json['statut'] as String? ?? 'Planifie',
+      statut: ProjectStatus.normalize(json['statut']?.toString()),
       contractUrl: json['contract_url'] as String?,
       contractFilename: json['contract_filename'] as String?,
       contractUploadedAt: json['contract_uploaded_at'] as String?,

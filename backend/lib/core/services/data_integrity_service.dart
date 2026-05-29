@@ -161,38 +161,104 @@ class DataIntegrityService {
         }
       }
 
-      // 2. Check Projects past start date but still 'Planifie'
+      // 2. Projects past start date still 'A venir'
       final lateProjects = await _db.execute('''
-        SELECT p.id, p.nom, (SELECT count(*) FROM projet_membres pm WHERE pm.projet_id = p.id) as member_count
+        SELECT
+          p.id,
+          p.nom,
+          p.contract_url,
+          (SELECT COUNT(*) FROM projet_membres pm WHERE pm.projet_id = p.id) AS member_count
         FROM projets p
-        WHERE p.statut = 'A venir' AND p.date_debut <= NOW() AND p.is_deleted = FALSE
+        WHERE p.statut = 'A venir' AND p.date_debut <= CURDATE() AND p.is_deleted = FALSE
       ''');
 
       for (final row in lateProjects.rows) {
         final id = int.parse(row.colByName('id').toString());
         final nom = row.colByName('nom');
-        final memberCount = int.parse(row.colByName('member_count').toString());
+        final memberCount =
+            int.tryParse(row.colByName('member_count')?.toString() ?? '0') ?? 0;
+        final hasContract = row.colByName('contract_url')?.toString().isNotEmpty == true;
 
         if (memberCount == 0) {
-          // No members? Mark as late immediately and notify admins
-          await _db.execute("UPDATE projets SET statut = 'En retard' WHERE id = :id", {'id': id});
-          print('[DataIntegrityService] Project "$nom" marked EN RETARD (Missing members at start date)');
-        } else {
-          // Has members? Auto-start
-          await _db.execute("UPDATE projets SET statut = 'En cours' WHERE id = :id", {'id': id});
+          await _db.execute(
+            "UPDATE projets SET statut = 'Suspendu' WHERE id = :id",
+            {'id': id},
+          );
+          print(
+            '[DataIntegrityService] Project "$nom" suspended (no members at start date)',
+          );
+        } else if (hasContract && await _meetsProjectStartPaymentRule(id)) {
+          await _db.execute(
+            "UPDATE projets SET statut = 'En cours' WHERE id = :id",
+            {'id': id},
+          );
           print('[DataIntegrityService] Project "$nom" auto-started (En cours)');
+        } else {
+          print(
+            '[DataIntegrityService] Project "$nom" not auto-started (contract/payment rule)',
+          );
         }
       }
-      // 3. Mark active projects as 'En retard' if they pass finish date
+
+      // 3. Overdue active projects → Suspendu (matches MySQL ENUM)
       await _db.execute('''
-        UPDATE projets 
-        SET statut = 'En retard' 
-        WHERE statut = 'En cours' AND date_fin_prevue < NOW() AND is_deleted = FALSE
+        UPDATE projets
+        SET statut = 'Suspendu'
+        WHERE statut = 'En cours'
+          AND date_fin_prevue < CURDATE()
+          AND is_deleted = FALSE
       ''');
     } catch (e) {
       print('Deadline check error: $e');
     } finally {
       _isCheckingDeadlines = false;
+    }
+  }
+
+  /// Same 50% upfront rule as [ProjectService.updateProject] for auto-start.
+  static Future<bool> _meetsProjectStartPaymentRule(int projectId) async {
+    try {
+      final billedRes = await _db.execute('''
+        SELECT COALESCE(SUM(montant_ttc), 0) AS total
+        FROM factures
+        WHERE projet_id = :pid AND statut NOT IN ('Brouillon', 'Annulée')
+      ''', {'pid': projectId});
+      var baseline = double.tryParse(
+            billedRes.rows.first.assoc()['total']?.toString() ?? '0',
+          ) ??
+          0.0;
+
+      if (baseline <= 0) {
+        final quoteRes = await _db.execute('''
+          SELECT montant_ttc FROM devis
+          WHERE projet_id = :pid AND statut IN ('Accepté', 'Approuve', 'Approved')
+          ORDER BY id DESC LIMIT 1
+        ''', {'pid': projectId});
+        if (quoteRes.rows.isNotEmpty) {
+          baseline = double.tryParse(
+                quoteRes.rows.first.assoc()['montant_ttc']?.toString() ?? '0',
+              ) ??
+              0.0;
+        }
+      }
+
+      if (baseline <= 0) return true;
+
+      final paidRes = await _db.execute('''
+        SELECT COALESCE(SUM(p.montant), 0) AS total
+        FROM paiements p
+        INNER JOIN factures f ON f.id = p.facture_id
+        WHERE f.projet_id = :pid
+      ''', {'pid': projectId});
+      final paid = double.tryParse(
+            paidRes.rows.first.assoc()['total']?.toString() ?? '0',
+          ) ??
+          0.0;
+
+      return paid >= baseline * 0.5;
+    } catch (e) {
+      print('[DataIntegrityService] Payment rule check failed: $e');
+      return false;
     }
   }
 

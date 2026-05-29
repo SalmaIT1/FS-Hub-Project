@@ -1,10 +1,15 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 import '../models/client_model.dart';
 import 'package:fs_hub/core/services/api_service.dart';
 
 class ClientService {
-  static final String _baseUrl = '${ApiService.baseUrl}/v1/clients';
+  static String _query(Map<String, String?> params) {
+    final q = <String, String>{};
+    for (final e in params.entries) {
+      if (e.value != null && e.value!.isNotEmpty) q[e.key] = e.value!;
+    }
+    if (q.isEmpty) return '';
+    return '?${Uri(queryParameters: q).query}';
+  }
 
   static Future<Map<String, dynamic>> getAllClients({
     String? type,
@@ -13,180 +18,123 @@ class ClientService {
     int? limit,
   }) async {
     try {
-      final queryParams = <String, String>{};
-      if (type != null) queryParams['type'] = type;
-      if (search != null) queryParams['search'] = search;
-      if (page != null) queryParams['page'] = page.toString();
-      if (limit != null) queryParams['limit'] = limit.toString();
-      queryParams['ngrok-skip-browser-warning'] = '1';
-
-      final uri = Uri.parse(_baseUrl).replace(queryParameters: queryParams);
-      final response = await http.get(
-        uri,
-        headers: await ApiService.getAuthHeaders(),
+      final result = await ApiService.get(
+        '/clients${_query({
+          'type': type,
+          'search': search,
+          if (page != null) 'page': page.toString(),
+          if (limit != null) 'limit': limit.toString(),
+        })}',
       );
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        return {
-          'success': true,
-          'data': data,
-        };
-      } else {
-        return {
-          'success': false,
-          'error': 'Failed to load clients: ${response.statusCode}',
-        };
+      if (result['success'] == true) {
+        final data = result['data'];
+        if (data is List) {
+          return {'success': true, 'data': data};
+        }
+        if (data is Map && data['data'] is List) {
+          return {'success': true, 'data': data['data']};
+        }
       }
-    } catch (e) {
       return {
         'success': false,
-        'error': 'Network error: $e',
+        'error': result['error'] ?? 'Failed to load clients',
       };
+    } catch (e) {
+      return {'success': false, 'error': 'Network error: $e'};
     }
   }
 
   static Future<Map<String, dynamic>> getClientById(int id) async {
     try {
-      final response = await http.get(
-        Uri.parse('$_baseUrl/$id?ngrok-skip-browser-warning=1'),
-        headers: await ApiService.getAuthHeaders(),
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+      final result = await ApiService.get('/clients/$id');
+      if (result['success'] == true && result['data'] is Map) {
         return {
           'success': true,
-          'data': Client.fromJson(data),
-        };
-      } else {
-        return {
-          'success': false,
-          'error': 'Client not found: ${response.statusCode}',
+          'data': Client.fromJson(result['data'] as Map<String, dynamic>),
         };
       }
-    } catch (e) {
       return {
         'success': false,
-        'error': 'Network error: $e',
+        'error': result['error'] ?? 'Client not found',
       };
+    } catch (e) {
+      return {'success': false, 'error': 'Network error: $e'};
     }
   }
 
   static Future<Map<String, dynamic>> createClient(Client client) async {
     try {
-      final headers = await ApiService.getAuthHeaders();
-      final response = await http.post(
-        Uri.parse('$_baseUrl?ngrok-skip-browser-warning=1'),
-        headers: headers,
-        body: json.encode(client.toJson()),
-      );
-
-      if (response.statusCode == 201) {
-        final data = json.decode(response.body);
+      final result = await ApiService.post('/clients', body: client.toJson());
+      if (result['success'] == true && result['data'] is Map) {
         return {
           'success': true,
-          'data': Client.fromJson(data),
-        };
-      } else {
-        final errorData = json.decode(response.body);
-        return {
-          'success': false,
-          'error': errorData['message'] ?? 'Failed to create client',
+          'data': Client.fromJson(result['data'] as Map<String, dynamic>),
         };
       }
-    } catch (e) {
       return {
         'success': false,
-        'error': 'Network error: $e',
+        'error': result['error'] ?? result['message'] ?? 'Failed to create client',
       };
+    } catch (e) {
+      return {'success': false, 'error': 'Network error: $e'};
     }
   }
 
   static Future<Map<String, dynamic>> updateClient(int id, Client client) async {
     try {
-      final headers = await ApiService.getAuthHeaders();
-      final response = await http.put(
-        Uri.parse('$_baseUrl/$id?ngrok-skip-browser-warning=1'),
-        headers: headers,
-        body: json.encode(client.toJson()),
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+      final result = await ApiService.put('/clients/$id', body: client.toJson());
+      if (result['success'] == true && result['data'] is Map) {
         return {
           'success': true,
-          'data': Client.fromJson(data),
-        };
-      } else {
-        final errorData = json.decode(response.body);
-        return {
-          'success': false,
-          'error': errorData['message'] ?? 'Failed to update client',
+          'data': Client.fromJson(result['data'] as Map<String, dynamic>),
         };
       }
-    } catch (e) {
       return {
         'success': false,
-        'error': 'Network error: $e',
+        'error': result['error'] ?? result['message'] ?? 'Failed to update client',
       };
+    } catch (e) {
+      return {'success': false, 'error': 'Network error: $e'};
     }
   }
 
   static Future<Map<String, dynamic>> deleteClient(int id) async {
     try {
-      final response = await http.delete(
-        Uri.parse('$_baseUrl/$id?ngrok-skip-browser-warning=1'),
-        headers: await ApiService.getAuthHeaders(),
-      );
-
-      if (response.statusCode == 200) {
+      final result = await ApiService.delete('/clients/$id');
+      if (result['success'] == true) {
         return {
           'success': true,
-          'message': 'Client deleted successfully',
-        };
-      } else {
-        final errorData = json.decode(response.body);
-        return {
-          'success': false,
-          'error': errorData['message'] ?? 'Failed to delete client',
+          'message': result['message'] ?? 'Client deleted successfully',
         };
       }
-    } catch (e) {
       return {
         'success': false,
-        'error': 'Network error: $e',
+        'error': result['error'] ?? 'Failed to delete client',
       };
+    } catch (e) {
+      return {'success': false, 'error': 'Network error: $e'};
     }
   }
 
   static Future<Map<String, dynamic>> updateClientScore(int id, int score) async {
     try {
-      final headers = await ApiService.getAuthHeaders();
-      final response = await http.patch(
-        Uri.parse('$_baseUrl/$id/score?ngrok-skip-browser-warning=1'),
-        headers: headers,
-        body: json.encode({'score_credit': score}),
+      final result = await ApiService.patch(
+        '/clients/$id/score',
+        body: {'score_credit': score},
       );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+      if (result['success'] == true && result['data'] is Map) {
         return {
           'success': true,
-          'data': Client.fromJson(data),
-        };
-      } else {
-        final errorData = json.decode(response.body);
-        return {
-          'success': false,
-          'error': errorData['message'] ?? 'Failed to update client score',
+          'data': Client.fromJson(result['data'] as Map<String, dynamic>),
         };
       }
-    } catch (e) {
       return {
         'success': false,
-        'error': 'Network error: $e',
+        'error': result['error'] ?? 'Failed to update client score',
       };
+    } catch (e) {
+      return {'success': false, 'error': 'Network error: $e'};
     }
   }
 

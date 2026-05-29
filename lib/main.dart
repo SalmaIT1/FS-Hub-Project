@@ -80,9 +80,6 @@ void main() async {
       titleBarStyle: TitleBarStyle.hidden,
     );
     windowManager.waitUntilReadyToShow(windowOptions, () async {
-      // Set window icon — relative to the executable for native but for debug we set it here
-      // For Windows native builds, the icon comes from the executable resource
-      // But we can try to set it dynamically too
       try {
         await windowManager.setIcon('assets/images/logo.png');
       } catch (e) {

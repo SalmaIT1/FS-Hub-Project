@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:fs_hub/shared/models/project_model.dart';
+import 'package:fs_hub/shared/models/project_status.dart';
 import '../../clients/models/client_model.dart';
 import '../services/project_service.dart';
 import 'package:fs_hub/shared/widgets/luxury/luxury_app_bar.dart';
@@ -275,7 +276,8 @@ class _ProjectsListPageState extends State<ProjectsListPage> with SingleTickerPr
 }
 
   Widget _buildDeadlineAlert(Project project, bool isDark) {
-    if (project.dateFinPrevue == null || project.statut == 'Termine' || project.statut == 'Terminé') {
+    if (project.dateFinPrevue == null ||
+        project.statut == ProjectStatus.termine) {
       return const SizedBox.shrink();
     }
 
@@ -320,14 +322,25 @@ class _ProjectsListPageState extends State<ProjectsListPage> with SingleTickerPr
   }
 
   Widget _buildStatusBadge(String status) {
+    final normalized = ProjectStatus.normalize(status);
     Color color;
-    switch (status) {
-      case 'Planifie': case 'Planifié': color = Colors.blue; break;
-      case 'En cours': color = Colors.orange; break;
-      case 'Termine': case 'Terminé': color = Colors.green; break;
-      case 'En retard': color = Colors.red; break;
-      default: color = Colors.grey;
+    switch (normalized) {
+      case ProjectStatus.aVenir:
+        color = Colors.blue;
+        break;
+      case ProjectStatus.enCours:
+        color = Colors.orange;
+        break;
+      case ProjectStatus.termine:
+        color = Colors.green;
+        break;
+      case ProjectStatus.suspendu:
+        color = Colors.red;
+        break;
+      default:
+        color = Colors.grey;
     }
+    final label = ProjectStatus.labelsFr[normalized] ?? normalized;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
@@ -336,7 +349,7 @@ class _ProjectsListPageState extends State<ProjectsListPage> with SingleTickerPr
         border: Border.all(color: color.withOpacity(0.3)),
       ),
       child: Text(
-        status,
+        label,
         style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold),
       ),
     );
@@ -465,7 +478,7 @@ class _AddEditProjectDialogState extends State<AddEditProjectDialog> {
   int? _selectedClientId;
   List<Client> _clients = [];
   String _selectedPriorite = 'Moyenne';
-  String _selectedStatut = 'Planifie';
+  String _selectedStatut = ProjectStatus.aVenir;
   DateTime? _dateDebut;
   DateTime? _dateFin;
   bool _isSaving = false;
@@ -488,14 +501,7 @@ class _AddEditProjectDialogState extends State<AddEditProjectDialog> {
       _selectedClientId = widget.project!.clientId;
       
       // Normalize values to match dropdown items exactly (avoiding accent mismatches)
-      final status = widget.project!.statut;
-      if (status == 'Planifié') {
-        _selectedStatut = 'Planifie';
-      } else if (status == 'Terminé') {
-        _selectedStatut = 'Termine';
-      } else {
-        _selectedStatut = status;
-      }
+      _selectedStatut = ProjectStatus.normalize(widget.project!.statut);
 
       _selectedPriorite = widget.project!.priorite;
       _dateDebut = widget.project!.dateDebut;
@@ -641,12 +647,12 @@ class _AddEditProjectDialogState extends State<AddEditProjectDialog> {
                               children: [
                                 _buildLabel('PRIORITÉ'),
                                 _buildDropdownField<String>(
-                                  value: ['Faible', 'Moyenne', 'Haute', 'Critique'].contains(_selectedPriorite) ? _selectedPriorite : 'Moyenne',
+                                  value: ['Basse', 'Moyenne', 'Haute', 'Critique'].contains(_selectedPriorite) ? _selectedPriorite : 'Moyenne',
                                   hint: 'Priorité',
                                   isDark: isDark,
                                   icon: Icons.priority_high_rounded,
                                   items: [
-                                    {'value': 'Faible', 'label': 'Faible'},
+                                    {'value': 'Basse', 'label': 'Basse'},
                                     {'value': 'Moyenne', 'label': 'Moyenne'},
                                     {'value': 'Haute', 'label': 'Haute'},
                                     {'value': 'Critique', 'label': 'Critique'}
@@ -666,17 +672,16 @@ class _AddEditProjectDialogState extends State<AddEditProjectDialog> {
                               children: [
                                 _buildLabel('STATUT'),
                                 _buildDropdownField<String>(
-                                  value: ['Planifie', 'En cours', 'Termine', 'En retard'].contains(_selectedStatut) ? _selectedStatut : 'Planifie',
+                                  value: ProjectStatus.all.contains(_selectedStatut) ? _selectedStatut : ProjectStatus.aVenir,
                                   hint: 'Statut',
                                   isDark: isDark,
                                   icon: Icons.flag_rounded,
                                   items: [
-                                    {'value': 'Planifie', 'label': 'Planifié'},
-                                    // 'En cours' only visible if a contract exists
+                                    {'value': ProjectStatus.aVenir, 'label': 'À venir'},
                                     if (widget.project != null && (_projectHasContract || _contractBytes != null))
-                                      {'value': 'En cours', 'label': 'En cours ✓'},
-                                    {'value': 'Termine', 'label': 'Terminé'},
-                                    {'value': 'En retard', 'label': 'En retard'}
+                                      {'value': ProjectStatus.enCours, 'label': 'En cours ✓'},
+                                    {'value': ProjectStatus.termine, 'label': 'Terminé'},
+                                    {'value': ProjectStatus.suspendu, 'label': 'Suspendu'},
                                   ].map<DropdownMenuItem<String>>((s) => DropdownMenuItem<String>(
                                     value: s['value']!,
                                     child: Text(s['label']!, style: const TextStyle(fontSize: 14)),

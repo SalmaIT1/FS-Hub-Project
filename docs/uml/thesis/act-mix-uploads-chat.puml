@@ -1,0 +1,39 @@
+@startuml
+title "Activité — Fichier joint dans conversation sécurisée\n(upload signed-url + ConversationRoutes)"
+
+skinparam shadowing false
+
+|Expéditeur|
+start
+:Démarrage upload léger;
+if (JWT valide `/v1/uploads`) then (non)
+  #Pink:401/403;
+  stop
+endif
+
+|UploadRoutes|
+:POST /signed-url → réservation métadonnées;
+|Expéditeur|
+:PUT binaire sur slot interne;
+
+|UploadRoutes|
+if (authUserId == uploadedBy) then (non)
+  #Pink:403 Forbidden;
+  stop
+endif
+:Mettre à jour taille / chemin;
+:POST /complete;
+
+|ConversationRoutes|
+:POST /v1/conversations/{id}/messages\nréf média ;
+
+|Destinataire|
+:Notification / pull liste messages;
+if (droits lecture conversation) then (oui)
+  #LightGreen:PJ visible selon stratégie client;
+else (non)
+  #Pink:Accès conversations refusé;
+endif
+stop
+
+@enduml

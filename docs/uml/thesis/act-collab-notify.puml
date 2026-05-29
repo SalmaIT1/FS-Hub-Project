@@ -1,0 +1,44 @@
+@startuml
+title "Activité — Messages & notifications (Collaboration)"
+
+skinparam shadowing false
+
+|Utilisateur|
+start
+:Authentification JWT;
+
+fork
+  :Ouvrir /chat\nConversationListPage;
+  :POST /v1/auth/ws-ticket;
+  :Connexion WebSocket /ws;
+fork again
+  :Navigation app\nnotifications ou badge;
+end fork
+
+|Envoi message|
+:Composer message\n(REST ou via ChatController);
+:ChatService.sendMessage();
+:Persistance MySQL\nchat_messages;
+
+|Diffusion|
+:WebSocketServer.broadcastToConversationMembers();
+if (Cluster multi-instances ?) then (oui)
+  :RedisService.publish\nfshub:broadcast:room;
+endif
+:Clients abonnés reçoivent\nmessage:created;
+
+|Notifications parallèles|
+partition "Événements métier" {
+  if (Tâche assignée ?) then (oui)
+    :NotificationService\ntype TASK_ASSIGNED;
+  endif
+  if (Congé traité ?) then (oui)
+    :type HR_LEAVE;
+  endif
+}
+:GET /v1/notifications;
+:Marquer lu (PUT);
+
+stop
+
+@enduml

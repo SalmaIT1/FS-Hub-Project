@@ -3,9 +3,10 @@ import 'package:crypto/crypto.dart';
 import 'package:bcrypt/bcrypt.dart';
 import 'package:uuid/uuid.dart';
 import '../../../../shared/database/connection.dart';
+import '../../domain/repositories/auth_repository_port.dart';
 import '../models/user_model.dart';
 
-class AuthRepository {
+class AuthRepository implements AuthRepositoryPort {
   final _db = DBConnection.getConnection();
 
   Future<Map<String, dynamic>?> findUserByUsernameOrEmail(String username) async {
@@ -209,15 +210,23 @@ class AuthRepository {
       // 1. Fetch all permissions associated with the user's role and direct permissions
       // We join roles and permissions to get the full list in one pass where possible.
       final result = await _db.execute('''
-        SELECT DISTINCT p.nom 
+        SELECT DISTINCT p.nom
+        FROM permissions p
+        INNER JOIN role_permissions rp ON p.id = rp.permission_id
+        INNER JOIN user_roles ur ON rp.role_id = ur.role_id
+        WHERE ur.user_id = :userId
+
+        UNION
+
+        SELECT DISTINCT p.nom
         FROM permissions p
         JOIN role_permissions rp ON p.id = rp.permission_id
         JOIN roles r ON rp.role_id = r.id
         JOIN users u ON LOWER(r.nom) = LOWER(u.role)
         WHERE u.id = :userId
-        
+
         UNION
-        
+
         -- Direct permissions from string field (legacy support)
         SELECT TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(u.permissions, ',', n.n), ',', -1)) as nom
         FROM users u

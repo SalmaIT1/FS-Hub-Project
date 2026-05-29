@@ -1,0 +1,82 @@
+@startuml
+title "Séquence — Auth : Login → JWT → validation RBAC (hr_routes.dart)"
+
+skinparam shadowing false
+autonumber
+
+actor Employé
+actor RH
+participant "GlassLoginPage\n(Flutter)" as FE <<boundary>>
+participant "AuthRoutes\nPOST /v1/auth/login" as AR <<control>>
+participant "AuthService" as AS <<control>>
+participant "AuthRepository" as Repo <<control>>
+database "MySQL" as DB <<database>>
+participant "requireAuth()\nauth_middleware" as MW <<control>>
+participant "permission_middleware" as RBAC <<control>>
+participant "HrRoutes" as HR <<control>>
+participant "HrService" as HrSvc <<control>>
+
+== Connexion ==
+
+Employé -> FE : saisir email + password
+FE -> AR : POST /v1/auth/login\n{email, password}
+AR -> AS : login(credential, password)
+AS -> Repo : findUserByUsernameOrEmail()
+Repo -> DB : SELECT users...
+DB --> Repo : userRow
+AS -> AS : BCrypt.checkpw()
+AS -> AS : _generateAccessToken(userId, role)\nJWT HS256 12h
+AS -> Repo : saveRefreshToken()
+AS --> AR : AuthSessionModel JSON
+AR --> FE : 200 {accessToken, refreshToken, user}
+FE -> FE : TokenStorage.save()
+
+== GET congés (lecture) ==
+
+note over HR, RBAC
+  hr_routes.dart L24 :
+  requireRoleOrPermission([], ['view_employees', 'submit_leave'])
+  — PAS manage_leaves
+end note
+
+Employé -> FE : consulter ses congés
+FE -> HR : GET /v1/hr/leaves\nAuthorization: Bearer {jwt}
+HR -> MW : requireAuth()
+MW -> AS : isTokenRevoked(token)
+MW -> AS : verifyToken(token)
+MW -> AS : getUserPermissions(userId)
+note right of MW
+  Contexte : userId, userRole,
+  userPermissions
+end note
+MW -> RBAC : requireRoleOrPermission(\n[], [view_employees, submit_leave])
+alt possède view_employees OU submit_leave (ou Admin)
+  RBAC -> HR : _getLeaveRequests()
+  HR -> HrSvc : getLeaveRequests(role, userId)
+  HrSvc --> FE : 200 {success, data}
+else 403
+  RBAC --> FE : Insufficient permissions
+end
+
+== PUT congés (validation RH) ==
+
+note over HR, RBAC
+  hr_routes.dart L26 :
+  requirePermission('manage_leaves')
+  — approbation / refus uniquement
+end note
+
+RH -> FE : approuver demande
+FE -> HR : PUT /v1/hr/leaves/{id}\n{status: approved}\nBearer {jwt}
+HR -> MW : requireAuth()
+MW -> AS : verifyToken(token) + permissions
+MW -> RBAC : requirePermission('manage_leaves')
+alt possède manage_leaves (ou Admin)
+  RBAC -> HR : _updateLeaveStatus()
+  HR -> HrSvc : updateLeaveStatus(id, status, approvedBy)
+  HrSvc --> FE : 200 Leave status updated
+else 403
+  RBAC --> FE : Insufficient permissions
+end
+
+@enduml

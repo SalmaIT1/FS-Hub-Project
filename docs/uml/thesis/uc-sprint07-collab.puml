@@ -1,0 +1,36 @@
+@startuml
+title "Cas d'utilisation — Sprint 7 : Collaboration & IA"
+
+left to right direction
+skinparam shadowing false
+
+actor Admin <<actor>>
+actor Manager <<actor>>
+actor Employee <<actor>>
+actor Client <<actor>>
+
+rectangle "FS-Hub — Collaboration & IA" {
+  usecase UC_Chat as "Chatter temps réel\n(/v1/conversations + /ws)" <<usecase>>
+  usecase UC_Notify as "Recevoir notifications\n(/v1/notifications)" <<usecase>>
+  usecase UC_Upload as "Uploader médias\n(/v1/uploads, /media)" <<usecase>>
+  usecase UC_AI as "Consulter prédictions IA\n(/v1/ai)" <<usecase>>
+  usecase UC_Email as "Envoyer emails\n(/v1/email)" <<usecase>>
+
+  UC_Chat ..> UC_Login : <<include>>
+  UC_Chat ..> UC_WSTicket : <<include>>
+  UC_Notify ..> UC_Login : <<include>>
+  UC_AI ..> UC_Login : <<include>>
+}
+
+usecase UC_Login as "S'authentifier" <<usecase>>
+usecase UC_WSTicket as "Ticket WebSocket" <<usecase>>
+
+Admin --> UC_AI
+Manager --> UC_AI
+Employee --> UC_Chat
+Employee --> UC_Notify
+Employee --> UC_Upload
+Client --> UC_Chat
+Admin --> UC_Email
+
+@enduml

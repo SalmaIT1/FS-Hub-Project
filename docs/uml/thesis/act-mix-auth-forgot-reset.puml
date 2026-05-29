@@ -1,0 +1,32 @@
+@startuml
+title "Activité — Mot de passe oublié → email → reset\n(auth_service.dart forgotPassword + resetPasswordWithToken)"
+
+skinparam shadowing false
+
+|Utilisateur|
+start
+:Déclarer email sur\nPOST /v1/auth/forgot-password;
+|AuthService|
+if (Utilisateur existe ?) then (non)
+  #LightBlue:Réponse uniforme\n(sans fuite d''existence compte);
+  stop
+else (oui)
+  :Générer token UUID + hash SHA-256;
+  :INSERT password_reset_tokens\n(expire 24h);
+  |EmailService SMTP|
+  :sendPasswordResetEmail(...);
+  |Utilisateur|
+  :Ouvre lien / saisit nouveau MDP;
+  :POST /v1/auth/reset-password;
+  |AuthService|
+  if (Jeton valide + non expiré ?) then (oui)
+    :MAJ mot de passe hashé;
+    :Invalider / consommer jeton;
+    #LightGreen:Session récupérable login;
+  else (non)
+    #Pink:400 token invalide;
+  endif
+endif
+stop
+
+@enduml

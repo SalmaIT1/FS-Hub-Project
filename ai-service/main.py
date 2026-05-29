@@ -1,101 +1,45 @@
-from fastapi import FastAPI, HTTPException, Security
-from fastapi.security import APIKeyHeader
-from pydantic import BaseModel
-from services.prediction_service import PredictionService
-import uvicorn
-import os
+"""
+FS-Hub AI Decision Support Service — entry point.
+"""
+from contextlib import asynccontextmanager
 
-app = FastAPI(title="FS-Hub AI Service")
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
-API_KEY_NAME = "X-API-Key"
-# P0-3 FIX: Removed insecure hardcoded fallback default.
-# Service will refuse to start if AI_API_KEY is not explicitly provided.
-API_KEY = os.getenv("AI_API_KEY")
-if not API_KEY:
-    raise RuntimeError(
-        "[SECURITY] AI_API_KEY environment variable is required but not set. "
-        "Set it in your .env file or container environment before starting the service."
-    )
+from app.api.v1.routes import legacy, router as v1_router
+from app.core.config import SERVICE_NAME
+from app.core.security import resolve_api_key
 
-api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=True)
+# Validate API key configuration at startup
+resolve_api_key()
 
-async def get_api_key(api_header: str = Security(api_key_header)):
-    if api_header != API_KEY:
-        raise HTTPException(status_code=403, detail="Could not validate AI credentials")
-    return api_header
 
-# Request Models
-class ProjectDelayRequest(BaseModel):
-    total_tasks: int
-    completed_tasks: int
-    delayed_tasks: int
-    team_availability: float # 0.0 to 1.0
-    days_remaining: int
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print(f"[{SERVICE_NAME}] Models: ready (heuristic + optional joblib registry)")
+    yield
 
-class DurationRequest(BaseModel):
-    nb_tasks: int
-    avg_task_duration: float
-    team_size: int
 
-class ClientRiskRequest(BaseModel):
-    total_amount: float
-    paid_amount: float
-    late_payments: int
-    avg_payment_delay: float
+app = FastAPI(title=SERVICE_NAME, version="1.0.0", lifespan=lifespan)
 
-class HRAnalysisRequest(BaseModel):
-    total_days: int
-    absent_days: int
-    late_days: int
-    completed_tasks: int
-    assigned_tasks: int
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[],
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
+    allow_headers=["X-API-Key", "Content-Type"],
+)
 
-@app.post("/ai/predict-delay", dependencies=[Security(get_api_key)])
-async def predict_delay(req: ProjectDelayRequest):
-    try:
-        score = PredictionService.predict_project_delay(
-            req.total_tasks, req.completed_tasks, req.delayed_tasks, 
-            req.team_availability, req.days_remaining
-        )
-        return {"status": "success", "data": {"risk_score": score}}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+app.include_router(v1_router)
+app.include_router(legacy)
 
-@app.post("/ai/estimate-duration", dependencies=[Security(get_api_key)])
-async def estimate_duration(req: DurationRequest):
-    try:
-        days = PredictionService.estimate_duration(
-            req.nb_tasks, req.avg_task_duration, req.team_size
-        )
-        return {"status": "success", "data": {"estimated_days_remaining": days}}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/ai/client-risk", dependencies=[Security(get_api_key)])
-async def client_risk(req: ClientRiskRequest):
-    try:
-        level = PredictionService.analyze_client_risk(
-            req.total_amount, req.paid_amount, req.late_payments, req.avg_payment_delay
-        )
-        return {"status": "success", "data": {"risk_level": level}}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/ai/employee-performance", dependencies=[Security(get_api_key)])
-async def employee_performance(req: HRAnalysisRequest):
-    try:
-        metrics = PredictionService.analyze_hr_performance(
-            req.total_days, req.absent_days, req.late_days, 
-            req.completed_tasks, req.assigned_tasks
-        )
-        return {"status": "success", "data": metrics}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-# P3-6 FIX: Health check for Docker liveness/readiness probes.
 @app.get("/health")
 async def health_check():
-    return {"status": "ok", "service": "FS-Hub AI Service"}
+    return {"status": "ok", "service": SERVICE_NAME}
+
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    import uvicorn
+
+    uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=False)

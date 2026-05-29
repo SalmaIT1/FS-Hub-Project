@@ -1,8 +1,9 @@
 import 'dart:io';
 import '../../../../shared/database/connection.dart';
+import '../../domain/repositories/project_repository_port.dart';
 import '../models/project_model.dart';
 
-class ProjectRepository {
+class ProjectRepository implements ProjectRepositoryPort {
   final _db = DBConnection.getConnection();
 
   Future<List<ProjectModel>> getAllProjects() async {

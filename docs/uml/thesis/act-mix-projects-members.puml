@@ -1,0 +1,32 @@
+@startuml
+title "Activité — Constitution équipe projet\n(project_routes.dart manage vs view)"
+
+skinparam shadowing false
+
+|Chef de projet|
+start
+:Naviguer projet;
+:POST /v1/projects/{id}/members;
+|ProjectRoutes|
+if (manage_projects) then (oui)
+  |ProjectService|
+  :Ajouter membre + règles métier;
+else (non)
+  #Pink:403;
+  stop
+endif
+
+|Collaborateur nouvellement ajouté|
+:Reçoit accès listes / tâches liées;
+
+|Chef de projet|
+:GET /v1/projects/{id}/members;
+|ProjectRoutes|
+if (view_projects) then (oui)
+  #LightGreen:Équipe visible;
+else (non)
+  #Pink:403;
+endif
+stop
+
+@enduml

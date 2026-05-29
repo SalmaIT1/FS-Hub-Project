@@ -1,0 +1,45 @@
+@startuml
+title "Activité — Cycle de vie facture (Finance)"
+
+skinparam shadowing false
+
+|Comptable|
+start
+:Créer facture\nFinanceService.createInvoice();
+:Brouillon;
+
+if (Type INVOICE ?) then (oui)
+  if (Devis lié Accepté ?) then (non)
+    #Pink:Blocage création;
+    stop
+  endif
+endif
+
+:Édition montants\nPUT updateInvoice();
+
+if (Émission client ?) then (oui)
+  :statut → **Envoyée**;
+else (non)
+  :Reste Brouillon;
+endif
+
+|Encaissement|
+:POST createPayment();
+partition "Transaction MySQL" {
+  :Verrouiller facture FOR UPDATE;
+  :Calculer solde restant;
+  if (montant > solde ?) then (oui)
+    #Pink:Overpayment Error;
+    stop
+  endif
+  :INSERT paiements;
+  if (total payé >= TTC ?) then (oui)
+    :statut → **Payée**;
+  elseif (partiel ?) then (oui)
+    :statut → **Partiellement Payée**;
+  endif
+}
+
+stop
+
+@enduml

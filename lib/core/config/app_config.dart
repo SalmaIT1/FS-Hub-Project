@@ -1,5 +1,9 @@
+/// Application configuration — values from `--dart-define` at build time.
 class AppConfig {
-  static const String apiBaseUrl = 'https://raegan-iridous-ernie.ngrok-free.dev';
+  static const String apiBaseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://localhost:8080',
+  );
 
   static String get apiV1BaseUrl => '$apiBaseUrl/v1';
 
@@ -13,4 +17,7 @@ class AppConfig {
   }
 
   static const String protocolVersion = '1.1';
+
+  static bool get isProduction =>
+      const bool.fromEnvironment('dart.vm.product', defaultValue: false);
 }

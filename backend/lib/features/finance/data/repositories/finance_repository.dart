@@ -1,7 +1,8 @@
 import '../../../../shared/database/connection.dart';
+import '../../domain/repositories/finance_repository_port.dart';
 import '../models/finance_model.dart';
 
-class FinanceRepository {
+class FinanceRepository implements FinanceRepositoryPort {
   final _db = DBConnection.getConnection();
 
   Future<Map<String, dynamic>> getFinanceSummary() async {
