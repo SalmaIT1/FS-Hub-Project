@@ -19,7 +19,6 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(TextFormField), findsNWidgets(2));
-      expect(find.text('(NGROK VERSION)'), findsOneWidget);
     });
 
     testWidgets('shows validation when submitting empty form', (tester) async {

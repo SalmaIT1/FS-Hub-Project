@@ -433,3 +433,84 @@ backend/test/integration/ws_ticket_integration_test.dart
 flutter test test/unit/chat_ws_event_parser_test.dart test/unit/chat_controller_test.dart
 cd backend && dart test test/unit/chat
 ```
+
+---
+
+## Architecture globale du pipeline
+
+L'architecture du pipeline FS-Hub est conçue pour garantir une montée en qualité progressive, depuis le développement local jusqu'à la production. Elle combine des analyses statiques, des tests unitaires/Widget/interopérables, des tests d'intégration, des tests E2E et des builds conditionnels.
+
+### Schéma du pipeline
+
+```text
+Développement local
+      │
+      ▼
+Analyse statique
+      │
+      ▼
+Tests unitaires
+      │
+      ▼
+Tests d'intégration
+      │
+      ▼
+Tests E2E
+      │
+      ▼
+Build Docker / Publication conditionnelle
+```
+
+### 1. Étapes principales
+
+1. Analyse statique
+   - `flutter analyze` pour le frontend Flutter
+   - `dart analyze` pour le backend Shelf
+   - `pylint` / `mypy` ou équivalent pour `ai-service` si applicable
+
+2. Tests unitaires
+   - `flutter test` pour les règles, validateurs et widgets critiques
+   - `dart test` pour la logique backend, RBAC, JWT, services métier
+   - `pytest` pour les routes AI, schémas Pydantic et logique heuristique
+
+3. Tests d'intégration
+   - Backend Shelf en-tête via `docker-compose.test.yml` (MySQL + Redis)
+   - Tests d'intégration backend marqués `--tags integration`
+   - Exécution d'un backend de test in-process pour valider la chaîne complète route → DB/Redis
+
+4. Tests E2E
+   - `integration_test` Flutter sur simulateur/emulateur
+   - Parcours utilisateur complet : connexion, navigation, actions métier
+   - Dépendance à un backend live configuré pour l'environnement d'E2E
+
+5. Build et publication conditionnelle
+   - Construction des images Docker si toutes les étapes précédentes sont validées
+   - Déploiement ou packaging déclenché seulement après succès des tests
+
+### 2. Flux de données et composants
+
+- Code source Flutter (`lib/`, `test/`) → analyse statique + tests widget/ unité
+- Backend Dart (`backend/lib/`, `backend/test/`) → tests unitaires et d'intégration
+- AI service Python (`ai-service/`) → tests Pytest de l’API et des schémas
+- `docker-compose.test.yml` orchestre MySQL/Redis pour la validation d’intégration
+- `backend` et `ai-service` exposent des endpoints sécurisés et testés par clé API / JWT
+
+### 3. Principe “shift-left”
+
+- Les règles métier pures sont isolées dans des modules testables sans dépendances externes
+- Les tests unitaires sont prioritaires pour attraper les régressions tôt
+- Les tests d’intégration vérifient la cohérence entre le code métier et les services comme MySQL ou Redis
+- Les E2E valident le parcours utilisateur complet avec des conditions proches de la production
+
+### 4. CI/CD et gating
+
+- Le pipeline CI exécute d’abord l’analyse statique et les tests unitaires
+- Si ces étapes réussissent, il lance les tests d’intégration puis les E2E selon le job
+- Les builds Docker sont bloqués tant que le pipeline échoue sur une étape critique
+- Les retours sont configurés pour échouer rapidement sur les erreurs de sécurité ou de tests
+
+### 5. Résilience et débogage
+
+- Logs détaillés lors d’échec de tests d’intégration et E2E
+- Une étape de rollback ou stop est prévue si des tests de sécurité ou d’authentification échouent
+- Les tests isolés `backend/test/`, `test/` et `ai-service/tests/` peuvent être exécutés localement pour reproduire rapidement un échec
